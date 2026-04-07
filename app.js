@@ -89,6 +89,8 @@ class TrimensionApp {
         this.primitiveChip = document.getElementById('primitive-chip');
         this.orientationChip = document.getElementById('orientation-chip');
         this.ghostToggleBtn = document.getElementById('ghost-toggle-btn');
+        this.addBtn = document.getElementById('add-btn');
+        this.addDropdown = document.getElementById('add-dropdown');
         this.primitiveSectionHeader = document.getElementById('primitive-section-header');
         this.primitiveSectionContent = document.getElementById('primitive-section-content');
         this.primitiveSectionArrow = document.getElementById('primitive-section-arrow');
@@ -119,14 +121,14 @@ class TrimensionApp {
         ];
         this.constructionColorIndex = 0;
         this.objectGroupCollapsed = {
-            triangles: false,
-            segments: false,
-            angles: false,
-            planes: false,
-            labels: false
+            triangles: true,
+            segments: true,
+            angles: true,
+            planes: true,
+            labels: true
         };
-        this.primitiveSectionCollapsed = false;
-        this.pointsSectionCollapsed = false;
+        this.primitiveSectionCollapsed = true;
+        this.pointsSectionCollapsed = true;
 
         this.state = {
             primitive: 'cuboid',
@@ -236,10 +238,21 @@ class TrimensionApp {
         this.handleWindowResize = this.onWindowResize.bind(this);
         this.handleCanvasPointerDown = this.handleCanvasPointerDown.bind(this);
 
-        // Ensure arrows render as plain text glyphs regardless of HTML encoding
-        this.primitiveSectionArrow.textContent = '\u25BC\uFE0E';
-        this.pointsSectionArrow.textContent = '\u25BC\uFE0E';
-        Object.values(this.objectSections).forEach((sec) => { sec.arrow.textContent = '\u25BC\uFE0E'; });
+        // Ensure startup collapse state and arrows are consistent
+        this.primitiveSectionContent.classList.toggle('collapsed', this.primitiveSectionCollapsed);
+        this.primitiveSectionHeader.setAttribute('aria-expanded', this.primitiveSectionCollapsed ? 'false' : 'true');
+        this.primitiveSectionArrow.textContent = this.primitiveSectionCollapsed ? '\u25B6\uFE0E' : '\u25BC\uFE0E';
+
+        this.pointsSectionContent.classList.toggle('collapsed', this.pointsSectionCollapsed);
+        this.pointsSectionHeader.setAttribute('aria-expanded', this.pointsSectionCollapsed ? 'false' : 'true');
+        this.pointsSectionArrow.textContent = this.pointsSectionCollapsed ? '\u25B6\uFE0E' : '\u25BC\uFE0E';
+
+        Object.entries(this.objectSections).forEach(([key, sec]) => {
+            const collapsed = this.objectGroupCollapsed[key];
+            sec.content.classList.toggle('collapsed', collapsed);
+            sec.header.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            sec.arrow.textContent = collapsed ? '\u25B6\uFE0E' : '\u25BC\uFE0E';
+        });
 
         this.initThree();
         this.bindEvents();
@@ -294,8 +307,13 @@ class TrimensionApp {
 
         this.canvas.addEventListener('pointerdown', this.handleCanvasPointerDown, { passive: true });
 
-        this.primitiveSelect.addEventListener('change', () => {
-            this.state.primitive = this.primitiveSelect.value;
+        const applyPrimitiveSelection = (primitiveKey) => {
+            if (!this.orientations[primitiveKey]) {
+                return;
+            }
+
+            this.primitiveSelect.value = primitiveKey;
+            this.state.primitive = primitiveKey;
             const defaultOrientation = this.orientations[this.state.primitive][0];
             this.state.orientation = defaultOrientation.value;
             this.updateOrientationOptions();
@@ -303,6 +321,34 @@ class TrimensionApp {
             this.resetSceneObjects();
             this.buildPrimitive();
             this.closePanelOnMobile();
+        };
+
+        this.primitiveSelect.addEventListener('change', () => {
+            applyPrimitiveSelection(this.primitiveSelect.value);
+        });
+
+        this.addBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const isOpening = this.addDropdown.style.display === 'none';
+            this.addDropdown.style.display = isOpening ? 'block' : 'none';
+        });
+
+        this.addDropdown.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const item = event.target.closest('[data-primitive]');
+            if (!item) {
+                return;
+            }
+
+            applyPrimitiveSelection(item.dataset.primitive);
+            this.addDropdown.style.display = 'none';
+        });
+
+        document.addEventListener('click', (event) => {
+            if (event.target.closest('#add-btn') || event.target.closest('#add-dropdown')) {
+                return;
+            }
+            this.addDropdown.style.display = 'none';
         });
 
         this.orientationSelect.addEventListener('change', () => {
@@ -419,6 +465,7 @@ class TrimensionApp {
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(width, height, false);
         this.updateConstructionLineMaterialResolutions();
+        this.refreshSliderBadges();
     }
 
     updateConstructionLineMaterialResolutions() {
@@ -426,6 +473,31 @@ class TrimensionApp {
         const height = this.canvas.clientHeight;
         this.constructionLineMaterials.forEach((material) => {
             material.resolution.set(width, height);
+        });
+    }
+
+    positionSliderBadge(input, badge) {
+        const min = Number(input.min);
+        const max = Number(input.max);
+        const value = Number(input.value);
+        const ratio = max === min ? 0 : (value - min) / (max - min);
+
+        input.style.setProperty('--slider-fill', `${Math.max(0, Math.min(1, ratio)) * 100}%`);
+
+        const width = input.clientWidth || 1;
+        const thumbSize = 18;
+        const badgeHalf = (badge.offsetWidth || 24) / 2;
+        const rawX = ratio * (width - thumbSize) + (thumbSize / 2);
+        const x = Math.max(badgeHalf, Math.min(width - badgeHalf, rawX));
+        badge.style.left = `${x}px`;
+    }
+
+    refreshSliderBadges() {
+        this.primitiveParamsEl.querySelectorAll('.slider-input-wrap').forEach((wrap) => {
+            const input = wrap.querySelector('.slider-input');
+            const badge = wrap.querySelector('.slider-value-badge');
+            if (!input || !badge) return;
+            this.positionSliderBadge(input, badge);
         });
     }
 
@@ -438,9 +510,12 @@ class TrimensionApp {
             const row = document.createElement('div');
             row.className = 'slider-row';
 
-            const labelRow = document.createElement('div');
-            labelRow.className = 'slider-label-row';
-            labelRow.innerHTML = `<span>${config.label}</span><span class="slider-value">${params[config.key]}</span>`;
+            const label = document.createElement('div');
+            label.className = 'slider-name';
+            label.textContent = config.label;
+
+            const inputWrap = document.createElement('div');
+            inputWrap.className = 'slider-input-wrap';
 
             const input = document.createElement('input');
             input.className = 'slider-input';
@@ -449,14 +524,26 @@ class TrimensionApp {
             input.max = String(config.max);
             input.step = String(config.step);
             input.value = String(params[config.key]);
+
+            const valueBadge = document.createElement('div');
+            valueBadge.className = 'slider-value-badge';
+            const valueText = document.createElement('span');
+            valueText.className = 'slider-value-text';
+            valueText.textContent = input.value;
+            valueBadge.appendChild(valueText);
+
             input.addEventListener('input', () => {
                 params[config.key] = Number(input.value);
-                labelRow.querySelector('.slider-value').textContent = input.value;
+                valueText.textContent = input.value;
+                this.positionSliderBadge(input, valueBadge);
                 this.buildPrimitive({ fitCamera: false });
             });
 
-            row.append(labelRow, input);
+            inputWrap.append(input, valueBadge);
+            row.append(label, inputWrap);
             this.primitiveParamsEl.appendChild(row);
+
+            requestAnimationFrame(() => this.positionSliderBadge(input, valueBadge));
         });
     }
 

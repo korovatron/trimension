@@ -1,5 +1,6 @@
 ﻿<!DOCTYPE html>
-<html lan;&#x25BC;&#xFE0E;<head>
+<html lang="en">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#1A2F42">
@@ -40,14 +41,39 @@
                     </div>
                 </div>
 
+                <div class="top-button-row three-col-row panel-top-controls">
+                    <button id="add-btn" class="add-button" title="Add primitive" type="button">
+                        <svg class="add-plus-icon" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                            <line x1="6" y1="1.8" x2="6" y2="10.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line>
+                            <line x1="1.8" y1="6" x2="10.2" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line>
+                        </svg>
+                        Add
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" style="margin-left: 4px;" aria-hidden="true">
+                            <polyline points="2,4 6,8 10,4"></polyline>
+                        </svg>
+                    </button>
+                    <button id="reset-view-btn" class="top-btn" type="button">RESET<br>VIEW</button>
+                    <button id="ghost-toggle-btn" class="top-btn" type="button">GHOST<br>FACES</button>
+
+                    <div id="add-dropdown" class="add-dropdown" style="display: none;">
+                        <div class="dropdown-item" data-primitive="cuboid"><strong>+</strong> Add Cuboid</div>
+                        <div class="dropdown-item" data-primitive="right-triangle-prism"><strong>+</strong> Add Right-Triangle Prism</div>
+                        <div class="dropdown-item" data-primitive="trapezium-prism"><strong>+</strong> Add Trapezium Prism</div>
+                        <div class="dropdown-item" data-primitive="cylinder"><strong>+</strong> Add Cylinder</div>
+                        <div class="dropdown-item" data-primitive="cone"><strong>+</strong> Add Cone</div>
+                        <div class="dropdown-item" data-primitive="square-pyramid"><strong>+</strong> Add Square Pyramid</div>
+                    </div>
+                </div>
+
+                <div class="panel-major-divider"></div>
+
                 <div class="panel-section">
                     <div id="primitive-section-header" class="section-heading-row collapsible-section-header" role="button" tabindex="0" aria-expanded="true">
                         <span class="group-arrow" id="primitive-section-arrow">&#x25BC;&#xFE0E;</span>
                         <h3>Primitive</h3>
                     </div>
                     <div id="primitive-section-content" class="collapsible-section-content">
-                        <label class="field-label" for="primitive-select">Shape</label>
-                        <select id="primitive-select" class="panel-input">
+                        <select id="primitive-select" class="panel-input primitive-selector-hidden" aria-hidden="true" tabindex="-1">
                             <option value="cuboid">Cuboid</option>
                             <option value="right-triangle-prism">Right-Triangle Prism</option>
                             <option value="trapezium-prism">Trapezium Prism</option>
@@ -83,7 +109,7 @@
 
                 <div class="panel-section">
                     <div id="triangles-section-header" class="section-heading-row collapsible-section-header" role="button" tabindex="0" aria-expanded="true">
-                        <span class="group-arrow" id="triangles-section-arrow">â–¼&#xFE0E;</span>
+                        <span class="group-arrow" id="triangles-section-arrow">&#x25BC;&#xFE0E;</span>
                         <h3>Triangles</h3>
                         <span class="section-count" id="triangles-count"></span>
                     </div>
@@ -96,7 +122,7 @@
 
                 <div class="panel-section">
                     <div id="segments-section-header" class="section-heading-row collapsible-section-header" role="button" tabindex="0" aria-expanded="true">
-                        <span class="group-arrow" id="segments-section-arrow">â–¼&#xFE0E;</span>
+                        <span class="group-arrow" id="segments-section-arrow">&#x25BC;&#xFE0E;</span>
                         <h3>Line Segments</h3>
                         <span class="section-count" id="segments-count"></span>
                     </div>
@@ -109,7 +135,7 @@
 
                 <div class="panel-section">
                     <div id="angles-section-header" class="section-heading-row collapsible-section-header" role="button" tabindex="0" aria-expanded="true">
-                        <span class="group-arrow" id="angles-section-arrow">â–¼&#xFE0E;</span>
+                        <span class="group-arrow" id="angles-section-arrow">&#x25BC;&#xFE0E;</span>
                         <h3>Angles</h3>
                         <span class="section-count" id="angles-count"></span>
                     </div>
@@ -122,7 +148,7 @@
 
                 <div class="panel-section">
                     <div id="planes-section-header" class="section-heading-row collapsible-section-header" role="button" tabindex="0" aria-expanded="true">
-                        <span class="group-arrow" id="planes-section-arrow">â–¼&#xFE0E;</span>
+                        <span class="group-arrow" id="planes-section-arrow">&#x25BC;&#xFE0E;</span>
                         <h3>Planes</h3>
                         <span class="section-count" id="planes-count"></span>
                     </div>
@@ -135,7 +161,7 @@
 
                 <div class="panel-section">
                     <div id="labels-section-header" class="section-heading-row collapsible-section-header" role="button" tabindex="0" aria-expanded="true">
-                        <span class="group-arrow" id="labels-section-arrow">â–¼&#xFE0E;</span>
+                        <span class="group-arrow" id="labels-section-arrow">&#x25BC;&#xFE0E;</span>
                         <h3>Labels</h3>
                         <span class="section-count" id="labels-count"></span>
                     </div>
@@ -144,17 +170,13 @@
                     </div>
                 </div>
 
+                <div class="panel-major-divider"></div>
+
                 <div class="panel-separator"></div>
 
-                <div class="top-button-row two-col-row">
-                    <button id="reset-view-btn" class="top-btn" type="button">RESET<br>VIEW</button>
+                <div class="top-button-row three-col-row">
                     <button id="help-button" class="top-btn" type="button">HOW<br>TO USE</button>
-                </div>
-                <div class="top-button-row two-col-row">
                     <button id="return-to-title" class="top-btn" type="button">TITLE<br>SCREEN</button>
-                    <button id="ghost-toggle-btn" class="top-btn" type="button">GHOST<br>FACES</button>
-                </div>
-                <div class="top-button-row">
                     <button id="clear-objects-btn" class="top-btn" type="button">CLEAR ALL OBJECTS</button>
                 </div>
             </aside>
@@ -179,7 +201,7 @@
         <div class="help-content">
             <div class="help-header">
                 <h2>How To Use Trimension</h2>
-                <button id="close-help-btn" class="help-close-btn" type="button" aria-label="Close help">Ã—</button>
+                <button id="close-help-btn" class="help-close-btn" type="button" aria-label="Close help">&times;</button>
             </div>
             <div class="help-section">
                 <p>Choose a primitive, adjust its proportions, then select labelled points from the side panel.</p>
