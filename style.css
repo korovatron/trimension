@@ -624,22 +624,41 @@ textarea {
     aspect-ratio: 1;
     min-height: 38px;
     padding: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 216, 77, 0.45);
     border-radius: 6px;
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--text-primary);
+    background: rgba(255, 216, 77, 0.24);
+    color: #000000;
     cursor: pointer;
     text-align: center;
+    transition: background 0.18s ease, border-color 0.18s ease, transform 0.12s ease;
 }
 
 .point-btn.is-selected {
-    border-color: rgba(74, 144, 226, 0.7);
-    background: rgba(74, 144, 226, 0.18);
+    border-color: #000000;
+    background: #ffd84d;
 }
 
 .point-btn.is-derived {
-    background: rgba(46, 125, 50, 0.14);
-    border-color: rgba(46, 125, 50, 0.36);
+    background: rgba(217, 249, 214, 0.35);
+    border-color: rgba(46, 125, 50, 0.5);
+    color: #143a18;
+}
+
+.point-btn.is-derived.is-selected {
+    background: #d9f9d6;
+    border-color: #000000;
+    color: #000000;
+}
+
+@media (hover: hover) {
+    .point-btn:not(.is-selected):hover {
+        transform: translateY(-1px);
+        background: rgba(255, 216, 77, 0.34);
+    }
+
+    .point-btn.is-derived:not(.is-selected):hover {
+        background: rgba(217, 249, 214, 0.48);
+    }
 }
 
 .point-name {

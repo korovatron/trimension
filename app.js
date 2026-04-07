@@ -70,15 +70,15 @@ document.addEventListener('keydown', (event) => {
 
 const ATTACHMENT_FACES = {
     cuboid: [
-        { id: 'top',    type: 'rectangle', normal: new THREE.Vector3(0, 1, 0),   center: (p) => new THREE.Vector3(0, p.height / 2, 0),   dims: ['width', 'depth'],  label: 'Top' },
-        { id: 'bottom', type: 'rectangle', normal: new THREE.Vector3(0, -1, 0),  center: (p) => new THREE.Vector3(0, -p.height / 2, 0),  dims: ['width', 'depth'],  label: 'Bottom' },
-        { id: 'front',  type: 'rectangle', normal: new THREE.Vector3(0, 0, 1),   center: (p) => new THREE.Vector3(0, 0, p.depth / 2),     dims: ['width', 'height'], label: 'Front' },
-        { id: 'back',   type: 'rectangle', normal: new THREE.Vector3(0, 0, -1),  center: (p) => new THREE.Vector3(0, 0, -p.depth / 2),    dims: ['width', 'height'], label: 'Back' },
-        { id: 'right',  type: 'rectangle', normal: new THREE.Vector3(1, 0, 0),   center: (p) => new THREE.Vector3(p.width / 2, 0, 0),     dims: ['depth', 'height'], label: 'Right' },
-        { id: 'left',   type: 'rectangle', normal: new THREE.Vector3(-1, 0, 0),  center: (p) => new THREE.Vector3(-p.width / 2, 0, 0),    dims: ['depth', 'height'], label: 'Left' },
+        { id: 'top',    type: 'rectangle', normal: new THREE.Vector3(0, 1, 0),   uAxis: new THREE.Vector3(1, 0, 0), center: (p) => new THREE.Vector3(0, p.height / 2, 0),   dims: ['width', 'depth'],  label: 'Top' },
+        { id: 'bottom', type: 'rectangle', normal: new THREE.Vector3(0, -1, 0),  uAxis: new THREE.Vector3(1, 0, 0), center: (p) => new THREE.Vector3(0, -p.height / 2, 0),  dims: ['width', 'depth'],  label: 'Bottom' },
+        { id: 'front',  type: 'rectangle', normal: new THREE.Vector3(0, 0, 1),   uAxis: new THREE.Vector3(1, 0, 0), center: (p) => new THREE.Vector3(0, 0, p.depth / 2),     dims: ['width', 'height'], label: 'Front' },
+        { id: 'back',   type: 'rectangle', normal: new THREE.Vector3(0, 0, -1),  uAxis: new THREE.Vector3(1, 0, 0), center: (p) => new THREE.Vector3(0, 0, -p.depth / 2),    dims: ['width', 'height'], label: 'Back' },
+        { id: 'right',  type: 'rectangle', normal: new THREE.Vector3(1, 0, 0),   uAxis: new THREE.Vector3(0, 0, 1), center: (p) => new THREE.Vector3(p.width / 2, 0, 0),     dims: ['depth', 'height'], label: 'Right' },
+        { id: 'left',   type: 'rectangle', normal: new THREE.Vector3(-1, 0, 0),  uAxis: new THREE.Vector3(0, 0, 1), center: (p) => new THREE.Vector3(-p.width / 2, 0, 0),    dims: ['depth', 'height'], label: 'Left' },
     ],
     'rectangular-pyramid': [
-        { id: 'base',   type: 'rectangle', normal: new THREE.Vector3(0, -1, 0),  center: (p) => new THREE.Vector3(0, -p.height / 2, 0),  dims: ['length', 'width'], label: 'Base' },
+        { id: 'base',   type: 'rectangle', normal: new THREE.Vector3(0, -1, 0),  uAxis: new THREE.Vector3(1, 0, 0), center: (p) => new THREE.Vector3(0, -p.height / 2, 0),  dims: ['length', 'width'], label: 'Base' },
     ],
     cylinder: [
         { id: 'top',    type: 'circle',    normal: new THREE.Vector3(0, 1, 0),   center: (p) => new THREE.Vector3(0, p.height / 2, 0),   dims: ['radius'],          label: 'Top' },
@@ -677,8 +677,8 @@ class TrimensionApp {
     removeSlot(slotId) {
         const idx = this.compositeSlots.findIndex((s) => s.id === slotId);
         if (idx === -1) return;
-        // Remove this slot and any that follow (dependent chain)
-        this.compositeSlots.splice(idx);
+        // Remove only this slot; remaining slots will be re-evaluated against available hosts.
+        this.compositeSlots.splice(idx, 1);
         this.resetSceneObjects();
         this.buildComposite();
         this.renderCompositeCards();
@@ -731,15 +731,13 @@ class TrimensionApp {
             titleEl.textContent = this.primitiveMeta[slot.primitive].label;
             header.appendChild(titleEl);
 
-            if (hasMultiple) {
-                const removeBtn = document.createElement('button');
-                removeBtn.type = 'button';
-                removeBtn.className = 'card-remove-btn';
-                removeBtn.dataset.removeSlotId = String(slot.id);
-                removeBtn.setAttribute('aria-label', `Remove ${this.primitiveMeta[slot.primitive].label}`);
-                removeBtn.textContent = '×';
-                header.appendChild(removeBtn);
-            }
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'card-remove-btn';
+            removeBtn.dataset.removeSlotId = String(slot.id);
+            removeBtn.setAttribute('aria-label', `Remove ${this.primitiveMeta[slot.primitive].label}`);
+            removeBtn.textContent = '×';
+            header.appendChild(removeBtn);
             card.appendChild(header);
 
             // Orientation chips (only if multiple options)
@@ -947,8 +945,13 @@ class TrimensionApp {
                         .clone()
                         .applyQuaternion(hostOrientQ)
                         .applyQuaternion(hostGroupQ);
+                    const hostFaceU = (entry.faceDef.uAxis || new THREE.Vector3(1, 0, 0))
+                        .clone()
+                        .applyQuaternion(hostOrientQ)
+                        .applyQuaternion(hostGroupQ)
+                        .normalize();
 
-                    this.applySlotTransform(def.group, slot, hostFaceCenter, hostFaceNormal);
+                    this.applySlotTransform(def.group, slot, hostFaceCenter, hostFaceNormal, hostFaceU);
 
                     const guestFaceDef = this.getGuestAttachFaceDef(slot, entry.faceDef.normal);
                     if (guestFaceDef) {
@@ -985,11 +988,11 @@ class TrimensionApp {
         this.renderSelectionSummary();
         this.renderActions();
         if (fitCamera) {
-            this.fitCameraToPrimitive(maxBoundsRadius);
+            this.fitCameraToObject(this.compositeGroup);
         }
     }
 
-    applySlotTransform(slotGroup, slot, hostFaceCenter, hostFaceNormal) {
+    applySlotTransform(slotGroup, slot, hostFaceCenter, hostFaceNormal, hostFaceUWorld = null) {
         const guestFaceDef = this.getGuestAttachFaceDef(slot, hostFaceNormal);
         if (!guestFaceDef) return;
 
@@ -1011,6 +1014,26 @@ class TrimensionApp {
             Q.setFromAxisAngle(perp, Math.PI);
         } else {
             Q.setFromUnitVectors(guestFaceNormal, targetGuestNormal);
+        }
+
+        // After normal alignment, align in-plane axis too (prevents left/right face mismatch).
+        if (hostFaceUWorld && guestFaceDef.uAxis) {
+            const guestUAfterNormalAlign = guestFaceDef.uAxis.clone()
+                .applyQuaternion(guestOrientQ)
+                .applyQuaternion(Q);
+
+            const projectToPlane = (vec, normal) => vec.clone().sub(normal.clone().multiplyScalar(vec.dot(normal)));
+            const guestUProj = projectToPlane(guestUAfterNormalAlign, targetGuestNormal).normalize();
+            const hostUProj = projectToPlane(hostFaceUWorld, targetGuestNormal).normalize();
+
+            if (guestUProj.lengthSq() > 1e-8 && hostUProj.lengthSq() > 1e-8) {
+                const cross = new THREE.Vector3().crossVectors(guestUProj, hostUProj);
+                const sin = targetGuestNormal.dot(cross);
+                const cos = THREE.MathUtils.clamp(guestUProj.dot(hostUProj), -1, 1);
+                const twistAngle = Math.atan2(sin, cos);
+                const twist = new THREE.Quaternion().setFromAxisAngle(targetGuestNormal, twistAngle);
+                Q.premultiply(twist);
+            }
         }
 
         slotGroup.quaternion.copy(Q);
@@ -2382,8 +2405,47 @@ class TrimensionApp {
         this.controls.update();
     }
 
+    fitCameraToObject(object3D, padding = 1.38, preferredDirection = null) {
+        if (!object3D) {
+            this.fitCameraToPrimitive(6);
+            return;
+        }
+
+        const bounds = new THREE.Box3().setFromObject(object3D);
+        if (bounds.isEmpty()) {
+            this.fitCameraToPrimitive(6);
+            return;
+        }
+
+        const center = bounds.getCenter(new THREE.Vector3());
+        const sphere = bounds.getBoundingSphere(new THREE.Sphere());
+        const radius = Math.max(0.001, sphere.radius);
+
+        const vFov = THREE.MathUtils.degToRad(this.camera.fov);
+        const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
+        const fitHeightDistance = radius / Math.tan(vFov / 2);
+        const fitWidthDistance = radius / Math.tan(hFov / 2);
+        const distance = Math.max(6, padding * Math.max(fitHeightDistance, fitWidthDistance));
+
+        const viewDir = preferredDirection
+            ? preferredDirection.clone()
+            : this.camera.position.clone().sub(this.controls.target);
+        if (viewDir.lengthSq() < 1e-8) {
+            viewDir.set(1, 0.72, 0.94);
+        }
+        viewDir.normalize();
+
+        this.controls.target.copy(center);
+        this.camera.position.copy(center).add(viewDir.multiplyScalar(distance));
+
+        this.camera.near = Math.max(0.05, distance - (radius * 3));
+        this.camera.far = Math.max(200, distance + (radius * 8));
+        this.camera.updateProjectionMatrix();
+        this.controls.update();
+    }
+
     resetView() {
-        this.fitCameraToPrimitive(6);
+        this.fitCameraToObject(this.compositeGroup, 1.38, new THREE.Vector3(1, 0.72, 0.94));
     }
 
     clearComposite() {
