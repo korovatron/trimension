@@ -61,7 +61,7 @@
                         <div class="dropdown-item" data-primitive="trapezium-prism"><strong>+</strong> Add Trapezium Prism</div>
                         <div class="dropdown-item" data-primitive="cylinder"><strong>+</strong> Add Cylinder</div>
                         <div class="dropdown-item" data-primitive="cone"><strong>+</strong> Add Cone</div>
-                        <div class="dropdown-item" data-primitive="square-pyramid"><strong>+</strong> Add Square Pyramid</div>
+                        <div class="dropdown-item" data-primitive="rectangular-pyramid"><strong>+</strong> Add Rectangular Pyramid</div>
                     </div>
                 </div>
 
@@ -79,11 +79,13 @@
                             <option value="trapezium-prism">Trapezium Prism</option>
                             <option value="cylinder">Cylinder</option>
                             <option value="cone">Cone</option>
-                            <option value="square-pyramid">Square Pyramid</option>
+                            <option value="rectangular-pyramid">Rectangular Pyramid</option>
                         </select>
 
-                        <label class="field-label" for="orientation-select">Orientation</label>
-                        <select id="orientation-select" class="panel-input"></select>
+                        <div id="orientation-inline-row" class="orientation-inline-row">
+                            <span class="field-label orientation-inline-label">Orientation</span>
+                            <div id="orientation-chips" class="orientation-chip-row" role="radiogroup" aria-label="Orientation"></div>
+                        </div>
 
                         <div id="primitive-params" class="slider-stack"></div>
                     </div>

@@ -84,7 +84,8 @@ class TrimensionApp {
             labels:    { header: document.getElementById('labels-section-header'),    content: document.getElementById('labels-section-content'),    arrow: document.getElementById('labels-section-arrow'),    list: document.getElementById('labels-list'),    count: document.getElementById('labels-count')    },
         };
         this.primitiveSelect = document.getElementById('primitive-select');
-        this.orientationSelect = document.getElementById('orientation-select');
+        this.orientationInlineRow = document.getElementById('orientation-inline-row');
+        this.orientationChipsEl = document.getElementById('orientation-chips');
         this.primitiveParamsEl = document.getElementById('primitive-params');
         this.primitiveChip = document.getElementById('primitive-chip');
         this.orientationChip = document.getElementById('orientation-chip');
@@ -139,7 +140,7 @@ class TrimensionApp {
                 'trapezium-prism': { baseWidth: 6, leftHeight: 4, rightHeight: 2.5, length: 7 },
                 cylinder: { radius: 2.5, height: 6 },
                 cone: { radius: 2.5, height: 6 },
-                'square-pyramid': { base: 5.5, height: 6 }
+                'rectangular-pyramid': { length: 6.5, width: 4.5, height: 6 }
             }
         };
 
@@ -154,18 +155,17 @@ class TrimensionApp {
                 { value: 'standard', label: 'Standard' }
             ],
             cylinder: [
-                { value: 'vertical', label: 'Vertical' },
-                { value: 'horizontal-x', label: 'Horizontal Left-Right' },
-                { value: 'horizontal-z', label: 'Horizontal Front-Back' }
+                { value: 'vertical', label: 'Vertical', chipLabel: 'Vert' },
+                { value: 'horizontal', label: 'Horizontal', chipLabel: 'Horiz' }
             ],
             cone: [
-                { value: 'apex-up', label: 'Apex Up' },
-                { value: 'apex-down', label: 'Apex Down' },
-                { value: 'sideways-right', label: 'Sideways Right' }
+                { value: 'apex-up', label: 'Apex Up', chipLabel: 'Apex Up' },
+                { value: 'apex-down', label: 'Apex Down', chipLabel: 'Apex Dn' },
+                { value: 'sideways-right', label: 'Sideways Right', chipLabel: 'Side' }
             ],
-            'square-pyramid': [
-                { value: 'apex-up', label: 'Apex Up' },
-                { value: 'apex-down', label: 'Apex Down' }
+            'rectangular-pyramid': [
+                { value: 'apex-up', label: 'Apex Up', chipLabel: 'Apex Up' },
+                { value: 'apex-down', label: 'Apex Down', chipLabel: 'Apex Dn' }
             ]
         };
 
@@ -209,10 +209,11 @@ class TrimensionApp {
                     { key: 'height', label: 'Height', min: 2, max: 10, step: 0.5 }
                 ]
             },
-            'square-pyramid': {
-                label: 'Square Pyramid',
+            'rectangular-pyramid': {
+                label: 'Rectangular Pyramid',
                 params: [
-                    { key: 'base', label: 'Base', min: 2, max: 10, step: 0.5 },
+                    { key: 'length', label: 'Length', min: 2, max: 12, step: 0.5 },
+                    { key: 'width', label: 'Width', min: 2, max: 12, step: 0.5 },
                     { key: 'height', label: 'Height', min: 2, max: 10, step: 0.5 }
                 ]
             }
@@ -351,8 +352,17 @@ class TrimensionApp {
             this.addDropdown.style.display = 'none';
         });
 
-        this.orientationSelect.addEventListener('change', () => {
-            this.state.orientation = this.orientationSelect.value;
+        this.orientationChipsEl.addEventListener('click', (event) => {
+            const chip = event.target.closest('[data-orientation-value]');
+            if (!chip) return;
+
+            const nextOrientation = chip.dataset.orientationValue;
+            if (nextOrientation === this.state.orientation) {
+                return;
+            }
+
+            this.state.orientation = nextOrientation;
+            this.updateOrientationOptions();
             this.resetSceneObjects();
             this.buildPrimitive();
             this.closePanelOnMobile();
@@ -549,15 +559,22 @@ class TrimensionApp {
 
     updateOrientationOptions() {
         const options = this.orientations[this.state.primitive];
-        this.orientationSelect.innerHTML = '';
+        this.orientationInlineRow.style.display = options.length > 1 ? 'flex' : 'none';
+        this.orientationChipsEl.innerHTML = '';
         options.forEach((option) => {
-            const el = document.createElement('option');
-            el.value = option.value;
-            el.textContent = option.label;
-            if (option.value === this.state.orientation) {
-                el.selected = true;
-            }
-            this.orientationSelect.appendChild(el);
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'orientation-chip-btn';
+            button.dataset.orientationValue = option.value;
+            button.textContent = option.chipLabel || option.label;
+            button.title = option.label;
+            button.setAttribute('role', 'radio');
+
+            const isActive = option.value === this.state.orientation;
+            button.classList.toggle('is-active', isActive);
+            button.setAttribute('aria-checked', isActive ? 'true' : 'false');
+
+            this.orientationChipsEl.appendChild(button);
         });
     }
 
@@ -745,7 +762,7 @@ class TrimensionApp {
         } else if (primitiveKey === 'cylinder') {
             const { radius, height } = params;
             geometry = new THREE.CylinderGeometry(radius, radius, height, 48, 1, false);
-            if (this.state.orientation === 'horizontal-x') {
+            if (this.state.orientation === 'horizontal') {
                 geometry.rotateZ(Math.PI / 2);
                 points = [
                     { id: 'A', label: 'A', description: 'right centre', position: new THREE.Vector3(height / 2, 0, 0) },
@@ -754,17 +771,6 @@ class TrimensionApp {
                     { id: 'D', label: 'D', description: 'right bottom', position: new THREE.Vector3(height / 2, -radius, 0) },
                     { id: 'E', label: 'E', description: 'left top', position: new THREE.Vector3(-height / 2, radius, 0) },
                     { id: 'F', label: 'F', description: 'left bottom', position: new THREE.Vector3(-height / 2, -radius, 0) },
-                    { id: 'O', label: 'O', description: 'midpoint', position: new THREE.Vector3(0, 0, 0) }
-                ];
-            } else if (this.state.orientation === 'horizontal-z') {
-                geometry.rotateX(Math.PI / 2);
-                points = [
-                    { id: 'A', label: 'A', description: 'front centre', position: new THREE.Vector3(0, 0, height / 2) },
-                    { id: 'B', label: 'B', description: 'back centre', position: new THREE.Vector3(0, 0, -height / 2) },
-                    { id: 'C', label: 'C', description: 'front top', position: new THREE.Vector3(0, radius, height / 2) },
-                    { id: 'D', label: 'D', description: 'front bottom', position: new THREE.Vector3(0, -radius, height / 2) },
-                    { id: 'E', label: 'E', description: 'back top', position: new THREE.Vector3(0, radius, -height / 2) },
-                    { id: 'F', label: 'F', description: 'back bottom', position: new THREE.Vector3(0, -radius, -height / 2) },
                     { id: 'O', label: 'O', description: 'midpoint', position: new THREE.Vector3(0, 0, 0) }
                 ];
             } else {
@@ -813,31 +819,34 @@ class TrimensionApp {
                 ];
             }
             boundsRadius = Math.max(radius * 2, height) * 1.18;
-        } else {
-            const { base, height } = params;
-            geometry = new THREE.ConeGeometry(base / Math.sqrt(2), height, 4, 1, false);
+        } else if (primitiveKey === 'rectangular-pyramid') {
+            const { length, width, height } = params;
+            geometry = new THREE.ConeGeometry(1, height, 4, 1, false);
             geometry.rotateY(Math.PI / 4);
+            geometry.scale(length / Math.sqrt(2), 1, width / Math.sqrt(2));
             if (this.state.orientation === 'apex-down') {
                 geometry.rotateZ(Math.PI);
                 points = [
-                    { id: 'A', label: 'A', description: 'top front left', position: new THREE.Vector3(-base / 2, height / 2, base / 2) },
-                    { id: 'B', label: 'B', description: 'top front right', position: new THREE.Vector3(base / 2, height / 2, base / 2) },
-                    { id: 'C', label: 'C', description: 'top back right', position: new THREE.Vector3(base / 2, height / 2, -base / 2) },
-                    { id: 'D', label: 'D', description: 'top back left', position: new THREE.Vector3(-base / 2, height / 2, -base / 2) },
+                    { id: 'A', label: 'A', description: 'top front left', position: new THREE.Vector3(-length / 2, height / 2, width / 2) },
+                    { id: 'B', label: 'B', description: 'top front right', position: new THREE.Vector3(length / 2, height / 2, width / 2) },
+                    { id: 'C', label: 'C', description: 'top back right', position: new THREE.Vector3(length / 2, height / 2, -width / 2) },
+                    { id: 'D', label: 'D', description: 'top back left', position: new THREE.Vector3(-length / 2, height / 2, -width / 2) },
                     { id: 'E', label: 'E', description: 'apex', position: new THREE.Vector3(0, -height / 2, 0) },
                     { id: 'O', label: 'O', description: 'base centre', position: new THREE.Vector3(0, height / 2, 0) }
                 ];
             } else {
                 points = [
-                    { id: 'A', label: 'A', description: 'base front left', position: new THREE.Vector3(-base / 2, -height / 2, base / 2) },
-                    { id: 'B', label: 'B', description: 'base front right', position: new THREE.Vector3(base / 2, -height / 2, base / 2) },
-                    { id: 'C', label: 'C', description: 'base back right', position: new THREE.Vector3(base / 2, -height / 2, -base / 2) },
-                    { id: 'D', label: 'D', description: 'base back left', position: new THREE.Vector3(-base / 2, -height / 2, -base / 2) },
+                    { id: 'A', label: 'A', description: 'base front left', position: new THREE.Vector3(-length / 2, -height / 2, width / 2) },
+                    { id: 'B', label: 'B', description: 'base front right', position: new THREE.Vector3(length / 2, -height / 2, width / 2) },
+                    { id: 'C', label: 'C', description: 'base back right', position: new THREE.Vector3(length / 2, -height / 2, -width / 2) },
+                    { id: 'D', label: 'D', description: 'base back left', position: new THREE.Vector3(-length / 2, -height / 2, -width / 2) },
                     { id: 'E', label: 'E', description: 'apex', position: new THREE.Vector3(0, height / 2, 0) },
                     { id: 'O', label: 'O', description: 'base centre', position: new THREE.Vector3(0, -height / 2, 0) }
                 ];
             }
-            boundsRadius = Math.max(base, height) * 1.15;
+            boundsRadius = Math.max(length, width, height) * 1.15;
+        } else {
+            throw new Error(`Unknown primitive key: ${primitiveKey}`);
         }
 
         const material = new THREE.MeshPhongMaterial({
