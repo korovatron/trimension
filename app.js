@@ -138,6 +138,8 @@ class TrimensionApp {
                 cuboid: { width: 7, depth: 4, height: 5 },
                 'right-triangle-prism': { legA: 5, legB: 4, length: 7 },
                 'trapezium-prism': { baseWidth: 6, leftHeight: 4, rightHeight: 2.5, length: 7 },
+                sphere: { radius: 3 },
+                hemisphere: { radius: 3 },
                 cylinder: { radius: 2.5, height: 6 },
                 cone: { radius: 2.5, height: 6 },
                 'rectangular-pyramid': { length: 6.5, width: 4.5, height: 6 }
@@ -152,6 +154,12 @@ class TrimensionApp {
                 { value: 'standard', label: 'Standard' }
             ],
             'trapezium-prism': [
+                { value: 'standard', label: 'Standard' }
+            ],
+            sphere: [
+                { value: 'standard', label: 'Standard' }
+            ],
+            hemisphere: [
                 { value: 'standard', label: 'Standard' }
             ],
             cylinder: [
@@ -193,6 +201,18 @@ class TrimensionApp {
                     { key: 'leftHeight', label: 'Left Height', min: 0, max: 10, step: 0.5 },
                     { key: 'rightHeight', label: 'Right Height', min: 0, max: 10, step: 0.5 },
                     { key: 'length', label: 'Prism Length', min: 2, max: 12, step: 0.5 }
+                ]
+            },
+            sphere: {
+                label: 'Sphere',
+                params: [
+                    { key: 'radius', label: 'Radius', min: 1, max: 6, step: 0.25 }
+                ]
+            },
+            hemisphere: {
+                label: 'Hemisphere',
+                params: [
+                    { key: 'radius', label: 'Radius', min: 1, max: 6, step: 0.25 }
                 ]
             },
             cylinder: {
@@ -614,6 +634,7 @@ class TrimensionApp {
         let points = [];
         let geometry;
         let boundsRadius = 6;
+        let guideCircles = [];
 
         if (primitiveKey === 'cuboid') {
             const { width, depth, height } = params;
@@ -759,6 +780,45 @@ class TrimensionApp {
             }
 
             boundsRadius = Math.max(baseWidth, leftHeight, rightHeight, length) * 1.2;
+        } else if (primitiveKey === 'sphere') {
+            const { radius } = params;
+            geometry = new THREE.SphereGeometry(radius, 48, 32);
+            points = [
+                { id: 'A', label: 'A', description: 'top', position: new THREE.Vector3(0, radius, 0) },
+                { id: 'B', label: 'B', description: 'bottom', position: new THREE.Vector3(0, -radius, 0) },
+                { id: 'C', label: 'C', description: 'front', position: new THREE.Vector3(0, 0, radius) },
+                { id: 'D', label: 'D', description: 'right', position: new THREE.Vector3(radius, 0, 0) },
+                { id: 'E', label: 'E', description: 'back', position: new THREE.Vector3(0, 0, -radius) },
+                { id: 'F', label: 'F', description: 'left', position: new THREE.Vector3(-radius, 0, 0) },
+                { id: 'O', label: 'O', description: 'centre', position: new THREE.Vector3(0, 0, 0) }
+            ];
+
+            const segments = 128;
+            const equator = [];
+            const meridianYZ = [];
+            const meridianXY = [];
+            for (let i = 0; i < segments; i += 1) {
+                const t = (i / segments) * Math.PI * 2;
+                equator.push(new THREE.Vector3(radius * Math.cos(t), 0, radius * Math.sin(t)));
+                meridianYZ.push(new THREE.Vector3(0, radius * Math.sin(t), radius * Math.cos(t)));
+                meridianXY.push(new THREE.Vector3(radius * Math.cos(t), radius * Math.sin(t), 0));
+            }
+            guideCircles = [equator, meridianYZ, meridianXY];
+
+            boundsRadius = radius * 1.35;
+        } else if (primitiveKey === 'hemisphere') {
+            const { radius } = params;
+            geometry = new THREE.SphereGeometry(radius, 48, 24, 0, Math.PI * 2, 0, Math.PI / 2);
+            geometry.translate(0, -radius / 2, 0);
+            points = [
+                { id: 'A', label: 'A', description: 'dome top', position: new THREE.Vector3(0, radius / 2, 0) },
+                { id: 'B', label: 'B', description: 'rim front', position: new THREE.Vector3(0, -radius / 2, radius) },
+                { id: 'C', label: 'C', description: 'rim right', position: new THREE.Vector3(radius, -radius / 2, 0) },
+                { id: 'D', label: 'D', description: 'rim back', position: new THREE.Vector3(0, -radius / 2, -radius) },
+                { id: 'E', label: 'E', description: 'rim left', position: new THREE.Vector3(-radius, -radius / 2, 0) },
+                { id: 'F', label: 'F', description: 'flat face centre', position: new THREE.Vector3(0, -radius / 2, 0) }
+            ];
+            boundsRadius = radius * 1.35;
         } else if (primitiveKey === 'cylinder') {
             const { radius, height } = params;
             geometry = new THREE.CylinderGeometry(radius, radius, height, 48, 1, false);
@@ -861,7 +921,7 @@ class TrimensionApp {
 
         const mesh = new THREE.Mesh(geometry, material);
         mesh.renderOrder = 5;
-        const edgeGeometry = (primitiveKey === 'cone' || primitiveKey === 'cylinder')
+        const edgeGeometry = (primitiveKey === 'cone' || primitiveKey === 'cylinder' || primitiveKey === 'sphere' || primitiveKey === 'hemisphere')
             ? new THREE.EdgesGeometry(geometry, 30)
             : new THREE.EdgesGeometry(geometry);
         const edges = new THREE.LineSegments(
@@ -870,6 +930,18 @@ class TrimensionApp {
         );
         edges.renderOrder = 6;
         group.add(mesh, edges);
+
+        if (guideCircles.length > 0) {
+            guideCircles.forEach((circlePoints) => {
+                const circleGeometry = new THREE.BufferGeometry().setFromPoints(circlePoints);
+                const circle = new THREE.LineLoop(
+                    circleGeometry,
+                    new THREE.LineBasicMaterial({ color: 0x000000, transparent: false, opacity: 1 })
+                );
+                circle.renderOrder = 7;
+                group.add(circle);
+            });
+        }
 
         return { group, mesh, points, boundsRadius };
     }
