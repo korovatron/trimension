@@ -68,6 +68,33 @@ document.addEventListener('keydown', (event) => {
     }
 });
 
+const ATTACHMENT_FACES = {
+    cuboid: [
+        { id: 'top',    type: 'rectangle', normal: new THREE.Vector3(0, 1, 0),   center: (p) => new THREE.Vector3(0, p.height / 2, 0),   dims: ['width', 'depth'],  label: 'Top' },
+        { id: 'bottom', type: 'rectangle', normal: new THREE.Vector3(0, -1, 0),  center: (p) => new THREE.Vector3(0, -p.height / 2, 0),  dims: ['width', 'depth'],  label: 'Bottom' },
+        { id: 'front',  type: 'rectangle', normal: new THREE.Vector3(0, 0, 1),   center: (p) => new THREE.Vector3(0, 0, p.depth / 2),     dims: ['width', 'height'], label: 'Front' },
+        { id: 'back',   type: 'rectangle', normal: new THREE.Vector3(0, 0, -1),  center: (p) => new THREE.Vector3(0, 0, -p.depth / 2),    dims: ['width', 'height'], label: 'Back' },
+        { id: 'right',  type: 'rectangle', normal: new THREE.Vector3(1, 0, 0),   center: (p) => new THREE.Vector3(p.width / 2, 0, 0),     dims: ['depth', 'height'], label: 'Right' },
+        { id: 'left',   type: 'rectangle', normal: new THREE.Vector3(-1, 0, 0),  center: (p) => new THREE.Vector3(-p.width / 2, 0, 0),    dims: ['depth', 'height'], label: 'Left' },
+    ],
+    'rectangular-pyramid': [
+        { id: 'base',   type: 'rectangle', normal: new THREE.Vector3(0, -1, 0),  center: (p) => new THREE.Vector3(0, -p.height / 2, 0),  dims: ['length', 'width'], label: 'Base' },
+    ],
+    cylinder: [
+        { id: 'top',    type: 'circle',    normal: new THREE.Vector3(0, 1, 0),   center: (p) => new THREE.Vector3(0, p.height / 2, 0),   dims: ['radius'],          label: 'Top' },
+        { id: 'bottom', type: 'circle',    normal: new THREE.Vector3(0, -1, 0),  center: (p) => new THREE.Vector3(0, -p.height / 2, 0),  dims: ['radius'],          label: 'Bottom' },
+    ],
+    cone: [
+        { id: 'base',   type: 'circle',    normal: new THREE.Vector3(0, -1, 0),  center: (p) => new THREE.Vector3(0, -p.height / 2, 0),  dims: ['radius'],          label: 'Base' },
+    ],
+    hemisphere: [
+        { id: 'flat',   type: 'circle',    normal: new THREE.Vector3(0, -1, 0),  center: (p) => new THREE.Vector3(0, -p.radius / 2, 0),  dims: ['radius'],          label: 'Flat Face' },
+    ],
+    sphere: [],
+    'right-triangle-prism': [],
+    'trapezium-prism': [],
+};
+
 class TrimensionApp {
     constructor() {
         this.canvas = document.getElementById('three-canvas');
@@ -84,9 +111,7 @@ class TrimensionApp {
             labels:    { header: document.getElementById('labels-section-header'),    content: document.getElementById('labels-section-content'),    arrow: document.getElementById('labels-section-arrow'),    list: document.getElementById('labels-list'),    count: document.getElementById('labels-count')    },
         };
         this.primitiveSelect = document.getElementById('primitive-select');
-        this.orientationInlineRow = document.getElementById('orientation-inline-row');
-        this.orientationChipsEl = document.getElementById('orientation-chips');
-        this.primitiveParamsEl = document.getElementById('primitive-params');
+        this.primitiveCardsListEl = document.getElementById('primitive-cards-list');
         this.primitiveChip = document.getElementById('primitive-chip');
         this.orientationChip = document.getElementById('orientation-chip');
         this.ghostToggleBtn = document.getElementById('ghost-toggle-btn');
@@ -131,20 +156,26 @@ class TrimensionApp {
         this.primitiveSectionCollapsed = true;
         this.pointsSectionCollapsed = true;
 
-        this.state = {
-            primitive: 'cuboid',
-            orientation: 'standard',
-            params: {
-                cuboid: { width: 7, depth: 4, height: 5 },
-                'right-triangle-prism': { legA: 5, legB: 4, length: 7 },
-                'trapezium-prism': { baseWidth: 6, leftHeight: 4, rightHeight: 2.5, length: 7 },
-                sphere: { radius: 3 },
-                hemisphere: { radius: 3 },
-                cylinder: { radius: 2.5, height: 6 },
-                cone: { radius: 2.5, height: 6 },
-                'rectangular-pyramid': { length: 6.5, width: 4.5, height: 6 }
-            }
+        this.defaultParams = {
+            cuboid: { width: 7, depth: 4, height: 5 },
+            'right-triangle-prism': { legA: 5, legB: 4, length: 7 },
+            'trapezium-prism': { baseWidth: 6, leftHeight: 4, rightHeight: 2.5, length: 7 },
+            sphere: { radius: 3 },
+            hemisphere: { radius: 3 },
+            cylinder: { radius: 2.5, height: 6 },
+            cone: { radius: 2.5, height: 6 },
+            'rectangular-pyramid': { length: 6.5, width: 4.5, height: 6 }
         };
+
+        // compositeSlots: array of { id, primitive, orientation, params, hostFaceListIdx }
+        this.compositeSlots = [
+            { id: 0, primitive: 'cuboid', orientation: 'standard', params: { width: 7, depth: 4, height: 5 }, hostFaceListIdx: 0 }
+        ];
+        this.nextSlotId = 1;
+        this.compositeGroup = null;
+        this.slotGroupMap = new Map();   // slotId → Three.js Group
+        this.primitiveMeshes = [];       // one mesh per slot
+        this.slotLinkages = [];          // { fromSlotId, fromParam, toSlotId, toParam }
 
         this.orientations = {
             cuboid: [
@@ -277,9 +308,8 @@ class TrimensionApp {
 
         this.initThree();
         this.bindEvents();
-        this.renderPrimitiveControls();
-        this.updateOrientationOptions();
-        this.buildPrimitive();
+        this.buildComposite();
+        this.renderCompositeCards();
         this.animate();
     }
 
@@ -328,28 +358,31 @@ class TrimensionApp {
 
         this.canvas.addEventListener('pointerdown', this.handleCanvasPointerDown, { passive: true });
 
-        const applyPrimitiveSelection = (primitiveKey) => {
-            if (!this.orientations[primitiveKey]) {
-                return;
-            }
-
-            this.primitiveSelect.value = primitiveKey;
-            this.state.primitive = primitiveKey;
-            const defaultOrientation = this.orientations[this.state.primitive][0];
-            this.state.orientation = defaultOrientation.value;
-            this.updateOrientationOptions();
-            this.renderPrimitiveControls();
-            this.resetSceneObjects();
-            this.buildPrimitive();
-            this.closePanelOnMobile();
-        };
-
-        this.primitiveSelect.addEventListener('change', () => {
-            applyPrimitiveSelection(this.primitiveSelect.value);
-        });
-
         this.addBtn.addEventListener('click', (event) => {
             event.stopPropagation();
+            // Populate dropdown dynamically based on current composite state
+            const isFirst = this.compositeSlots.length === 0;
+            const compatible = isFirst
+                ? Object.keys(this.defaultParams)
+                : this.getCompatiblePrimitives();
+
+            this.addDropdown.innerHTML = '';
+
+            if (!isFirst && (this.compositeSlots.length >= 3 || compatible.length === 0)) {
+                const msg = document.createElement('div');
+                msg.className = 'dropdown-item dropdown-item-disabled';
+                msg.textContent = this.compositeSlots.length >= 3 ? 'Maximum 3 primitives' : 'No compatible additions';
+                this.addDropdown.appendChild(msg);
+            } else {
+                compatible.forEach((primKey) => {
+                    const item = document.createElement('div');
+                    item.className = 'dropdown-item';
+                    item.dataset.primitive = primKey;
+                    item.innerHTML = `<strong>+</strong> Add ${this.primitiveMeta[primKey].label}`;
+                    this.addDropdown.appendChild(item);
+                });
+            }
+
             const isOpening = this.addDropdown.style.display === 'none';
             this.addDropdown.style.display = isOpening ? 'block' : 'none';
         });
@@ -357,35 +390,45 @@ class TrimensionApp {
         this.addDropdown.addEventListener('click', (event) => {
             event.stopPropagation();
             const item = event.target.closest('[data-primitive]');
-            if (!item) {
-                return;
-            }
-
-            applyPrimitiveSelection(item.dataset.primitive);
+            if (!item) return;
+            this.addSlot(item.dataset.primitive);
             this.addDropdown.style.display = 'none';
         });
 
         document.addEventListener('click', (event) => {
-            if (event.target.closest('#add-btn') || event.target.closest('#add-dropdown')) {
-                return;
-            }
+            if (event.target.closest('#add-btn') || event.target.closest('#add-dropdown')) return;
             this.addDropdown.style.display = 'none';
         });
 
-        this.orientationChipsEl.addEventListener('click', (event) => {
+        // Card-level delegation: orientation chips, cycle face, remove slot
+        this.primitiveCardsListEl.addEventListener('click', (event) => {
             const chip = event.target.closest('[data-orientation-value]');
-            if (!chip) return;
-
-            const nextOrientation = chip.dataset.orientationValue;
-            if (nextOrientation === this.state.orientation) {
+            if (chip) {
+                const card = chip.closest('[data-slot-id]');
+                if (!card) return;
+                const slot = this.compositeSlots.find((s) => s.id === Number(card.dataset.slotId));
+                if (!slot || chip.dataset.orientationValue === slot.orientation) return;
+                slot.orientation = chip.dataset.orientationValue;
+                card.querySelectorAll('[data-orientation-value]').forEach((btn) => {
+                    btn.classList.toggle('is-active', btn.dataset.orientationValue === slot.orientation);
+                    btn.setAttribute('aria-checked', btn.dataset.orientationValue === slot.orientation ? 'true' : 'false');
+                });
+                this.resetSceneObjects();
+                this.buildComposite();
                 return;
             }
 
-            this.state.orientation = nextOrientation;
-            this.updateOrientationOptions();
-            this.resetSceneObjects();
-            this.buildPrimitive();
-            this.closePanelOnMobile();
+            const cycleBtn = event.target.closest('[data-cycle-slot-id]');
+            if (cycleBtn) {
+                this.cycleSlotFace(Number(cycleBtn.dataset.cycleSlotId));
+                return;
+            }
+
+            const removeBtn = event.target.closest('[data-remove-slot-id]');
+            if (removeBtn) {
+                this.removeSlot(Number(removeBtn.dataset.removeSlotId));
+                return;
+            }
         });
 
         this.pointsListEl.addEventListener('click', (event) => {
@@ -506,6 +549,303 @@ class TrimensionApp {
         });
     }
 
+    // --- Composite helpers ---
+
+    getCompatiblePrimitives() {
+        if (this.compositeSlots.length >= 3) return [];
+
+        const existingFaceTypes = new Set();
+        this.compositeSlots.forEach((slot) => {
+            (ATTACHMENT_FACES[slot.primitive] || []).forEach((f) => existingFaceTypes.add(f.type));
+        });
+
+        const existingPrimitives = new Set(this.compositeSlots.map((s) => s.primitive));
+
+        return Object.keys(this.defaultParams).filter((primKey) => {
+            if (existingPrimitives.has(primKey)) return false;
+            const guestFaces = ATTACHMENT_FACES[primKey] || [];
+            if (guestFaces.length === 0) return false;
+            return guestFaces.some((gf) => existingFaceTypes.has(gf.type));
+        });
+    }
+
+    getValidHostFaceEntries(guestSlot, previousSlots) {
+        const guestFaceTypes = new Set((ATTACHMENT_FACES[guestSlot.primitive] || []).map((f) => f.type));
+        if (guestFaceTypes.size === 0) return [];
+
+        const result = [];
+        previousSlots.forEach((hostSlot) => {
+            (ATTACHMENT_FACES[hostSlot.primitive] || []).forEach((faceDef) => {
+                if (guestFaceTypes.has(faceDef.type)) {
+                    result.push({
+                        slotId: hostSlot.id,
+                        slot: hostSlot,
+                        faceId: faceDef.id,
+                        faceDef,
+                        label: `${this.primitiveMeta[hostSlot.primitive].label}: ${faceDef.label}`,
+                    });
+                }
+            });
+        });
+        return result;
+    }
+
+    getGuestAttachFaceDef(guestSlot, hostFaceNormal) {
+        const faces = ATTACHMENT_FACES[guestSlot.primitive] || [];
+        if (faces.length === 0) return null;
+
+        const targetNormal = hostFaceNormal.clone().negate();
+        let best = null;
+        let bestDot = -Infinity;
+        faces.forEach((face) => {
+            const dot = face.normal.dot(targetNormal);
+            if (dot > bestDot) { bestDot = dot; best = face; }
+        });
+        return best;
+    }
+
+    snapSlotDimensions(guestSlot) {
+        const prevSlots = this.compositeSlots.filter((s) => s.id !== guestSlot.id);
+        const entries = this.getValidHostFaceEntries(guestSlot, prevSlots);
+        if (entries.length === 0) return;
+
+        const hfIdx = guestSlot.hostFaceListIdx % entries.length;
+        const { slot: hostSlot, faceDef: hostFaceDef } = entries[hfIdx];
+        const guestFaceDef = (ATTACHMENT_FACES[guestSlot.primitive] || []).find((f) => f.type === hostFaceDef.type);
+        if (!guestFaceDef) return;
+
+        hostFaceDef.dims.forEach((dim, i) => {
+            const guestDim = guestFaceDef.dims[i];
+            if (guestDim) guestSlot.params[guestDim] = hostSlot.params[dim];
+        });
+    }
+
+    addSlot(primitiveKey) {
+        if (!this.primitiveMeta[primitiveKey]) return;
+
+        if (this.compositeSlots.length === 0) {
+            // First slot — reset everything
+            const slot = {
+                id: this.nextSlotId++,
+                primitive: primitiveKey,
+                orientation: this.orientations[primitiveKey][0].value,
+                params: { ...this.defaultParams[primitiveKey] },
+                hostFaceListIdx: 0,
+            };
+            this.compositeSlots.push(slot);
+        } else {
+            if (this.compositeSlots.length >= 3) return;
+            const slot = {
+                id: this.nextSlotId++,
+                primitive: primitiveKey,
+                orientation: this.orientations[primitiveKey][0].value,
+                params: { ...this.defaultParams[primitiveKey] },
+                hostFaceListIdx: 0,
+            };
+            this.compositeSlots.push(slot);
+            this.snapSlotDimensions(slot);
+        }
+
+        this.resetSceneObjects();
+        this.buildComposite();
+        this.renderCompositeCards();
+        this.closePanelOnMobile();
+    }
+
+    removeSlot(slotId) {
+        const idx = this.compositeSlots.findIndex((s) => s.id === slotId);
+        if (idx === -1) return;
+        // Remove this slot and any that follow (dependent chain)
+        this.compositeSlots.splice(idx);
+        this.resetSceneObjects();
+        this.buildComposite();
+        this.renderCompositeCards();
+    }
+
+    cycleSlotFace(slotId) {
+        const slotIdx = this.compositeSlots.findIndex((s) => s.id === slotId);
+        if (slotIdx <= 0) return;
+        const slot = this.compositeSlots[slotIdx];
+        const prevSlots = this.compositeSlots.slice(0, slotIdx);
+        const entries = this.getValidHostFaceEntries(slot, prevSlots);
+        if (entries.length <= 1) return;
+
+        slot.hostFaceListIdx = (slot.hostFaceListIdx + 1) % entries.length;
+        this.snapSlotDimensions(slot);
+        this.resetSceneObjects();
+        this.buildComposite();
+        this.renderCompositeCards();
+    }
+
+    renderCompositeCards() {
+        this.primitiveCardsListEl.innerHTML = '';
+        const hasMultiple = this.compositeSlots.length > 1;
+
+        if (this.compositeSlots.length === 0) {
+            const empty = document.createElement('p');
+            empty.className = 'section-note';
+            empty.textContent = 'Click Add to create a primitive.';
+            this.primitiveCardsListEl.appendChild(empty);
+            return;
+        }
+
+        this.compositeSlots.forEach((slot, idx) => {
+            if (idx > 0) {
+                const cardSep = document.createElement('div');
+                cardSep.className = 'primitive-card-separator';
+                this.primitiveCardsListEl.appendChild(cardSep);
+            }
+
+            const card = document.createElement('div');
+            card.className = 'primitive-card';
+            card.dataset.slotId = String(slot.id);
+
+            // Header
+            const header = document.createElement('div');
+            header.className = 'primitive-card-header';
+
+            const titleEl = document.createElement('span');
+            titleEl.className = 'primitive-card-title';
+            titleEl.textContent = this.primitiveMeta[slot.primitive].label;
+            header.appendChild(titleEl);
+
+            if (hasMultiple) {
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'card-remove-btn';
+                removeBtn.dataset.removeSlotId = String(slot.id);
+                removeBtn.setAttribute('aria-label', `Remove ${this.primitiveMeta[slot.primitive].label}`);
+                removeBtn.textContent = '×';
+                header.appendChild(removeBtn);
+            }
+            card.appendChild(header);
+
+            // Orientation chips (only if multiple options)
+            const orientOptions = this.orientations[slot.primitive] || [];
+            if (orientOptions.length > 1) {
+                const orientRow = document.createElement('div');
+                orientRow.className = 'orientation-inline-row';
+                const orientLabel = document.createElement('span');
+                orientLabel.className = 'field-label orientation-inline-label';
+                orientLabel.textContent = 'Orientation';
+
+                const chipsEl = document.createElement('div');
+                chipsEl.className = 'orientation-chip-row';
+                chipsEl.setAttribute('role', 'radiogroup');
+                chipsEl.setAttribute('aria-label', 'Orientation');
+
+                orientOptions.forEach((opt) => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'orientation-chip-btn';
+                    btn.dataset.orientationValue = opt.value;
+                    btn.textContent = opt.chipLabel || opt.label;
+                    btn.title = opt.label;
+                    btn.setAttribute('role', 'radio');
+                    const isActive = opt.value === slot.orientation;
+                    btn.classList.toggle('is-active', isActive);
+                    btn.setAttribute('aria-checked', isActive ? 'true' : 'false');
+                    chipsEl.appendChild(btn);
+                });
+
+                orientRow.appendChild(orientLabel);
+                orientRow.appendChild(chipsEl);
+                card.appendChild(orientRow);
+            }
+
+            // Sliders
+            const sliderStack = document.createElement('div');
+            sliderStack.className = 'slider-stack';
+
+            (this.primitiveMeta[slot.primitive].params || []).forEach((config) => {
+                const row = document.createElement('div');
+                row.className = 'slider-row';
+                row.dataset.paramKey = config.key;
+
+                const labelEl = document.createElement('div');
+                labelEl.className = 'slider-name';
+                labelEl.textContent = config.label;
+
+                const inputWrap = document.createElement('div');
+                inputWrap.className = 'slider-input-wrap';
+
+                const input = document.createElement('input');
+                input.className = 'slider-input';
+                input.type = 'range';
+                input.min = String(config.min);
+                input.max = String(config.max);
+                input.step = String(config.step);
+                input.value = String(slot.params[config.key]);
+
+                const valueBadge = document.createElement('div');
+                valueBadge.className = 'slider-value-badge';
+                const valueText = document.createElement('span');
+                valueText.className = 'slider-value-text';
+                valueText.textContent = input.value;
+                valueBadge.appendChild(valueText);
+
+                input.addEventListener('input', () => {
+                    const newVal = Number(input.value);
+                    slot.params[config.key] = newVal;
+                    valueText.textContent = input.value;
+                    this.positionSliderBadge(input, valueBadge);
+
+                    // Propagate to linked params
+                    this.slotLinkages.forEach((link) => {
+                        if (link.fromSlotId !== slot.id || link.fromParam !== config.key) return;
+                        const linkedSlot = this.compositeSlots.find((s) => s.id === link.toSlotId);
+                        if (!linkedSlot) return;
+                        linkedSlot.params[link.toParam] = newVal;
+                        const linkedRow = this.primitiveCardsListEl.querySelector(`[data-slot-id="${link.toSlotId}"] [data-param-key="${link.toParam}"]`);
+                        if (linkedRow) {
+                            const li = linkedRow.querySelector('.slider-input');
+                            const lb = linkedRow.querySelector('.slider-value-badge');
+                            const lt = lb?.querySelector('.slider-value-text');
+                            if (li) li.value = String(newVal);
+                            if (lt) lt.textContent = String(newVal);
+                            if (li && lb) this.positionSliderBadge(li, lb);
+                        }
+                    });
+
+                    this.buildComposite({ fitCamera: false });
+                });
+
+                inputWrap.append(input, valueBadge);
+                row.append(labelEl, inputWrap);
+                sliderStack.appendChild(row);
+                requestAnimationFrame(() => this.positionSliderBadge(input, valueBadge));
+            });
+
+            card.appendChild(sliderStack);
+
+            // Cycle face button (slot 1+)
+            if (idx > 0) {
+                const prevSlots = this.compositeSlots.slice(0, idx);
+                const entries = this.getValidHostFaceEntries(slot, prevSlots);
+                if (entries.length > 0) {
+                    const hfIdx = slot.hostFaceListIdx % entries.length;
+                    const currentLabel = entries[hfIdx]?.label || 'Face';
+
+                    if (entries.length > 1) {
+                        const cycleBtn = document.createElement('button');
+                        cycleBtn.type = 'button';
+                        cycleBtn.className = 'card-cycle-btn';
+                        cycleBtn.dataset.cycleSlotId = String(slot.id);
+                        cycleBtn.textContent = `↻ ${currentLabel}`;
+                        card.appendChild(cycleBtn);
+                    } else {
+                        const faceInfo = document.createElement('div');
+                        faceInfo.className = 'card-face-info';
+                        faceInfo.textContent = currentLabel;
+                        card.appendChild(faceInfo);
+                    }
+                }
+            }
+
+            this.primitiveCardsListEl.appendChild(card);
+        });
+    }
+
     positionSliderBadge(input, badge) {
         const min = Number(input.min);
         const max = Number(input.max);
@@ -523,7 +863,7 @@ class TrimensionApp {
     }
 
     refreshSliderBadges() {
-        this.primitiveParamsEl.querySelectorAll('.slider-input-wrap').forEach((wrap) => {
+        this.primitiveCardsListEl.querySelectorAll('.slider-input-wrap').forEach((wrap) => {
             const input = wrap.querySelector('.slider-input');
             const badge = wrap.querySelector('.slider-value-badge');
             if (!input || !badge) return;
@@ -531,83 +871,81 @@ class TrimensionApp {
         });
     }
 
-    renderPrimitiveControls() {
-        const meta = this.primitiveMeta[this.state.primitive];
-        const params = this.state.params[this.state.primitive];
-        this.primitiveParamsEl.innerHTML = '';
-
-        meta.params.forEach((config) => {
-            const row = document.createElement('div');
-            row.className = 'slider-row';
-
-            const label = document.createElement('div');
-            label.className = 'slider-name';
-            label.textContent = config.label;
-
-            const inputWrap = document.createElement('div');
-            inputWrap.className = 'slider-input-wrap';
-
-            const input = document.createElement('input');
-            input.className = 'slider-input';
-            input.type = 'range';
-            input.min = String(config.min);
-            input.max = String(config.max);
-            input.step = String(config.step);
-            input.value = String(params[config.key]);
-
-            const valueBadge = document.createElement('div');
-            valueBadge.className = 'slider-value-badge';
-            const valueText = document.createElement('span');
-            valueText.className = 'slider-value-text';
-            valueText.textContent = input.value;
-            valueBadge.appendChild(valueText);
-
-            input.addEventListener('input', () => {
-                params[config.key] = Number(input.value);
-                valueText.textContent = input.value;
-                this.positionSliderBadge(input, valueBadge);
-                this.buildPrimitive({ fitCamera: false });
-            });
-
-            inputWrap.append(input, valueBadge);
-            row.append(label, inputWrap);
-            this.primitiveParamsEl.appendChild(row);
-
-            requestAnimationFrame(() => this.positionSliderBadge(input, valueBadge));
-        });
-    }
-
-    updateOrientationOptions() {
-        const options = this.orientations[this.state.primitive];
-        this.orientationInlineRow.style.display = options.length > 1 ? 'flex' : 'none';
-        this.orientationChipsEl.innerHTML = '';
-        options.forEach((option) => {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'orientation-chip-btn';
-            button.dataset.orientationValue = option.value;
-            button.textContent = option.chipLabel || option.label;
-            button.title = option.label;
-            button.setAttribute('role', 'radio');
-
-            const isActive = option.value === this.state.orientation;
-            button.classList.toggle('is-active', isActive);
-            button.setAttribute('aria-checked', isActive ? 'true' : 'false');
-
-            this.orientationChipsEl.appendChild(button);
-        });
-    }
-
     buildPrimitive(options = {}) {
+        this.buildComposite(options);
+    }
+
+    buildComposite(options = {}) {
         const fitCamera = options.fitCamera !== false;
-        this.clearPrimitive();
+        this.clearComposite();
 
-        const primitive = this.createPrimitiveDefinition();
-        this.primitiveGroup = primitive.group;
-        this.primitiveMesh = primitive.mesh;
-        this.pointDefinitions = primitive.points;
-        this.scene.add(this.primitiveGroup);
+        this.compositeGroup = new THREE.Group();
+        this.scene.add(this.compositeGroup);
+        this.primitiveGroup = this.compositeGroup; // alias used by buildPointMarkers etc.
+        this.primitiveMeshes = [];
+        this.slotLinkages = [];
 
+        if (this.compositeSlots.length === 0) {
+            this.pointDefinitions = [];
+            this.rebuildConstructions();
+            this.refreshDerivedPoints();
+            this.buildPointMarkers();
+            this.updatePanelCopy();
+            this.renderPointsList();
+            this.renderSelectionSummary();
+            this.renderActions();
+            return;
+        }
+
+        let allPoints = [];
+        let maxBoundsRadius = 6;
+        const usePrefix = this.compositeSlots.length > 1;
+
+        this.compositeSlots.forEach((slot, idx) => {
+            const def = this.createSlotDefinition(slot);
+
+            if (idx > 0) {
+                const prevSlots = this.compositeSlots.slice(0, idx);
+                const entries = this.getValidHostFaceEntries(slot, prevSlots);
+                if (entries.length > 0) {
+                    const hfIdx = slot.hostFaceListIdx % entries.length;
+                    const entry = entries[hfIdx];
+                    const hostSlotGroup = this.slotGroupMap.get(entry.slotId);
+                    const hostGroupQ = hostSlotGroup ? hostSlotGroup.quaternion : new THREE.Quaternion();
+                    const hostGroupP = hostSlotGroup ? hostSlotGroup.position : new THREE.Vector3();
+
+                    const hostFaceCenter = entry.faceDef.center(entry.slot.params).clone().applyQuaternion(hostGroupQ).add(hostGroupP);
+                    const hostFaceNormal = entry.faceDef.normal.clone().applyQuaternion(hostGroupQ);
+
+                    this.applySlotTransform(def.group, slot, hostFaceCenter, hostFaceNormal);
+
+                    const guestFaceDef = this.getGuestAttachFaceDef(slot, entry.faceDef.normal);
+                    if (guestFaceDef) {
+                        this.addLinkages(
+                            { slotId: entry.slotId, dims: entry.faceDef.dims },
+                            { slotId: slot.id, dims: guestFaceDef.dims }
+                        );
+                    }
+                }
+            }
+
+            this.slotGroupMap.set(slot.id, def.group);
+            this.compositeGroup.add(def.group);
+            this.primitiveMeshes.push(def.mesh);
+
+            const qRot = def.group.quaternion;
+            const vPos = def.group.position;
+            const worldPoints = def.points.map((pt) => ({
+                ...pt,
+                id: usePrefix ? `s${slot.id}_${pt.id}` : pt.id,
+                label: usePrefix ? `${idx + 1}${pt.label}` : pt.label,
+                position: pt.position.clone().applyQuaternion(qRot).add(vPos),
+            }));
+            allPoints = allPoints.concat(worldPoints);
+            maxBoundsRadius = Math.max(maxBoundsRadius, def.boundsRadius + def.group.position.length());
+        });
+
+        this.pointDefinitions = allPoints;
         this.rebuildConstructions();
         this.refreshDerivedPoints();
         this.buildPointMarkers();
@@ -616,21 +954,65 @@ class TrimensionApp {
         this.renderSelectionSummary();
         this.renderActions();
         if (fitCamera) {
-            this.fitCameraToPrimitive(primitive.boundsRadius);
+            this.fitCameraToPrimitive(maxBoundsRadius);
+        }
+    }
+
+    applySlotTransform(slotGroup, slot, hostFaceCenter, hostFaceNormal) {
+        const guestFaceDef = this.getGuestAttachFaceDef(slot, hostFaceNormal);
+        if (!guestFaceDef) return;
+
+        const targetGuestNormal = hostFaceNormal.clone().negate();
+        const guestFaceNormal = guestFaceDef.normal.clone();
+        const Q = new THREE.Quaternion();
+        const dot = guestFaceNormal.dot(targetGuestNormal);
+
+        if (dot > 0.9999) {
+            Q.identity();
+        } else if (dot < -0.9999) {
+            const perp = Math.abs(guestFaceNormal.x) < 0.9
+                ? new THREE.Vector3(1, 0, 0).cross(guestFaceNormal).normalize()
+                : new THREE.Vector3(0, 1, 0).cross(guestFaceNormal).normalize();
+            Q.setFromAxisAngle(perp, Math.PI);
+        } else {
+            Q.setFromUnitVectors(guestFaceNormal, targetGuestNormal);
+        }
+
+        slotGroup.quaternion.copy(Q);
+        const guestLocalCenter = guestFaceDef.center(slot.params);
+        const guestRotatedCenter = guestLocalCenter.clone().applyQuaternion(Q);
+        slotGroup.position.copy(hostFaceCenter).sub(guestRotatedCenter);
+    }
+
+    addLinkages(hostInfo, guestInfo) {
+        const len = Math.min(hostInfo.dims.length, guestInfo.dims.length);
+        for (let i = 0; i < len; i++) {
+            if (hostInfo.dims[i] && guestInfo.dims[i]) {
+                this.slotLinkages.push({ fromSlotId: hostInfo.slotId, fromParam: hostInfo.dims[i], toSlotId: guestInfo.slotId, toParam: guestInfo.dims[i] });
+                this.slotLinkages.push({ fromSlotId: guestInfo.slotId, fromParam: guestInfo.dims[i], toSlotId: hostInfo.slotId, toParam: hostInfo.dims[i] });
+            }
         }
     }
 
     updatePanelCopy() {
-        const primitiveLabel = this.primitiveMeta[this.state.primitive].label;
-        const orientationLabel = this.orientations[this.state.primitive].find((item) => item.value === this.state.orientation)?.label || 'Standard';
-        this.primitiveChip.textContent = primitiveLabel;
-        this.orientationChip.textContent = orientationLabel;
+        if (this.compositeSlots.length === 0) {
+            this.primitiveChip.textContent = '—';
+            this.orientationChip.textContent = '—';
+            return;
+        }
+        const slot0 = this.compositeSlots[0];
+        const extra = this.compositeSlots.length - 1;
+        this.primitiveChip.textContent = extra > 0
+            ? `${this.primitiveMeta[slot0.primitive].label} +${extra}`
+            : this.primitiveMeta[slot0.primitive].label;
+        const orientationLabel = this.orientations[slot0.primitive].find((o) => o.value === slot0.orientation)?.label || 'Standard';
+        this.orientationChip.textContent = extra > 0 ? 'Composite' : orientationLabel;
     }
 
-    createPrimitiveDefinition() {
+    createSlotDefinition(slot) {
         const group = new THREE.Group();
-        const primitiveKey = this.state.primitive;
-        const params = this.state.params[primitiveKey];
+        const primitiveKey = slot.primitive;
+        const params = slot.params;
         let points = [];
         let geometry;
         let boundsRadius = 6;
@@ -822,7 +1204,7 @@ class TrimensionApp {
         } else if (primitiveKey === 'cylinder') {
             const { radius, height } = params;
             geometry = new THREE.CylinderGeometry(radius, radius, height, 48, 1, false);
-            if (this.state.orientation === 'horizontal') {
+            if (slot.orientation === 'horizontal') {
                 geometry.rotateZ(Math.PI / 2);
                 points = [
                     { id: 'A', label: 'A', description: 'right centre', position: new THREE.Vector3(height / 2, 0, 0) },
@@ -848,7 +1230,7 @@ class TrimensionApp {
         } else if (primitiveKey === 'cone') {
             const { radius, height } = params;
             geometry = new THREE.ConeGeometry(radius, height, 48, 1, false);
-            if (this.state.orientation === 'apex-down') {
+            if (slot.orientation === 'apex-down') {
                 geometry.rotateZ(Math.PI);
                 points = [
                     { id: 'A', label: 'A', description: 'apex', position: new THREE.Vector3(0, -height / 2, 0) },
@@ -858,7 +1240,7 @@ class TrimensionApp {
                     { id: 'E', label: 'E', description: 'base back', position: new THREE.Vector3(0, height / 2, -radius) },
                     { id: 'F', label: 'F', description: 'base left', position: new THREE.Vector3(-radius, height / 2, 0) }
                 ];
-            } else if (this.state.orientation === 'sideways-right') {
+            } else if (slot.orientation === 'sideways-right') {
                 geometry.rotateZ(-Math.PI / 2);
                 points = [
                     { id: 'A', label: 'A', description: 'apex', position: new THREE.Vector3(height / 2, 0, 0) },
@@ -884,7 +1266,7 @@ class TrimensionApp {
             geometry = new THREE.ConeGeometry(1, height, 4, 1, false);
             geometry.rotateY(Math.PI / 4);
             geometry.scale(length / Math.sqrt(2), 1, width / Math.sqrt(2));
-            if (this.state.orientation === 'apex-down') {
+            if (slot.orientation === 'apex-down') {
                 geometry.rotateZ(Math.PI);
                 points = [
                     { id: 'A', label: 'A', description: 'top front left', position: new THREE.Vector3(-length / 2, height / 2, width / 2) },
@@ -947,12 +1329,10 @@ class TrimensionApp {
     }
 
     updatePrimitiveMaterial() {
-        if (!this.primitiveMesh) {
-            return;
-        }
-
-        this.primitiveMesh.material.opacity = this.ghostFaces ? 0.14 : 0.78;
-        this.primitiveMesh.material.needsUpdate = true;
+        this.primitiveMeshes.forEach((mesh) => {
+            mesh.material.opacity = this.ghostFaces ? 0.14 : 0.78;
+            mesh.material.needsUpdate = true;
+        });
     }
 
     buildPointMarkers() {
@@ -1910,15 +2290,23 @@ class TrimensionApp {
         this.fitCameraToPrimitive(6);
     }
 
-    clearPrimitive() {
-        if (this.primitiveGroup) {
-            this.scene.remove(this.primitiveGroup);
-            this.disposeObject3D(this.primitiveGroup);
+    clearComposite() {
+        if (this.compositeGroup) {
+            this.scene.remove(this.compositeGroup);
+            this.disposeObject3D(this.compositeGroup);
+            this.compositeGroup = null;
             this.primitiveGroup = null;
         }
+        this.slotGroupMap = new Map();
+        this.primitiveMeshes = [];
+        this.slotLinkages = [];
         this.pointMarkers.clear();
         this.pointDefinitions = [];
         this.derivedPoints = [];
+    }
+
+    clearPrimitive() {
+        this.clearComposite();
     }
 
     disposeSprites(sprites) {
