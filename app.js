@@ -921,7 +921,6 @@ class TrimensionApp {
 
         let allPoints = [];
         let maxBoundsRadius = 6;
-        const usePrefix = this.compositeSlots.length > 1;
 
         this.compositeSlots.forEach((slot, idx) => {
             const def = this.createSlotDefinition(slot);
@@ -969,15 +968,15 @@ class TrimensionApp {
             const vPos = def.group.position;
             const worldPoints = def.points.map((pt) => ({
                 ...pt,
-                id: usePrefix ? `s${slot.id}_${pt.id}` : pt.id,
-                label: usePrefix ? `${idx + 1}${pt.label}` : pt.label,
+                id: `s${slot.id}_${pt.id}`,
+                label: pt.label,
                 position: pt.position.clone().applyQuaternion(qRot).add(vPos),
             }));
             allPoints = allPoints.concat(worldPoints);
             maxBoundsRadius = Math.max(maxBoundsRadius, def.boundsRadius + def.group.position.length());
         });
 
-        this.pointDefinitions = allPoints;
+        this.pointDefinitions = this.mergeCoincidentBasePoints(allPoints);
         this.rebuildConstructions();
         this.refreshDerivedPoints();
         this.buildPointMarkers();
@@ -1030,6 +1029,61 @@ class TrimensionApp {
                 this.slotLinkages.push({ fromSlotId: guestInfo.slotId, fromParam: guestInfo.dims[i], toSlotId: hostInfo.slotId, toParam: hostInfo.dims[i] });
             }
         }
+    }
+    
+    getUniqueDisplayLabel(preferredLabel, usedLabels) {
+        if (preferredLabel && !usedLabels.has(preferredLabel)) {
+            usedLabels.add(preferredLabel);
+            return preferredLabel;
+        }
+        
+        const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        for (const letter of alphabet) {
+            if (!usedLabels.has(letter)) {
+                usedLabels.add(letter);
+                return letter;
+            }
+        }
+        
+        let index = 1;
+        while (usedLabels.has(`P${index}`)) {
+            index += 1;
+        }
+        const fallback = `P${index}`;
+        usedLabels.add(fallback);
+        return fallback;
+    }
+    
+    mergeCoincidentBasePoints(rawPoints, threshold = 0.02) {
+        const merged = [];
+        const usedLabels = new Set();
+        let mergedIndex = 1;
+        
+        rawPoints.forEach((point) => {
+            const existing = merged.find((candidate) => candidate.position.distanceTo(point.position) <= threshold);
+            if (existing) {
+                existing.sourceIds.push(point.id);
+                return;
+            }
+            
+            const label = this.getUniqueDisplayLabel(point.label, usedLabels);
+            merged.push({
+                id: `p${mergedIndex}`,
+                label,
+                description: point.description,
+                position: point.position.clone(),
+                sourceIds: [point.id]
+            });
+            mergedIndex += 1;
+        });
+        
+        return merged;
+    }
+    
+    formatPointSequence(pointIds) {
+        return pointIds
+            .map((pointId) => this.getPointById(pointId)?.label || pointId)
+            .join('');
     }
 
     updatePanelCopy() {
@@ -1480,7 +1534,7 @@ class TrimensionApp {
         this.selectedPoints.forEach((pointId, index) => {
             const pill = document.createElement('span');
             pill.className = 'selection-pill';
-            pill.textContent = pointId;
+            pill.textContent = this.getPointById(pointId)?.label || pointId;
             this.selectionSummaryEl.appendChild(pill);
 
             if (index < this.selectedPoints.length - 1) {
@@ -1763,10 +1817,13 @@ class TrimensionApp {
         if (vectors.some((value) => !value)) {
             return;
         }
+        
+        const selectedLabels = this.selectedPoints.map((pointId) => this.getPointById(pointId)?.label || pointId);
 
         if (actionKey === 'point-label') {
             const pointId = this.selectedPoints[0];
-            const label = window.prompt(`Label for point ${pointId}`, pointId);
+            const pointLabel = selectedLabels[0];
+            const label = window.prompt(`Label for point ${pointLabel}`, pointLabel);
             if (!label) return;
             const point = this.getPointById(pointId);
             const sprite = this.createTextSprite(label, {
@@ -1778,7 +1835,7 @@ class TrimensionApp {
             sprite.position.copy(point.position.clone().add(new THREE.Vector3(0.34, 0.46, 0.18)));
             this.addSceneObject({
                 type: 'label',
-                name: `Label ${pointId}`,
+                name: `Label ${pointLabel}`,
                 subtitle: label,
                 object3D: sprite,
                 definition: {
@@ -1795,7 +1852,7 @@ class TrimensionApp {
             const segment = this.createSegment(vectors[0], vectors[1], color);
             this.addSceneObject({
                 type: 'segment',
-                name: `Segment ${ids[0]}${ids[1]}`,
+                name: `Segment ${this.formatPointSequence(ids)}`,
                 subtitle: 'Two-point construction',
                 object3D: segment,
                 definition: {
@@ -1808,7 +1865,7 @@ class TrimensionApp {
 
         if (actionKey === 'length-label') {
             const ids = [...this.selectedPoints];
-            const label = window.prompt(`Label for ${ids[0]}${ids[1]}`, '23 cm');
+            const label = window.prompt(`Label for ${this.formatPointSequence(ids)}`, '23 cm');
             if (!label) return;
             const midpoint = vectors[0].clone().lerp(vectors[1], 0.5).add(new THREE.Vector3(0.2, 0.2, 0.2));
             const sprite = this.createTextSprite(label, {
@@ -1820,7 +1877,7 @@ class TrimensionApp {
             sprite.position.copy(midpoint);
             this.addSceneObject({
                 type: 'label',
-                name: `Label ${ids[0]}${ids[1]}`,
+                name: `Label ${this.formatPointSequence(ids)}`,
                 subtitle: label,
                 object3D: sprite,
                 definition: {
@@ -1837,7 +1894,7 @@ class TrimensionApp {
             const triangle = this.createTriangle(vectors[0], vectors[1], vectors[2], color, 0.28);
             this.addSceneObject({
                 type: 'triangle',
-                name: `Triangle ${ids.join('')}`,
+                name: `Triangle ${this.formatPointSequence(ids)}`,
                 subtitle: 'Three-point section',
                 object3D: triangle,
                 definition: {
@@ -1852,11 +1909,12 @@ class TrimensionApp {
         if (actionKey === 'angle') {
             const ids = [...this.selectedPoints];
             const color = this.nextConstructionColor();
-            const angleGroup = this.createAngleMarker(vectors[0], vectors[1], vectors[2], ids.join(''), color);
+            const angleLabel = this.formatPointSequence(ids);
+            const angleGroup = this.createAngleMarker(vectors[0], vectors[1], vectors[2], angleLabel, color);
             this.addSceneObject({
                 type: 'angle',
-                name: `Angle ${ids.join('')}`,
-                subtitle: `Angle at ${ids[1]}`,
+                name: `Angle ${angleLabel}`,
+                subtitle: `Angle at ${selectedLabels[1]}`,
                 object3D: angleGroup,
                 definition: {
                     kind: 'angle',
@@ -1877,7 +1935,7 @@ class TrimensionApp {
             const plane = this.createQuad(orderedVectors, color, 0.2);
             this.addSceneObject({
                 type: 'plane',
-                name: `Plane ${orderedIds.join('')}`,
+                name: `Plane ${this.formatPointSequence(orderedIds)}`,
                 subtitle: 'Four-point shading',
                 object3D: plane,
                 definition: {
