@@ -551,6 +551,28 @@ class TrimensionApp {
 
     // --- Composite helpers ---
 
+    getOrientationQuaternion(primitiveKey, orientationValue) {
+        const q = new THREE.Quaternion();
+        
+        if (primitiveKey === 'cylinder') {
+            if (orientationValue === 'horizontal') {
+                q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
+            }
+        } else if (primitiveKey === 'cone') {
+            if (orientationValue === 'apex-down') {
+                q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI);
+            } else if (orientationValue === 'sideways-right') {
+                q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -Math.PI / 2);
+            }
+        } else if (primitiveKey === 'rectangular-pyramid') {
+            if (orientationValue === 'apex-down') {
+                q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI);
+            }
+        }
+        
+        return q;
+    }
+
     getCompatiblePrimitives() {
         if (this.compositeSlots.length >= 3) return [];
 
@@ -914,8 +936,18 @@ class TrimensionApp {
                     const hostGroupQ = hostSlotGroup ? hostSlotGroup.quaternion : new THREE.Quaternion();
                     const hostGroupP = hostSlotGroup ? hostSlotGroup.position : new THREE.Vector3();
 
-                    const hostFaceCenter = entry.faceDef.center(entry.slot.params).clone().applyQuaternion(hostGroupQ).add(hostGroupP);
-                    const hostFaceNormal = entry.faceDef.normal.clone().applyQuaternion(hostGroupQ);
+                    // Apply orientation rotation to face definition (which is in standard space)
+                    const hostOrientQ = this.getOrientationQuaternion(entry.slot.primitive, entry.slot.orientation);
+
+                    const hostFaceCenter = entry.faceDef.center(entry.slot.params)
+                        .clone()
+                        .applyQuaternion(hostOrientQ)
+                        .applyQuaternion(hostGroupQ)
+                        .add(hostGroupP);
+                    const hostFaceNormal = entry.faceDef.normal
+                        .clone()
+                        .applyQuaternion(hostOrientQ)
+                        .applyQuaternion(hostGroupQ);
 
                     this.applySlotTransform(def.group, slot, hostFaceCenter, hostFaceNormal);
 
@@ -963,7 +995,11 @@ class TrimensionApp {
         if (!guestFaceDef) return;
 
         const targetGuestNormal = hostFaceNormal.clone().negate();
-        const guestFaceNormal = guestFaceDef.normal.clone();
+        
+        // Apply guest's orientation rotation to its face normal (which is in standard space)
+        const guestOrientQ = this.getOrientationQuaternion(slot.primitive, slot.orientation);
+        const guestFaceNormal = guestFaceDef.normal.clone().applyQuaternion(guestOrientQ);
+        
         const Q = new THREE.Quaternion();
         const dot = guestFaceNormal.dot(targetGuestNormal);
 
@@ -979,8 +1015,10 @@ class TrimensionApp {
         }
 
         slotGroup.quaternion.copy(Q);
-        const guestLocalCenter = guestFaceDef.center(slot.params);
-        const guestRotatedCenter = guestLocalCenter.clone().applyQuaternion(Q);
+        const guestLocalCenter = guestFaceDef.center(slot.params)
+            .clone()
+            .applyQuaternion(guestOrientQ);  // Apply orientation first
+        const guestRotatedCenter = guestLocalCenter.applyQuaternion(Q);
         slotGroup.position.copy(hostFaceCenter).sub(guestRotatedCenter);
     }
 
