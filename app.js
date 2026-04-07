@@ -167,9 +167,9 @@ class TrimensionApp {
             'rectangular-pyramid': { length: 6.5, width: 4.5, height: 6 }
         };
 
-        // compositeSlots: array of { id, primitive, orientation, params, hostFaceListIdx }
+        // compositeSlots: array of { id, primitive, orientation, params, hostSlotId, hostFaceId }
         this.compositeSlots = [
-            { id: 0, primitive: 'cuboid', orientation: 'standard', params: { width: 7, depth: 4, height: 5 }, hostFaceListIdx: 0 }
+            { id: 0, primitive: 'cuboid', orientation: 'standard', params: { width: 7, depth: 4, height: 5 }, hostSlotId: null, hostFaceId: null }
         ];
         this.nextSlotId = 1;
         this.compositeGroup = null;
@@ -582,23 +582,46 @@ class TrimensionApp {
         });
 
         const existingPrimitives = new Set(this.compositeSlots.map((s) => s.primitive));
+        const disallowedSelfAdds = new Set(['cuboid', 'cylinder', 'hemisphere']);
 
         return Object.keys(this.defaultParams).filter((primKey) => {
-            if (existingPrimitives.has(primKey)) return false;
+            if (existingPrimitives.has(primKey) && disallowedSelfAdds.has(primKey)) return false;
             const guestFaces = ATTACHMENT_FACES[primKey] || [];
             if (guestFaces.length === 0) return false;
             return guestFaces.some((gf) => existingFaceTypes.has(gf.type));
         });
     }
 
-    getValidHostFaceEntries(guestSlot, previousSlots) {
+    getHostFaceKey(slotId, faceId) {
+        return `${slotId}:${faceId}`;
+    }
+
+    getOccupiedHostFaceKeys(excludeSlotId = null) {
+        const occupied = new Set();
+        this.compositeSlots.forEach((slot) => {
+            if (slot.id === excludeSlotId) return;
+            if (slot.hostSlotId == null || !slot.hostFaceId) return;
+            occupied.add(this.getHostFaceKey(slot.hostSlotId, slot.hostFaceId));
+        });
+        return occupied;
+    }
+
+    getValidHostFaceEntries(guestSlot, previousSlots, options = {}) {
+        const excludeOccupied = options.excludeOccupied === true;
+        const excludeSlotId = options.excludeSlotId ?? null;
         const guestFaceTypes = new Set((ATTACHMENT_FACES[guestSlot.primitive] || []).map((f) => f.type));
         if (guestFaceTypes.size === 0) return [];
+
+        const occupiedKeys = excludeOccupied ? this.getOccupiedHostFaceKeys(excludeSlotId) : null;
 
         const result = [];
         previousSlots.forEach((hostSlot) => {
             (ATTACHMENT_FACES[hostSlot.primitive] || []).forEach((faceDef) => {
                 if (guestFaceTypes.has(faceDef.type)) {
+                    const key = this.getHostFaceKey(hostSlot.id, faceDef.id);
+                    if (occupiedKeys && occupiedKeys.has(key)) {
+                        return;
+                    }
                     result.push({
                         slotId: hostSlot.id,
                         slot: hostSlot,
@@ -610,6 +633,29 @@ class TrimensionApp {
             });
         });
         return result;
+    }
+
+    ensureSlotHostBinding(slot, previousSlots) {
+        const allEntries = this.getValidHostFaceEntries(slot, previousSlots);
+        if (allEntries.length === 0) {
+            slot.hostSlotId = null;
+            slot.hostFaceId = null;
+            return null;
+        }
+
+        const occupiedByOthers = this.getOccupiedHostFaceKeys(slot.id);
+        const findCurrent = () => allEntries.find((entry) => entry.slotId === slot.hostSlotId && entry.faceId === slot.hostFaceId);
+
+        const currentEntry = findCurrent();
+        if (currentEntry && !occupiedByOthers.has(this.getHostFaceKey(currentEntry.slotId, currentEntry.faceId))) {
+            return currentEntry;
+        }
+
+        const availableEntries = allEntries.filter((entry) => !occupiedByOthers.has(this.getHostFaceKey(entry.slotId, entry.faceId)));
+        const picked = availableEntries[0] || currentEntry || allEntries[0];
+        slot.hostSlotId = picked.slotId;
+        slot.hostFaceId = picked.faceId;
+        return picked;
     }
 
     getGuestAttachFaceDef(guestSlot, hostFaceNormal) {
@@ -627,12 +673,13 @@ class TrimensionApp {
     }
 
     snapSlotDimensions(guestSlot) {
-        const prevSlots = this.compositeSlots.filter((s) => s.id !== guestSlot.id);
-        const entries = this.getValidHostFaceEntries(guestSlot, prevSlots);
-        if (entries.length === 0) return;
+        const guestSlotIndex = this.compositeSlots.findIndex((s) => s.id === guestSlot.id);
+        if (guestSlotIndex <= 0) return;
+        const prevSlots = this.compositeSlots.slice(0, guestSlotIndex);
+        const entry = this.ensureSlotHostBinding(guestSlot, prevSlots);
+        if (!entry) return;
 
-        const hfIdx = guestSlot.hostFaceListIdx % entries.length;
-        const { slot: hostSlot, faceDef: hostFaceDef } = entries[hfIdx];
+        const { slot: hostSlot, faceDef: hostFaceDef } = entry;
         const guestFaceDef = (ATTACHMENT_FACES[guestSlot.primitive] || []).find((f) => f.type === hostFaceDef.type);
         if (!guestFaceDef) return;
 
@@ -652,7 +699,8 @@ class TrimensionApp {
                 primitive: primitiveKey,
                 orientation: this.orientations[primitiveKey][0].value,
                 params: { ...this.defaultParams[primitiveKey] },
-                hostFaceListIdx: 0,
+                hostSlotId: null,
+                hostFaceId: null,
             };
             this.compositeSlots.push(slot);
         } else {
@@ -662,7 +710,8 @@ class TrimensionApp {
                 primitive: primitiveKey,
                 orientation: this.orientations[primitiveKey][0].value,
                 params: { ...this.defaultParams[primitiveKey] },
-                hostFaceListIdx: 0,
+                hostSlotId: null,
+                hostFaceId: null,
             };
             this.compositeSlots.push(slot);
             this.snapSlotDimensions(slot);
@@ -689,10 +738,13 @@ class TrimensionApp {
         if (slotIdx <= 0) return;
         const slot = this.compositeSlots[slotIdx];
         const prevSlots = this.compositeSlots.slice(0, slotIdx);
-        const entries = this.getValidHostFaceEntries(slot, prevSlots);
+        const entries = this.getValidHostFaceEntries(slot, prevSlots, { excludeOccupied: true, excludeSlotId: slot.id });
         if (entries.length <= 1) return;
 
-        slot.hostFaceListIdx = (slot.hostFaceListIdx + 1) % entries.length;
+        const currentIndex = entries.findIndex((entry) => entry.slotId === slot.hostSlotId && entry.faceId === slot.hostFaceId);
+        const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % entries.length : 0;
+        slot.hostSlotId = entries[nextIndex].slotId;
+        slot.hostFaceId = entries[nextIndex].faceId;
         this.snapSlotDimensions(slot);
         this.resetSceneObjects();
         this.buildComposite();
@@ -841,10 +893,10 @@ class TrimensionApp {
             // Cycle face button (slot 1+)
             if (idx > 0) {
                 const prevSlots = this.compositeSlots.slice(0, idx);
-                const entries = this.getValidHostFaceEntries(slot, prevSlots);
+                const entries = this.getValidHostFaceEntries(slot, prevSlots, { excludeOccupied: true, excludeSlotId: slot.id });
                 if (entries.length > 0) {
-                    const hfIdx = slot.hostFaceListIdx % entries.length;
-                    const currentLabel = entries[hfIdx]?.label || 'Face';
+                    const currentEntry = entries.find((entry) => entry.slotId === slot.hostSlotId && entry.faceId === slot.hostFaceId) || entries[0];
+                    const currentLabel = currentEntry?.label || 'Face';
 
                     if (entries.length > 1) {
                         const cycleBtn = document.createElement('button');
@@ -925,10 +977,8 @@ class TrimensionApp {
 
             if (idx > 0) {
                 const prevSlots = this.compositeSlots.slice(0, idx);
-                const entries = this.getValidHostFaceEntries(slot, prevSlots);
-                if (entries.length > 0) {
-                    const hfIdx = slot.hostFaceListIdx % entries.length;
-                    const entry = entries[hfIdx];
+                const entry = this.ensureSlotHostBinding(slot, prevSlots);
+                if (entry) {
                     const hostSlotGroup = this.slotGroupMap.get(entry.slotId);
                     const hostGroupQ = hostSlotGroup ? hostSlotGroup.quaternion : new THREE.Quaternion();
                     const hostGroupP = hostSlotGroup ? hostSlotGroup.position : new THREE.Vector3();
