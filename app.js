@@ -520,8 +520,7 @@ class TrimensionApp {
                 { key: 'change-point-label', label: 'Change Label' }
             ],
             2: [
-                { key: 'segment', label: 'Add Segment' },
-                { key: 'length-label', label: 'Add Length Label' }
+                { key: 'segment', label: 'Add Segment' }
             ],
             3: [
                 { key: 'triangle', label: 'Add Triangle' },
@@ -1624,6 +1623,155 @@ class TrimensionApp {
             .join('');
     }
 
+    normalizePointPairIds(pointIds) {
+        if (!Array.isArray(pointIds) || pointIds.length !== 2) {
+            return null;
+        }
+
+        return [...pointIds].sort((left, right) => String(left).localeCompare(String(right)));
+    }
+
+    getPrimitiveEdgeSet(primitiveKey) {
+        const edgePairsByPrimitive = {
+            cuboid: [
+                ['A', 'B'], ['B', 'C'], ['C', 'D'], ['D', 'A'],
+                ['E', 'F'], ['F', 'G'], ['G', 'H'], ['H', 'E'],
+                ['A', 'E'], ['B', 'F'], ['C', 'G'], ['D', 'H']
+            ],
+            'right-triangle-prism': [
+                ['A', 'B'], ['B', 'C'], ['C', 'A'],
+                ['D', 'E'], ['E', 'F'], ['F', 'D'],
+                ['A', 'D'], ['B', 'E'], ['C', 'F']
+            ],
+            tetrahedron: [
+                ['A', 'B'], ['B', 'C'], ['C', 'A'],
+                ['A', 'D'], ['B', 'D'], ['C', 'D']
+            ],
+            'trapezium-prism': [
+                ['A', 'B'], ['B', 'C'], ['C', 'D'], ['D', 'A'],
+                ['E', 'F'], ['F', 'G'], ['G', 'H'], ['H', 'E'],
+                ['A', 'E'], ['B', 'F'], ['C', 'G'], ['D', 'H']
+            ],
+            'rectangular-pyramid': [
+                ['A', 'B'], ['B', 'C'], ['C', 'D'], ['D', 'A'],
+                ['A', 'E'], ['B', 'E'], ['C', 'E'], ['D', 'E']
+            ]
+        };
+
+        const pairs = edgePairsByPrimitive[primitiveKey] || [];
+        return new Set(pairs.map((pair) => pair.slice().sort().join('|')));
+    }
+
+    hasPrimitiveEdgeBetween(pointIds) {
+        const normalized = this.normalizePointPairIds(pointIds);
+        if (!normalized) {
+            return false;
+        }
+
+        const pointA = this.getPointById(normalized[0]);
+        const pointB = this.getPointById(normalized[1]);
+        if (!pointA?.sourceIds?.length || !pointB?.sourceIds?.length) {
+            return false;
+        }
+
+        const slotPrimitiveMap = new Map(this.compositeSlots.map((slot) => [String(slot.id), slot.primitive]));
+        const parseSource = (sourceId) => {
+            const match = /^s(\d+)_(.+)$/.exec(String(sourceId));
+            if (!match) return null;
+            return { slotId: match[1], localId: match[2] };
+        };
+
+        const sourceA = pointA.sourceIds.map(parseSource).filter(Boolean);
+        const sourceB = pointB.sourceIds.map(parseSource).filter(Boolean);
+
+        for (const left of sourceA) {
+            for (const right of sourceB) {
+                if (left.slotId !== right.slotId || left.localId === right.localId) {
+                    continue;
+                }
+
+                const primitiveKey = slotPrimitiveMap.get(left.slotId);
+                if (!primitiveKey) {
+                    continue;
+                }
+
+                const edgeKey = [left.localId, right.localId].sort().join('|');
+                if (this.getPrimitiveEdgeSet(primitiveKey).has(edgeKey)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    hasSceneSegmentBetween(pointIds) {
+        const normalized = this.normalizePointPairIds(pointIds);
+        if (!normalized) {
+            return false;
+        }
+
+        return this.sceneObjects.some((entry) => {
+            const definition = entry.definition;
+            if (!definition || definition.kind !== 'segment' || !Array.isArray(definition.pointIds) || definition.pointIds.length !== 2) {
+                return false;
+            }
+
+            const pair = this.normalizePointPairIds(definition.pointIds);
+            return !!pair && pair[0] === normalized[0] && pair[1] === normalized[1];
+        });
+    }
+
+    canAttachLabelToPointPair(pointIds) {
+        return this.hasPrimitiveEdgeBetween(pointIds) || this.hasSceneSegmentBetween(pointIds);
+    }
+
+    findEdgeLabelObject(pointIds) {
+        const normalized = this.normalizePointPairIds(pointIds);
+        if (!normalized) {
+            return null;
+        }
+
+        return this.sceneObjects.find((entry) => {
+            const definition = entry.definition;
+            if (!definition || (definition.kind !== 'edge-label' && definition.kind !== 'length-label') || !Array.isArray(definition.pointIds) || definition.pointIds.length !== 2) {
+                return false;
+            }
+
+            const pair = this.normalizePointPairIds(definition.pointIds);
+            return !!pair && pair[0] === normalized[0] && pair[1] === normalized[1];
+        }) || null;
+    }
+
+    removeEdgeLabelsForPointPair(pointIds) {
+        const normalized = this.normalizePointPairIds(pointIds);
+        if (!normalized) {
+            return;
+        }
+
+        const survivors = [];
+        this.sceneObjects.forEach((entry) => {
+            const definition = entry.definition;
+            const isEdgeLabel = definition && (definition.kind === 'edge-label' || definition.kind === 'length-label') && Array.isArray(definition.pointIds) && definition.pointIds.length === 2;
+            if (!isEdgeLabel) {
+                survivors.push(entry);
+                return;
+            }
+
+            const pair = this.normalizePointPairIds(definition.pointIds);
+            const isTargetPair = !!pair && pair[0] === normalized[0] && pair[1] === normalized[1];
+            if (!isTargetPair) {
+                survivors.push(entry);
+                return;
+            }
+
+            this.scene.remove(entry.object3D);
+            this.disposeObject3D(entry.object3D);
+        });
+
+        this.sceneObjects = survivors;
+    }
+
     normalizePointLabelInput(rawLabel) {
         if (typeof rawLabel !== 'string') {
             return null;
@@ -2361,7 +2509,13 @@ class TrimensionApp {
     }
 
     getValidActionsForSelection() {
-        const baseActions = this.actionsByCount[this.selectedPoints.length] || [];
+        const baseActions = [...(this.actionsByCount[this.selectedPoints.length] || [])];
+
+        if (this.selectedPoints.length === 2 && this.canAttachLabelToPointPair(this.selectedPoints)) {
+            const hasExistingLabel = !!this.findEdgeLabelObject(this.selectedPoints);
+            baseActions.push({ key: 'edge-label', label: hasExistingLabel ? 'Change Label' : 'Add Label' });
+        }
+
         if (this.selectedPoints.length !== 4) {
             return baseActions;
         }
@@ -2661,29 +2815,65 @@ class TrimensionApp {
             });
         }
 
-        if (actionKey === 'length-label') {
-            const ids = [...this.selectedPoints];
-            const label = window.prompt(`Label for ${this.formatPointSequence(ids)}`, '23 cm');
-            if (!label) return;
+        if (actionKey === 'edge-label') {
+            const ids = this.normalizePointPairIds([...this.selectedPoints]);
+            if (!ids || !this.canAttachLabelToPointPair(ids)) {
+                return;
+            }
+
+            const existingLabel = this.findEdgeLabelObject(ids);
+            const currentText = existingLabel?.definition?.text || '';
+            const promptText = existingLabel
+                ? `Change label for ${this.formatPointSequence(ids)}`
+                : `Label for ${this.formatPointSequence(ids)}`;
+            const nextText = window.prompt(promptText, currentText);
+            if (nextText == null || !nextText.trim()) {
+                return;
+            }
+
+            const normalizedText = nextText.trim();
             const midpoint = vectors[0].clone().lerp(vectors[1], 0.5).add(new THREE.Vector3(0.2, 0.2, 0.2));
-            const sprite = this.createTextSprite(label, {
+            const sprite = this.createTextSprite(normalizedText, {
                 fontSize: 46,
                 textColor: '#000000',
                 background: '#b9f18a',
                 borderColor: '#000000'
             });
             sprite.position.copy(midpoint);
-            this.addSceneObject({
-                type: 'label',
-                name: `Label ${this.formatPointSequence(ids)}`,
-                subtitle: label,
-                object3D: sprite,
-                definition: {
-                    kind: 'length-label',
+
+            if (existingLabel) {
+                existingLabel.definition = {
+                    kind: 'edge-label',
                     pointIds: ids,
-                    text: label
-                }
-            });
+                    text: normalizedText
+                };
+                existingLabel.name = `Label ${this.formatPointSequence(ids)}`;
+                existingLabel.subtitle = normalizedText;
+                this.scene.remove(existingLabel.object3D);
+                this.disposeObject3D(existingLabel.object3D);
+                sprite.userData.sceneObjectId = existingLabel.id;
+                existingLabel.object3D = sprite;
+                existingLabel.object3D.visible = existingLabel.visible;
+                this.scene.add(existingLabel.object3D);
+                this.renderObjectsList();
+                this.refreshDerivedPoints();
+                this.buildPointMarkers();
+                this.renderPointsList();
+                this.renderSelectionSummary();
+                this.renderActions();
+            } else {
+                this.addSceneObject({
+                    type: 'label',
+                    name: `Label ${this.formatPointSequence(ids)}`,
+                    subtitle: normalizedText,
+                    object3D: sprite,
+                    definition: {
+                        kind: 'edge-label',
+                        pointIds: ids,
+                        text: normalizedText
+                    }
+                });
+            }
         }
 
         if (actionKey === 'triangle') {
@@ -3125,9 +3315,10 @@ class TrimensionApp {
             return sprite;
         }
 
-        if (definition.kind === 'length-label') {
+        if (definition.kind === 'length-label' || definition.kind === 'edge-label') {
             const vectors = this.getVectorsByPointIds(definition.pointIds || []);
             if (!vectors || vectors.length !== 2) return null;
+            if (!this.canAttachLabelToPointPair(definition.pointIds || [])) return null;
             const sprite = this.createTextSprite(definition.text, {
                 fontSize: 46,
                 textColor: '#000000',
@@ -3222,6 +3413,9 @@ class TrimensionApp {
         if (index === -1) return;
 
         const [item] = this.sceneObjects.splice(index, 1);
+        if (item.definition?.kind === 'segment' && Array.isArray(item.definition.pointIds) && item.definition.pointIds.length === 2) {
+            this.removeEdgeLabelsForPointPair(item.definition.pointIds);
+        }
         this.scene.remove(item.object3D);
         this.disposeObject3D(item.object3D);
         this.renderObjectsList();
