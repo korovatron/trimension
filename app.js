@@ -516,7 +516,7 @@ class TrimensionApp {
 
         this.actionsByCount = {
             1: [
-                { key: 'point-label', label: 'Add Point Label' }
+                { key: 'change-point-label', label: 'Change Label' }
             ],
             2: [
                 { key: 'segment', label: 'Add Segment' },
@@ -1623,6 +1623,54 @@ class TrimensionApp {
             .join('');
     }
 
+    normalizePointLabelInput(rawLabel) {
+        if (typeof rawLabel !== 'string') {
+            return null;
+        }
+
+        const trimmed = rawLabel.trim().toUpperCase();
+        if (!/^[A-Z](?:\d)?$/.test(trimmed)) {
+            return null;
+        }
+
+        return trimmed;
+    }
+
+    isPointLabelAvailable(label, excludePointId = null) {
+        return !this.getAllPoints().some((point) => point.id !== excludePointId && point.label === label);
+    }
+
+    changeSelectedPointLabel() {
+        const pointId = this.selectedPoints[0];
+        const point = this.getPointById(pointId);
+        if (!point || point.isDerived) {
+            return;
+        }
+
+        const nextLabelRaw = window.prompt(`Change label for point ${point.label}`, point.label);
+        if (nextLabelRaw == null) {
+            return;
+        }
+
+        const nextLabel = this.normalizePointLabelInput(nextLabelRaw);
+        if (!nextLabel) {
+            window.alert('Use label format A or A1 (single letter, optional single digit).');
+            return;
+        }
+
+        if (!this.isPointLabelAvailable(nextLabel, point.id)) {
+            window.alert(`Label ${nextLabel} is already in use.`);
+            return;
+        }
+
+        point.label = nextLabel;
+        this.refreshDerivedPoints();
+        this.buildPointMarkers();
+        this.renderPointsList();
+        this.renderSelectionSummary();
+        this.renderActions();
+    }
+
     updatePanelCopy() {
         if (this.compositeSlots.length === 0) {
             this.primitiveChip.textContent = '—';
@@ -2549,30 +2597,10 @@ class TrimensionApp {
         
         const selectedLabels = this.selectedPoints.map((pointId) => this.getPointById(pointId)?.label || pointId);
 
-        if (actionKey === 'point-label') {
-            const pointId = this.selectedPoints[0];
-            const pointLabel = selectedLabels[0];
-            const label = window.prompt(`Label for point ${pointLabel}`, pointLabel);
-            if (!label) return;
-            const point = this.getPointById(pointId);
-            const sprite = this.createTextSprite(label, {
-                fontSize: 46,
-                textColor: '#000000',
-                background: '#ffd84d',
-                borderColor: '#000000'
-            });
-            sprite.position.copy(point.position.clone().add(new THREE.Vector3(0.34, 0.46, 0.18)));
-            this.addSceneObject({
-                type: 'label',
-                name: `Label ${pointLabel}`,
-                subtitle: label,
-                object3D: sprite,
-                definition: {
-                    kind: 'point-label',
-                    pointId,
-                    text: label
-                }
-            });
+        if (actionKey === 'change-point-label') {
+            this.changeSelectedPointLabel();
+            this.closePanelOnMobile();
+            return;
         }
 
         if (actionKey === 'segment') {
