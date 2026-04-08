@@ -1829,19 +1829,60 @@ class TrimensionApp {
             return false;
         }
 
+        const matchesPair = (pairCandidate) => {
+            const pair = this.normalizePointPairIds(pairCandidate);
+            return !!pair && pair[0] === normalized[0] && pair[1] === normalized[1];
+        };
+
         return this.sceneObjects.some((entry) => {
             const definition = entry.definition;
-            if (!definition || definition.kind !== 'segment' || !Array.isArray(definition.pointIds) || definition.pointIds.length !== 2) {
+            if (!definition || !Array.isArray(definition.pointIds)) {
                 return false;
             }
 
-            const pair = this.normalizePointPairIds(definition.pointIds);
-            return !!pair && pair[0] === normalized[0] && pair[1] === normalized[1];
+            if (definition.kind === 'segment' && definition.pointIds.length === 2) {
+                return matchesPair(definition.pointIds);
+            }
+
+            if (definition.kind === 'triangle' && definition.pointIds.length === 3) {
+                const ids = definition.pointIds;
+                return matchesPair([ids[0], ids[1]])
+                    || matchesPair([ids[1], ids[2]])
+                    || matchesPair([ids[2], ids[0]]);
+            }
+
+            if (definition.kind === 'plane' && definition.pointIds.length === 4) {
+                const ids = definition.pointIds;
+                return matchesPair([ids[0], ids[1]])
+                    || matchesPair([ids[1], ids[2]])
+                    || matchesPair([ids[2], ids[3]])
+                    || matchesPair([ids[3], ids[0]]);
+            }
+
+            return false;
         });
     }
 
     canAttachLabelToPointPair(pointIds) {
         return this.hasPrimitiveEdgeBetween(pointIds) || this.hasPrimitiveFaceBetween(pointIds) || this.hasSceneSegmentBetween(pointIds);
+    }
+
+    hasSegmentLikeConnection(pointIds) {
+        return this.hasPrimitiveEdgeBetween(pointIds) || this.hasSceneSegmentBetween(pointIds);
+    }
+
+    canAttachAngleFromOrderedPoints(pointIds) {
+        if (!Array.isArray(pointIds) || pointIds.length !== 3) {
+            return false;
+        }
+
+        if (new Set(pointIds).size !== 3) {
+            return false;
+        }
+
+        const leftLeg = [pointIds[0], pointIds[1]];
+        const rightLeg = [pointIds[1], pointIds[2]];
+        return this.hasSegmentLikeConnection(leftLeg) && this.hasSegmentLikeConnection(rightLeg);
     }
 
     findEdgeLabelObject(pointIds) {
@@ -2805,6 +2846,15 @@ class TrimensionApp {
             }
         }
 
+        if (this.selectedPoints.length === 3) {
+            return baseActions.filter((action) => {
+                if (action.key !== 'angle') {
+                    return true;
+                }
+                return this.canAttachAngleFromOrderedPoints(this.selectedPoints);
+            });
+        }
+
         if (this.selectedPoints.length !== 4) {
             return baseActions;
         }
@@ -3292,17 +3342,37 @@ class TrimensionApp {
 
         if (actionKey === 'angle') {
             const ids = [...this.selectedPoints];
+            if (!this.canAttachAngleFromOrderedPoints(ids)) {
+                return;
+            }
+
+            const defaultAngleLabel = this.formatPointSequence(ids);
+            let angleLabelInput = defaultAngleLabel;
+            while (true) {
+                const nextLabel = window.prompt(`Label for angle at ${selectedLabels[1]}`, angleLabelInput);
+                if (nextLabel == null) {
+                    return;
+                }
+
+                angleLabelInput = nextLabel.trim();
+                if (angleLabelInput) {
+                    break;
+                }
+
+                window.alert('Angle label cannot be blank.');
+            }
+
             const color = this.nextConstructionColor();
-            const angleLabel = this.formatPointSequence(ids);
-            const angleGroup = this.createAngleMarker(vectors[0], vectors[1], vectors[2], angleLabel, color);
+            const angleGroup = this.createAngleMarker(vectors[0], vectors[1], vectors[2], angleLabelInput, color);
             this.addSceneObject({
                 type: 'angle',
-                name: `Angle ${angleLabel}`,
+                name: `Angle ${angleLabelInput}`,
                 subtitle: `Angle at ${selectedLabels[1]}`,
                 object3D: angleGroup,
                 definition: {
                     kind: 'angle',
                     pointIds: ids,
+                    text: angleLabelInput,
                     color
                 }
             });
@@ -3548,7 +3618,7 @@ class TrimensionApp {
         const labelPoint = vertex.clone()
             .add(dir1.clone().multiplyScalar(Math.cos(rawAngle / 2) * labelRadius))
             .add(tangent.clone().multiplyScalar(Math.sin(rawAngle / 2) * labelRadius));
-        const label = this.createTextSprite(`angle ${angleText}`, {
+        const label = this.createTextSprite(`${angleText}`, {
             fontSize: 42,
             textColor: '#000000',
             background: '#9de7ff',
@@ -3754,7 +3824,10 @@ class TrimensionApp {
         if (definition.kind === 'angle') {
             const vectors = this.getVectorsByPointIds(definition.pointIds || []);
             if (!vectors || vectors.length !== 3) return null;
-            return this.createAngleMarker(vectors[0], vectors[1], vectors[2], definition.pointIds.join(''), definition.color || 0xff595e);
+            const angleText = (typeof definition.text === 'string' && definition.text.trim())
+                ? definition.text.trim()
+                : this.formatPointSequence(definition.pointIds || []);
+            return this.createAngleMarker(vectors[0], vectors[1], vectors[2], angleText, definition.color || 0xff595e);
         }
 
         if (definition.kind === 'plane') {
