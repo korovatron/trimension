@@ -380,7 +380,7 @@ class TrimensionApp {
             labels: true
         };
         this.primitiveSectionCollapsed = false;
-        this.pointsSectionCollapsed = true;
+        this.pointsSectionCollapsed = false;
 
         this.defaultParams = {
             cuboid: { width: 7, depth: 4, height: 5 },
@@ -831,13 +831,23 @@ class TrimensionApp {
             return;
         }
 
-        if (window.innerWidth < 768 && this.panelOpen) {
+        if (this.shouldAutoClosePanelOnCanvasTap() && this.panelOpen) {
             this.closePanelOnMobile();
         }
     }
 
+    shouldAutoClosePanelOnCanvasTap() {
+        const isPhoneNarrow = window.innerWidth < 768;
+        const userAgent = navigator.userAgent || '';
+        const isiPadOSDesktopUA = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+        const isIPad = /iPad/.test(userAgent) || isiPadOSDesktopUA;
+        const isIPadPortrait = isIPad && window.innerHeight > window.innerWidth;
+
+        return isPhoneNarrow || isIPadPortrait;
+    }
+
     closePanelOnMobile() {
-        if (window.innerWidth >= 768 || !this.panelOpen) {
+        if (!this.shouldAutoClosePanelOnCanvasTap() || !this.panelOpen) {
             return;
         }
 
@@ -3903,6 +3913,35 @@ class TrimensionApp {
         context.closePath();
     }
 
+    expandObjectSectionForType(type, definition = null) {
+        const sectionByType = {
+            triangle: 'triangles',
+            segment: 'segments',
+            angle: 'angles',
+            plane: 'planes',
+            label: 'labels'
+        };
+
+        const sectionKey = sectionByType[type];
+        if (!sectionKey) {
+            return;
+        }
+
+        if (definition?.hidden || definition?.kind === 'midpoint-point') {
+            return;
+        }
+
+        if (!this.objectGroupCollapsed[sectionKey]) {
+            return;
+        }
+
+        const section = this.objectSections[sectionKey];
+        this.objectGroupCollapsed[sectionKey] = false;
+        section.content.classList.remove('collapsed');
+        section.header.setAttribute('aria-expanded', 'true');
+        section.arrow.textContent = '\u25BC\uFE0E';
+    }
+
     addSceneObject({ type, name, subtitle, object3D, definition = null }) {
         object3D.userData.sceneObjectId = this.nextObjectId;
         this.scene.add(object3D);
@@ -3917,6 +3956,7 @@ class TrimensionApp {
         };
         this.sceneObjects.unshift(entry);
         this.nextObjectId += 1;
+        this.expandObjectSectionForType(type, definition);
         this.renderObjectsList();
         this.refreshDerivedPoints();
         this.buildPointMarkers();
