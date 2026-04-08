@@ -1652,6 +1652,27 @@ class TrimensionApp {
                 ['E', 'F'], ['F', 'G'], ['G', 'H'], ['H', 'E'],
                 ['A', 'E'], ['B', 'F'], ['C', 'G'], ['D', 'H']
             ],
+            sphere: [
+                ['A', 'C'], ['A', 'D'], ['A', 'E'], ['A', 'F'],
+                ['B', 'C'], ['B', 'D'], ['B', 'E'], ['B', 'F'],
+                ['C', 'D'], ['D', 'E'], ['E', 'F'], ['F', 'C'],
+                ['A', 'O'], ['B', 'O'], ['C', 'O'], ['D', 'O'], ['E', 'O'], ['F', 'O']
+            ],
+            hemisphere: [
+                ['A', 'B'], ['A', 'C'], ['A', 'D'], ['A', 'E'],
+                ['B', 'C'], ['C', 'D'], ['D', 'E'], ['E', 'B'],
+                ['B', 'F'], ['C', 'F'], ['D', 'F'], ['E', 'F'], ['A', 'F']
+            ],
+            cylinder: [
+                ['A', 'B'], ['A', 'C'], ['A', 'D'], ['B', 'E'], ['B', 'F'],
+                ['C', 'D'], ['E', 'F'], ['C', 'E'], ['D', 'F'],
+                ['A', 'O'], ['B', 'O'], ['C', 'O'], ['D', 'O'], ['E', 'O'], ['F', 'O']
+            ],
+            cone: [
+                ['A', 'B'], ['A', 'C'], ['A', 'D'], ['A', 'E'], ['A', 'F'],
+                ['B', 'C'], ['B', 'D'], ['B', 'E'], ['B', 'F'],
+                ['C', 'D'], ['D', 'E'], ['E', 'F'], ['F', 'C']
+            ],
             'rectangular-pyramid': [
                 ['A', 'B'], ['B', 'C'], ['C', 'D'], ['D', 'A'],
                 ['A', 'E'], ['B', 'E'], ['C', 'E'], ['D', 'E']
@@ -1660,6 +1681,71 @@ class TrimensionApp {
 
         const pairs = edgePairsByPrimitive[primitiveKey] || [];
         return new Set(pairs.map((pair) => pair.slice().sort().join('|')));
+    }
+
+    getPrimitiveFacePointSets(primitiveKey) {
+        const facePointSetsByPrimitive = {
+            cuboid: [
+                ['A', 'B', 'C', 'D'],
+                ['E', 'F', 'G', 'H'],
+                ['A', 'B', 'F', 'E'],
+                ['B', 'C', 'G', 'F'],
+                ['C', 'D', 'H', 'G'],
+                ['D', 'A', 'E', 'H']
+            ],
+            'right-triangle-prism': [
+                ['A', 'B', 'C'],
+                ['D', 'E', 'F'],
+                ['A', 'B', 'E', 'D'],
+                ['B', 'C', 'F', 'E'],
+                ['C', 'A', 'D', 'F']
+            ],
+            tetrahedron: [
+                ['A', 'B', 'C'],
+                ['A', 'B', 'D'],
+                ['B', 'C', 'D'],
+                ['C', 'A', 'D']
+            ],
+            'trapezium-prism': [
+                ['A', 'B', 'C', 'D'],
+                ['E', 'F', 'G', 'H'],
+                ['A', 'B', 'F', 'E'],
+                ['B', 'C', 'G', 'F'],
+                ['C', 'D', 'H', 'G'],
+                ['D', 'A', 'E', 'H']
+            ],
+            'rectangular-pyramid': [
+                ['A', 'B', 'C', 'D'],
+                ['A', 'B', 'E'],
+                ['B', 'C', 'E'],
+                ['C', 'D', 'E'],
+                ['D', 'A', 'E']
+            ],
+            sphere: [
+                ['A', 'B', 'C', 'D', 'E', 'F']
+            ],
+            hemisphere: [
+                ['A', 'B', 'C', 'D', 'E'],
+                ['B', 'C', 'D', 'E', 'F']
+            ],
+            cylinder: [
+                ['A', 'C', 'D'],
+                ['B', 'E', 'F'],
+                ['C', 'D', 'E', 'F']
+            ],
+            cone: [
+                ['A', 'C', 'D', 'E', 'F'],
+                ['B', 'C', 'D', 'E', 'F']
+            ]
+        };
+
+        return (facePointSetsByPrimitive[primitiveKey] || []).map((face) => new Set(face));
+    }
+
+    parsePointSourceId(sourceId) {
+        const match = /^s(\d+)_(.+)$/.exec(String(sourceId));
+        if (!match) return null;
+        return { slotId: match[1], localId: match[2] };
     }
 
     hasPrimitiveEdgeBetween(pointIds) {
@@ -1675,14 +1761,8 @@ class TrimensionApp {
         }
 
         const slotPrimitiveMap = new Map(this.compositeSlots.map((slot) => [String(slot.id), slot.primitive]));
-        const parseSource = (sourceId) => {
-            const match = /^s(\d+)_(.+)$/.exec(String(sourceId));
-            if (!match) return null;
-            return { slotId: match[1], localId: match[2] };
-        };
-
-        const sourceA = pointA.sourceIds.map(parseSource).filter(Boolean);
-        const sourceB = pointB.sourceIds.map(parseSource).filter(Boolean);
+        const sourceA = pointA.sourceIds.map((sourceId) => this.parsePointSourceId(sourceId)).filter(Boolean);
+        const sourceB = pointB.sourceIds.map((sourceId) => this.parsePointSourceId(sourceId)).filter(Boolean);
 
         for (const left of sourceA) {
             for (const right of sourceB) {
@@ -1697,6 +1777,44 @@ class TrimensionApp {
 
                 const edgeKey = [left.localId, right.localId].sort().join('|');
                 if (this.getPrimitiveEdgeSet(primitiveKey).has(edgeKey)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    hasPrimitiveFaceBetween(pointIds) {
+        const normalized = this.normalizePointPairIds(pointIds);
+        if (!normalized) {
+            return false;
+        }
+
+        const pointA = this.getPointById(normalized[0]);
+        const pointB = this.getPointById(normalized[1]);
+        if (!pointA?.sourceIds?.length || !pointB?.sourceIds?.length) {
+            return false;
+        }
+
+        const slotPrimitiveMap = new Map(this.compositeSlots.map((slot) => [String(slot.id), slot.primitive]));
+        const sourceA = pointA.sourceIds.map((sourceId) => this.parsePointSourceId(sourceId)).filter(Boolean);
+        const sourceB = pointB.sourceIds.map((sourceId) => this.parsePointSourceId(sourceId)).filter(Boolean);
+
+        for (const left of sourceA) {
+            for (const right of sourceB) {
+                if (left.slotId !== right.slotId || left.localId === right.localId) {
+                    continue;
+                }
+
+                const primitiveKey = slotPrimitiveMap.get(left.slotId);
+                if (!primitiveKey) {
+                    continue;
+                }
+
+                const faceSets = this.getPrimitiveFacePointSets(primitiveKey);
+                const isSameFacePair = faceSets.some((faceSet) => faceSet.has(left.localId) && faceSet.has(right.localId));
+                if (isSameFacePair) {
                     return true;
                 }
             }
@@ -1723,7 +1841,7 @@ class TrimensionApp {
     }
 
     canAttachLabelToPointPair(pointIds) {
-        return this.hasPrimitiveEdgeBetween(pointIds) || this.hasSceneSegmentBetween(pointIds);
+        return this.hasPrimitiveEdgeBetween(pointIds) || this.hasPrimitiveFaceBetween(pointIds) || this.hasSceneSegmentBetween(pointIds);
     }
 
     findEdgeLabelObject(pointIds) {

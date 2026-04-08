@@ -82,8 +82,7 @@ textarea {
     padding: 40px 24px 96px;
 }
 
-.title-mark,
-.panel-brand-mark {
+.title-mark {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -254,30 +253,15 @@ textarea {
     transform: translateX(-100%);
 }
 
-.panel-brand {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    margin-bottom: 18px;
-}
-
-.panel-brand-mark {
-    width: 46px;
-    height: 46px;
-    font-size: 24px;
-    border-radius: 14px;
-    box-shadow: none;
-    transform: none;
-}
-
-.panel-brand h2 {
-    font-size: 1.55rem;
-    margin-bottom: 2px;
-}
-
-.panel-brand p {
-    font-size: 0.9rem;
-    color: var(--text-muted);
+.panel-logo {
+    visibility: visible;
+    max-width: 200px;
+    width: 100%;
+    height: auto;
+    margin: 0 auto 15px;
+    mix-blend-mode: screen;
+    -webkit-user-drag: none;
+    pointer-events: auto;
 }
 
 .panel-section {
@@ -978,6 +962,11 @@ textarea {
 .canvas-chip.top-left {
     top: max(18px, calc(var(--safe-area-top) + 10px));
     left: max(18px, calc(var(--safe-area-left) + 18px));
+}
+
+.control-panel:not(.closed) + .canvas-container .canvas-chip.top-left {
+    opacity: 0;
+    visibility: hidden;
 }
 
 .canvas-chip.bottom-right {
