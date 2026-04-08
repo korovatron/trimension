@@ -162,15 +162,116 @@ textarea {
     transform: translateY(-1px);
 }
 
+.worksheets-link-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.worksheets-link {
+    color: var(--text-primary);
+    font-size: 0.95em;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    transition: opacity 0.2s;
+}
+
+.worksheets-link:hover {
+    opacity: 0.85;
+}
+
+.contact-icon-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    position: relative;
+    top: -2px;
+    color: #fff;
+    transition: none;
+}
+
+.contact-icon-link:hover {
+    color: #fff;
+}
+
+.contact-icon-link svg {
+    width: 1.35em;
+    height: 1.35em;
+}
+
+.copyright .contact-icon-link,
+.copyright .contact-icon-link:hover,
+.copyright .contact-icon-link:visited {
+    color: #fff;
+}
+
+.contact-icon-link path {
+    fill: currentColor;
+}
+
+.copyright a:not(.contact-icon-link):hover {
+    opacity: 0.85;
+}
+
+.break-mobile {
+    display: inline;
+}
+
+.space-desktop {
+    display: none;
+}
+
+.space-inline {
+    display: inline;
+}
+
+.more-contact-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.projects-text {
+    display: inline;
+}
+
+@media (min-width: 800px) {
+    .break-mobile {
+        display: none;
+    }
+    
+    .space-desktop {
+        display: inline;
+    }
+}
+
 .copyright {
     position: absolute;
+    bottom: calc(20px + var(--safe-area-bottom, 0px));
     left: 50%;
-    bottom: calc(20px + var(--safe-area-bottom));
     transform: translateX(-50%);
-    color: rgba(255, 255, 255, 0.82);
-    font-size: 0.82rem;
+    font-size: 0.8em;
+    color: #fff;
+    margin: 0;
     text-align: center;
-    max-width: min(90vw, 46rem);
+    line-height: 1.3;
+    max-width: 90%;
+    word-wrap: break-word;
+    hyphens: auto;
+}
+
+.copyright a {
+    color: #fff;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.copyright a:not(.contact-icon-link) {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    transition: opacity 0.2s;
 }
 
 .container {
