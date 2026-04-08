@@ -1,0 +1,21 @@
+<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- Dark background -->
+  <rect width="32" height="32" fill="#1a2a3f"/>
+  
+  <!-- Isometric cube with colored faces, optimized for favicon space -->
+  <!-- Top face (Yellow) -->
+  <polygon points="16,3 28,11 16,19 4,11" fill="#FFD700" opacity="0.95"/>
+  
+  <!-- Left face (Red) -->
+  <polygon points="4,11 16,19 16,29 4,21" fill="#FF5555" opacity="0.85"/>
+  
+  <!-- Right face (Blue) -->
+  <polygon points="28,11 16,19 16,29 28,21" fill="#5B9EFF" opacity="0.75"/>
+  
+  <!-- Outline edges for clarity -->
+  <polygon points="16,3 28,11 16,19 4,11" fill="none" stroke="#333333" stroke-width="0.8" stroke-linejoin="round"/>
+  <polygon points="4,11 16,19 16,29 4,21" fill="none" stroke="#333333" stroke-width="0.8" stroke-linejoin="round"/>
+  <polygon points="28,11 16,19 16,29 28,21" fill="none" stroke="#333333" stroke-width="0.8" stroke-linejoin="round"/>
+  <polyline points="4,11 4,21 16,29 28,21" fill="none" stroke="#333333" stroke-width="0.8" stroke-linejoin="round"/>
+  <line x1="16" y1="19" x2="16" y2="29" stroke="#333333" stroke-width="0.8"/>
+</svg>
