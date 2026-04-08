@@ -580,10 +580,10 @@ class TrimensionApp {
         document.documentElement.setAttribute('data-theme', this.themeMode);
         this.scene.background.set(this.themeMode === 'dark' ? 0x606060 : 0xffffff);
 
-        this.camera = new THREE.PerspectiveCamera(55, this.canvas.clientWidth / this.canvas.clientHeight, 0.1, 200);
+        this.camera = new THREE.PerspectiveCamera(55, this.canvas.clientWidth / this.canvas.clientHeight, 0.01, 500);
         this.camera.position.set(10, 8, 11);
 
-        this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: false });
+        this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: false, logarithmicDepthBuffer: true });
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         this.renderer.setSize(this.canvas.clientWidth, this.canvas.clientHeight, false);
 
@@ -591,8 +591,16 @@ class TrimensionApp {
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.08;
         this.controls.target.set(0, 0, 0);
-        this.controls.minDistance = 4;
-        this.controls.maxDistance = 40;
+        const userAgent = navigator.userAgent || '';
+        const isIPhoneOrIPod = /iPhone|iPod/.test(userAgent);
+        const isAndroid = /Android/.test(userAgent);
+        const isiPadOSDesktopUA = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+        const isIPad = /iPad/.test(userAgent) || isiPadOSDesktopUA;
+        const isAndroidTablet = isAndroid && !/Mobile/.test(userAgent);
+        const isTablet = isIPad || /tablet/i.test(userAgent) || isAndroidTablet;
+        const isMobilePhone = (isIPhoneOrIPod || (isAndroid && /Mobile/.test(userAgent))) && !isTablet;
+        this.controls.minDistance = isMobilePhone ? 2 : 1;
+        this.controls.maxDistance = 100;
         this.controls.touches = {
             ONE: THREE.TOUCH.ROTATE,
             TWO: THREE.TOUCH.DOLLY_PAN
@@ -2315,6 +2323,10 @@ class TrimensionApp {
     }
 
     updatePanelCopy() {
+        if (!this.primitiveChip || !this.orientationChip) {
+            return;
+        }
+
         if (this.compositeSlots.length === 0) {
             this.primitiveChip.textContent = '-';
             this.orientationChip.textContent = '-';
@@ -3805,7 +3817,7 @@ class TrimensionApp {
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
-        context.font = `700 ${fontSize}px Segoe UI`;
+        context.font = `700 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
         const metrics = context.measureText(text);
         const logicalWidth = Math.ceil(metrics.width + paddingX * 2);
         const logicalHeight = Math.ceil(fontSize + paddingY * 2);
@@ -3815,7 +3827,7 @@ class TrimensionApp {
         const drawContext = canvas.getContext('2d');
         drawContext.setTransform(dpr, 0, 0, dpr, 0, 0);
         drawContext.clearRect(0, 0, logicalWidth, logicalHeight);
-        drawContext.font = `700 ${fontSize}px Segoe UI`;
+        drawContext.font = `700 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
         drawContext.textBaseline = 'middle';
         drawContext.textAlign = 'center';
         drawContext.lineJoin = 'round';
@@ -4172,9 +4184,7 @@ class TrimensionApp {
         this.controls.target.copy(center);
         this.camera.position.copy(center).add(viewDir.multiplyScalar(distance));
 
-        this.camera.near = Math.max(0.05, distance - (radius * 3));
-        this.camera.far = Math.max(200, distance + (radius * 8));
-        this.camera.updateProjectionMatrix();
+        // Keep camera near/far fixed to prevent clipping (matching Vectorama approach)
         this.controls.update();
     }
 
