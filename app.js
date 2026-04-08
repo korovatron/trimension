@@ -41,6 +41,7 @@ function returnToTitleScreen() {
 setActualVH();
 window.addEventListener('resize', setActualVH);
 window.addEventListener('orientationchange', () => window.setTimeout(setActualVH, 100));
+window.addEventListener('pageshow', () => window.setTimeout(setActualVH, 0));
 
 startBtn.addEventListener('click', startApp);
 document.getElementById('return-to-title').addEventListener('click', returnToTitleScreen);

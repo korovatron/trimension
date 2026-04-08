@@ -4,11 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#1A2F42">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="description" content="Trimension is a classroom-first 3D maths visualiser for exploring primitives, internal segments, triangles, planes, and labelled constructions.">
     <title>Trimension</title>
     <link rel="icon" type="image/svg+xml" href="images/favicon.svg">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css?v=3">
+    <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
     <div id="title-screen" class="title-screen">
@@ -282,7 +285,7 @@
         }
     }
     </script>
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=2"></script>
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./service-worker.js', { scope: './' })
