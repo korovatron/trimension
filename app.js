@@ -91,7 +91,121 @@ const ATTACHMENT_FACES = {
         { id: 'flat',   type: 'circle',    normal: new THREE.Vector3(0, -1, 0),  center: (p) => new THREE.Vector3(0, -p.radius / 2, 0),  dims: ['radius'],          label: 'Flat Face' },
     ],
     sphere: [],
-    'right-triangle-prism': [],
+    'right-triangle-prism': [
+        {
+            id: 'base-rectangle',
+            type: 'rectangle',
+            normal: (p) => {
+                const mode = p.triangleMode || 'equilateral';
+                if (mode === 'equilateral') {
+                    const h = (p.legA * Math.sqrt(3)) / 2;
+                    return new THREE.Vector3(0, -1, 0);
+                } else if (mode === 'right-above-B') {
+                    return new THREE.Vector3(0, -1, 0);
+                } else {
+                    return new THREE.Vector3(0, -1, 0);
+                }
+            },
+            uAxis: (p) => {
+                const mode = p.triangleMode || 'equilateral';
+                if (mode === 'equilateral') {
+                    return new THREE.Vector3(1, 0, 0);
+                } else if (mode === 'right-above-B') {
+                    return new THREE.Vector3(1, 0, 0);
+                } else {
+                    return new THREE.Vector3(1, 0, 0);
+                }
+            },
+            center: (p) => {
+                const mode = p.triangleMode || 'equilateral';
+                if (mode === 'equilateral') {
+                    const h = (p.legA * Math.sqrt(3)) / 2;
+                    return new THREE.Vector3(0, -h / 2, 0);
+                } else if (mode === 'right-above-B') {
+                    return new THREE.Vector3(p.legA / 2, -p.legB / 2, 0);
+                } else {
+                    return new THREE.Vector3(p.legA / 2, -p.legB / 2, 0);
+                }
+            },
+            dims: (p) => {
+                const mode = p.triangleMode || 'equilateral';
+                if (mode === 'equilateral') {
+                    return ['legA', 'length'];
+                } else {
+                    return ['legA', 'length'];
+                }
+            },
+            label: 'Base Rectangle'
+        },
+        {
+            id: 'side-rectangle',
+            type: 'rectangle',
+            normal: (p) => {
+                const mode = p.triangleMode || 'equilateral';
+                if (mode === 'equilateral') {
+                    return new THREE.Vector3(-Math.sqrt(3) / 2, 0.5, 0).normalize();
+                } else if (mode === 'right-above-B') {
+                    return new THREE.Vector3(1, 0, 0);
+                } else {
+                    return new THREE.Vector3(-1, 0, 0);
+                }
+            },
+            uAxis: new THREE.Vector3(0, 0, 1),
+            center: (p) => {
+                const mode = p.triangleMode || 'equilateral';
+                if (mode === 'equilateral') {
+                    const h = (p.legA * Math.sqrt(3)) / 2;
+                    return new THREE.Vector3(-p.legA / 4, 0, 0);
+                } else if (mode === 'right-above-B') {
+                    return new THREE.Vector3(p.legA, 0, 0);
+                } else {
+                    return new THREE.Vector3(0, 0, 0);
+                }
+            },
+            dims: (p) => {
+                const mode = p.triangleMode || 'equilateral';
+                if (mode === 'equilateral') {
+                    return ['length', 'legA'];
+                } else {
+                    return ['length', 'legB'];
+                }
+            },
+            label: 'Side Rectangle'
+        },
+        {
+            id: 'hypotenuse-rectangle',
+            type: 'rectangle',
+            normal: (p) => {
+                const mode = p.triangleMode || 'equilateral';
+                if (mode === 'equilateral') {
+                    return new THREE.Vector3(Math.sqrt(3) / 2, 0.5, 0).normalize();
+                } else if (mode === 'right-above-B') {
+                    return new THREE.Vector3(-p.legB, p.legA, 0).normalize();
+                } else {
+                    return new THREE.Vector3(p.legB, p.legA, 0).normalize();
+                }
+            },
+            uAxis: new THREE.Vector3(0, 0, 1),
+            center: (p) => {
+                const mode = p.triangleMode || 'equilateral';
+                if (mode === 'equilateral') {
+                    const h = (p.legA * Math.sqrt(3)) / 2;
+                    return new THREE.Vector3(p.legA / 4, 0, 0);
+                } else {
+                    return new THREE.Vector3(p.legA / 2, 0, 0);
+                }
+            },
+            dims: (p) => {
+                const mode = p.triangleMode || 'equilateral';
+                if (mode === 'equilateral') {
+                    return ['length', 'legA'];
+                } else {
+                    return ['length', 'hypotenuse'];
+                }
+            },
+            label: 'Hypotenuse Rectangle'
+        },
+    ],
     'trapezium-prism': [],
 };
 
@@ -158,13 +272,13 @@ class TrimensionApp {
 
         this.defaultParams = {
             cuboid: { width: 7, depth: 4, height: 5 },
-            'right-triangle-prism': { legA: 5, legB: 4, length: 7 },
+            'right-triangle-prism': { legA: 5, legB: 4, length: 7, triangleMode: 'equilateral' },
             'trapezium-prism': { baseWidth: 6, leftHeight: 4, rightHeight: 2.5, length: 7 },
             sphere: { radius: 3 },
             hemisphere: { radius: 3 },
             cylinder: { radius: 2.5, height: 6 },
             cone: { radius: 2.5, height: 6 },
-            'rectangular-pyramid': { length: 6.5, width: 4.5, height: 6 }
+            'rectangular-pyramid': { length: 6.5, width: 4.5, height: 6, apexPosition: 'center' }
         };
 
         // compositeSlots: array of { id, primitive, orientation, params, hostSlotId, hostFaceId }
@@ -207,6 +321,20 @@ class TrimensionApp {
                 { value: 'apex-down', label: 'Apex Down', chipLabel: 'Apex Dn' }
             ]
         };
+
+        this.rectangularPyramidApexPositions = [
+            { value: 'center', label: 'Centre' },
+            { value: 'A', label: 'Above A' },
+            { value: 'B', label: 'Above B' },
+            { value: 'C', label: 'Above C' },
+            { value: 'D', label: 'Above D' }
+        ];
+
+        this.triangularPrismModes = [
+            { value: 'equilateral', label: 'Equilateral' },
+            { value: 'right-above-A', label: 'Right Angle at A' },
+            { value: 'right-above-B', label: 'Right Angle at B' }
+        ];
 
         this.primitiveMeta = {
             cuboid: {
@@ -424,6 +552,18 @@ class TrimensionApp {
                 return;
             }
 
+            const triangleModeBtn = event.target.closest('[data-cycle-triangle-mode-slot-id]');
+            if (triangleModeBtn) {
+                this.cycleTriangularPrismMode(Number(triangleModeBtn.dataset.cycleTriangleModeSlotId));
+                return;
+            }
+
+            const apexCycleBtn = event.target.closest('[data-cycle-apex-slot-id]');
+            if (apexCycleBtn) {
+                this.cycleRectangularPyramidApex(Number(apexCycleBtn.dataset.cycleApexSlotId));
+                return;
+            }
+
             const removeBtn = event.target.closest('[data-remove-slot-id]');
             if (removeBtn) {
                 this.removeSlot(Number(removeBtn.dataset.removeSlotId));
@@ -596,12 +736,61 @@ class TrimensionApp {
         return `${slotId}:${faceId}`;
     }
 
+    getFaceDefById(slot, faceId) {
+        if (!slot || !faceId) return null;
+        return (ATTACHMENT_FACES[slot.primitive] || []).find((f) => f.id === faceId) || null;
+    }
+
+    resolveFaceNormal(faceDef, params) {
+        const raw = typeof faceDef.normal === 'function' ? faceDef.normal(params) : faceDef.normal;
+        const normal = raw ? raw.clone() : new THREE.Vector3(0, 1, 0);
+        if (normal.lengthSq() < 1e-8) return new THREE.Vector3(0, 1, 0);
+        return normal.normalize();
+    }
+
+    resolveFaceUAxis(faceDef, params) {
+        const raw = typeof faceDef.uAxis === 'function' ? faceDef.uAxis(params) : faceDef.uAxis;
+        const uAxis = raw ? raw.clone() : new THREE.Vector3(1, 0, 0);
+        if (uAxis.lengthSq() < 1e-8) return new THREE.Vector3(1, 0, 0);
+        return uAxis.normalize();
+    }
+
+    resolveFaceDims(faceDef, params) {
+        const raw = typeof faceDef.dims === 'function' ? faceDef.dims(params) : faceDef.dims;
+        return Array.isArray(raw) ? raw : [];
+    }
+
+    getFaceDimValue(slot, faceDef, dimKey) {
+        if (!slot || !faceDef || !dimKey) return undefined;
+        if (Object.prototype.hasOwnProperty.call(slot.params, dimKey)) {
+            return slot.params[dimKey];
+        }
+
+        if (slot.primitive === 'right-triangle-prism' && dimKey === 'hypotenuse') {
+            const { legA, legB } = slot.params;
+            return Math.hypot(legA, legB);
+        }
+
+        return undefined;
+    }
+
     getOccupiedHostFaceKeys(excludeSlotId = null) {
         const occupied = new Set();
         this.compositeSlots.forEach((slot) => {
             if (slot.id === excludeSlotId) return;
             if (slot.hostSlotId == null || !slot.hostFaceId) return;
             occupied.add(this.getHostFaceKey(slot.hostSlotId, slot.hostFaceId));
+
+            // Also block the guest face at this join so internal faces cannot be selected.
+            const hostSlot = this.compositeSlots.find((s) => s.id === slot.hostSlotId);
+            const hostFaceDef = this.getFaceDefById(hostSlot, slot.hostFaceId);
+            if (!hostFaceDef) return;
+
+            const hostFaceNormal = this.resolveFaceNormal(hostFaceDef, hostSlot.params);
+            const guestFaceDef = this.getGuestAttachFaceDef(slot, hostFaceNormal);
+            if (guestFaceDef) {
+                occupied.add(this.getHostFaceKey(slot.id, guestFaceDef.id));
+            }
         });
         return occupied;
     }
@@ -663,11 +852,44 @@ class TrimensionApp {
         if (faces.length === 0) return null;
 
         const targetNormal = hostFaceNormal.clone().negate();
+        const ABS_DOT_EPSILON = 1e-6;
+        const DOT_EPSILON = 1e-6;
         let best = null;
+        let bestIndex = Infinity;
+        let bestAbsDot = -Infinity;
         let bestDot = -Infinity;
-        faces.forEach((face) => {
-            const dot = face.normal.dot(targetNormal);
-            if (dot > bestDot) { bestDot = dot; best = face; }
+
+        faces.forEach((face, index) => {
+            const faceNormal = this.resolveFaceNormal(face, guestSlot.params);
+            const dot = faceNormal.dot(targetNormal);
+            const absDot = Math.abs(dot);
+
+            if (best === null) {
+                best = face;
+                bestIndex = index;
+                bestAbsDot = absDot;
+                bestDot = dot;
+                return;
+            }
+
+            const absDelta = absDot - bestAbsDot;
+            if (absDelta > ABS_DOT_EPSILON) {
+                best = face;
+                bestIndex = index;
+                bestAbsDot = absDot;
+                bestDot = dot;
+                return;
+            }
+
+            if (Math.abs(absDelta) <= ABS_DOT_EPSILON) {
+                const dotDelta = dot - bestDot;
+                if (dotDelta > DOT_EPSILON || (Math.abs(dotDelta) <= DOT_EPSILON && index < bestIndex)) {
+                    best = face;
+                    bestIndex = index;
+                    bestAbsDot = absDot;
+                    bestDot = dot;
+                }
+            }
         });
         return best;
     }
@@ -680,12 +902,19 @@ class TrimensionApp {
         if (!entry) return;
 
         const { slot: hostSlot, faceDef: hostFaceDef } = entry;
-        const guestFaceDef = (ATTACHMENT_FACES[guestSlot.primitive] || []).find((f) => f.type === hostFaceDef.type);
+        const hostFaceNormal = this.resolveFaceNormal(hostFaceDef, hostSlot.params);
+        const guestFaceDef = this.getGuestAttachFaceDef(guestSlot, hostFaceNormal);
         if (!guestFaceDef) return;
 
-        hostFaceDef.dims.forEach((dim, i) => {
-            const guestDim = guestFaceDef.dims[i];
-            if (guestDim) guestSlot.params[guestDim] = hostSlot.params[dim];
+        const hostDims = this.resolveFaceDims(hostFaceDef, hostSlot.params);
+        const guestDims = this.resolveFaceDims(guestFaceDef, guestSlot.params);
+        hostDims.forEach((dim, i) => {
+            const guestDim = guestDims[i];
+            if (!guestDim || !Object.prototype.hasOwnProperty.call(guestSlot.params, guestDim)) return;
+            const hostValue = this.getFaceDimValue(hostSlot, hostFaceDef, dim);
+            if (typeof hostValue === 'number' && Number.isFinite(hostValue)) {
+                guestSlot.params[guestDim] = hostValue;
+            }
         });
     }
 
@@ -746,6 +975,44 @@ class TrimensionApp {
         slot.hostSlotId = entries[nextIndex].slotId;
         slot.hostFaceId = entries[nextIndex].faceId;
         this.snapSlotDimensions(slot);
+        this.resetSceneObjects();
+        this.buildComposite();
+        this.renderCompositeCards();
+    }
+
+    getTriangularPrismModeLabel(mode) {
+        return this.triangularPrismModes.find((opt) => opt.value === mode)?.label || 'Equilateral';
+    }
+
+    cycleTriangularPrismMode(slotId) {
+        const slot = this.compositeSlots.find((s) => s.id === slotId);
+        if (!slot || slot.primitive !== 'right-triangle-prism') return;
+
+        const options = this.triangularPrismModes;
+        const current = slot.params.triangleMode || 'equilateral';
+        const currentIndex = options.findIndex((opt) => opt.value === current);
+        const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % options.length : 0;
+        slot.params.triangleMode = options[nextIndex].value;
+
+        this.resetSceneObjects();
+        this.buildComposite();
+        this.renderCompositeCards();
+    }
+
+    getRectangularPyramidApexLabel(apexPosition) {
+        return this.rectangularPyramidApexPositions.find((opt) => opt.value === apexPosition)?.label || 'Centre';
+    }
+
+    cycleRectangularPyramidApex(slotId) {
+        const slot = this.compositeSlots.find((s) => s.id === slotId);
+        if (!slot || slot.primitive !== 'rectangular-pyramid') return;
+
+        const options = this.rectangularPyramidApexPositions;
+        const current = slot.params.apexPosition || 'center';
+        const currentIndex = options.findIndex((opt) => opt.value === current);
+        const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % options.length : 0;
+        slot.params.apexPosition = options[nextIndex].value;
+
         this.resetSceneObjects();
         this.buildComposite();
         this.renderCompositeCards();
@@ -890,6 +1157,24 @@ class TrimensionApp {
 
             card.appendChild(sliderStack);
 
+            if (slot.primitive === 'right-triangle-prism') {
+                const triangleModeCycleBtn = document.createElement('button');
+                triangleModeCycleBtn.type = 'button';
+                triangleModeCycleBtn.className = 'card-cycle-btn';
+                triangleModeCycleBtn.dataset.cycleTriangleModeSlotId = String(slot.id);
+                triangleModeCycleBtn.textContent = `↻ ${this.getTriangularPrismModeLabel(slot.params.triangleMode)}`;
+                card.appendChild(triangleModeCycleBtn);
+            }
+
+            if (slot.primitive === 'rectangular-pyramid') {
+                const apexCycleBtn = document.createElement('button');
+                apexCycleBtn.type = 'button';
+                apexCycleBtn.className = 'card-cycle-btn';
+                apexCycleBtn.dataset.cycleApexSlotId = String(slot.id);
+                apexCycleBtn.textContent = `↻ Apex: ${this.getRectangularPyramidApexLabel(slot.params.apexPosition)}`;
+                card.appendChild(apexCycleBtn);
+            }
+
             // Cycle face button (slot 1+)
             if (idx > 0) {
                 const prevSlots = this.compositeSlots.slice(0, idx);
@@ -973,11 +1258,18 @@ class TrimensionApp {
         let maxBoundsRadius = 6;
 
         this.compositeSlots.forEach((slot, idx) => {
+            let entry = null;
+            if (idx > 0) {
+                const prevSlots = this.compositeSlots.slice(0, idx);
+                entry = this.ensureSlotHostBinding(slot, prevSlots);
+                if (entry) {
+                    this.snapSlotDimensions(slot);
+                }
+            }
+
             const def = this.createSlotDefinition(slot);
 
             if (idx > 0) {
-                const prevSlots = this.compositeSlots.slice(0, idx);
-                const entry = this.ensureSlotHostBinding(slot, prevSlots);
                 if (entry) {
                     const hostSlotGroup = this.slotGroupMap.get(entry.slotId);
                     const hostGroupQ = hostSlotGroup ? hostSlotGroup.quaternion : new THREE.Quaternion();
@@ -991,11 +1283,11 @@ class TrimensionApp {
                         .applyQuaternion(hostOrientQ)
                         .applyQuaternion(hostGroupQ)
                         .add(hostGroupP);
-                    const hostFaceNormal = entry.faceDef.normal
+                    const hostFaceNormal = this.resolveFaceNormal(entry.faceDef, entry.slot.params)
                         .clone()
                         .applyQuaternion(hostOrientQ)
                         .applyQuaternion(hostGroupQ);
-                    const hostFaceU = (entry.faceDef.uAxis || new THREE.Vector3(1, 0, 0))
+                    const hostFaceU = this.resolveFaceUAxis(entry.faceDef, entry.slot.params)
                         .clone()
                         .applyQuaternion(hostOrientQ)
                         .applyQuaternion(hostGroupQ)
@@ -1003,11 +1295,11 @@ class TrimensionApp {
 
                     this.applySlotTransform(def.group, slot, hostFaceCenter, hostFaceNormal, hostFaceU);
 
-                    const guestFaceDef = this.getGuestAttachFaceDef(slot, entry.faceDef.normal);
+                    const guestFaceDef = this.getGuestAttachFaceDef(slot, this.resolveFaceNormal(entry.faceDef, entry.slot.params));
                     if (guestFaceDef) {
                         this.addLinkages(
-                            { slotId: entry.slotId, dims: entry.faceDef.dims },
-                            { slotId: slot.id, dims: guestFaceDef.dims }
+                            { slotId: entry.slotId, dims: this.resolveFaceDims(entry.faceDef, entry.slot.params) },
+                            { slotId: slot.id, dims: this.resolveFaceDims(guestFaceDef, slot.params) }
                         );
                     }
                 }
@@ -1050,7 +1342,7 @@ class TrimensionApp {
         
         // Apply guest's orientation rotation to its face normal (which is in standard space)
         const guestOrientQ = this.getOrientationQuaternion(slot.primitive, slot.orientation);
-        const guestFaceNormal = guestFaceDef.normal.clone().applyQuaternion(guestOrientQ);
+        const guestFaceNormal = this.resolveFaceNormal(guestFaceDef, slot.params).applyQuaternion(guestOrientQ);
         
         const Q = new THREE.Quaternion();
         const dot = guestFaceNormal.dot(targetGuestNormal);
@@ -1068,7 +1360,7 @@ class TrimensionApp {
 
         // After normal alignment, align in-plane axis too (prevents left/right face mismatch).
         if (hostFaceUWorld && guestFaceDef.uAxis) {
-            const guestUAfterNormalAlign = guestFaceDef.uAxis.clone()
+            const guestUAfterNormalAlign = this.resolveFaceUAxis(guestFaceDef, slot.params)
                 .applyQuaternion(guestOrientQ)
                 .applyQuaternion(Q);
 
@@ -1095,11 +1387,19 @@ class TrimensionApp {
     }
 
     addLinkages(hostInfo, guestInfo) {
+        const hostSlot = this.compositeSlots.find((s) => s.id === hostInfo.slotId);
+        const guestSlot = this.compositeSlots.find((s) => s.id === guestInfo.slotId);
+        if (!hostSlot || !guestSlot) return;
+
         const len = Math.min(hostInfo.dims.length, guestInfo.dims.length);
         for (let i = 0; i < len; i++) {
-            if (hostInfo.dims[i] && guestInfo.dims[i]) {
-                this.slotLinkages.push({ fromSlotId: hostInfo.slotId, fromParam: hostInfo.dims[i], toSlotId: guestInfo.slotId, toParam: guestInfo.dims[i] });
-                this.slotLinkages.push({ fromSlotId: guestInfo.slotId, fromParam: guestInfo.dims[i], toSlotId: hostInfo.slotId, toParam: hostInfo.dims[i] });
+            const hostDim = hostInfo.dims[i];
+            const guestDim = guestInfo.dims[i];
+            const hostHasParam = hostDim && Object.prototype.hasOwnProperty.call(hostSlot.params, hostDim);
+            const guestHasParam = guestDim && Object.prototype.hasOwnProperty.call(guestSlot.params, guestDim);
+            if (hostHasParam && guestHasParam) {
+                this.slotLinkages.push({ fromSlotId: hostInfo.slotId, fromParam: hostDim, toSlotId: guestInfo.slotId, toParam: guestDim });
+                this.slotLinkages.push({ fromSlotId: guestInfo.slotId, fromParam: guestDim, toSlotId: hostInfo.slotId, toParam: hostDim });
             }
         }
     }
@@ -1198,36 +1498,48 @@ class TrimensionApp {
             ];
             boundsRadius = Math.max(width, depth, height) * 1.15;
         } else if (primitiveKey === 'right-triangle-prism') {
-            const { legA, legB, length } = params;
+            const { legA, legB, length, triangleMode } = params;
             const zFront = length / 2;
             const zBack = -length / 2;
-            const xMin = -legA / 2;
-            const xMax = legA / 2;
-            const yMin = -legB / 2;
-            const yMax = legB / 2;
+
+            let posA, posB, posC;
+            const mode = triangleMode || 'equilateral';
+
+            if (mode === 'equilateral') {
+                const h = (legA * Math.sqrt(3)) / 2;
+                posA = new THREE.Vector3(-legA / 2, -h / 2, zFront);
+                posB = new THREE.Vector3(legA / 2, -h / 2, zFront);
+                posC = new THREE.Vector3(0, h / 2, zFront);
+            } else if (mode === 'right-above-B') {
+                posA = new THREE.Vector3(0, -legB / 2, zFront);
+                posB = new THREE.Vector3(legA, -legB / 2, zFront);
+                posC = new THREE.Vector3(legA, legB / 2, zFront);
+            } else {
+                posA = new THREE.Vector3(0, -legB / 2, zFront);
+                posB = new THREE.Vector3(legA, -legB / 2, zFront);
+                posC = new THREE.Vector3(0, legB / 2, zFront);
+            }
+
+            const posD = new THREE.Vector3(posA.x, posA.y, zBack);
+            const posE = new THREE.Vector3(posB.x, posB.y, zBack);
+            const posF = new THREE.Vector3(posC.x, posC.y, zBack);
 
             const vertices = [
-                // Front triangle: A B C
-                xMin, yMin, zFront, // A
-                xMax, yMin, zFront, // B
-                xMin, yMax, zFront, // C
-                // Back triangle: D E F
-                xMin, yMin, zBack,  // D
-                xMax, yMin, zBack,  // E
-                xMin, yMax, zBack   // F
+                posA.x, posA.y, posA.z,
+                posB.x, posB.y, posB.z,
+                posC.x, posC.y, posC.z,
+                posD.x, posD.y, posD.z,
+                posE.x, posE.y, posE.z,
+                posF.x, posF.y, posF.z
             ];
 
             const indices = [
-                // Front and back faces
                 0, 1, 2,
                 3, 5, 4,
-                // Rectangle ABED
                 0, 1, 4,
                 0, 4, 3,
-                // Rectangle ACFD
                 0, 3, 5,
                 0, 5, 2,
-                // Rectangle BCEF
                 1, 2, 5,
                 1, 5, 4
             ];
@@ -1237,13 +1549,14 @@ class TrimensionApp {
             geometry.setIndex(indices);
             geometry.computeVertexNormals();
 
+            const modeDesc = mode === 'equilateral' ? 'equilateral' : mode === 'right-above-B' ? 'right angle at B' : 'right angle at A';
             points = [
-                { id: 'A', label: 'A', description: 'front right-angle vertex', position: new THREE.Vector3(xMin, yMin, zFront) },
-                { id: 'B', label: 'B', description: 'front base vertex', position: new THREE.Vector3(xMax, yMin, zFront) },
-                { id: 'C', label: 'C', description: 'front height vertex', position: new THREE.Vector3(xMin, yMax, zFront) },
-                { id: 'D', label: 'D', description: 'back right-angle vertex', position: new THREE.Vector3(xMin, yMin, zBack) },
-                { id: 'E', label: 'E', description: 'back base vertex', position: new THREE.Vector3(xMax, yMin, zBack) },
-                { id: 'F', label: 'F', description: 'back height vertex', position: new THREE.Vector3(xMin, yMax, zBack) }
+                { id: 'A', label: 'A', description: `front base A (${modeDesc})`, position: posA },
+                { id: 'B', label: 'B', description: `front base B (${modeDesc})`, position: posB },
+                { id: 'C', label: 'C', description: `front apex C (${modeDesc})`, position: posC },
+                { id: 'D', label: 'D', description: `back base A (${modeDesc})`, position: posD },
+                { id: 'E', label: 'E', description: `back base B (${modeDesc})`, position: posE },
+                { id: 'F', label: 'F', description: `back apex C (${modeDesc})`, position: posF }
             ];
 
             boundsRadius = Math.max(legA, legB, length) * 1.2;
@@ -1428,29 +1741,68 @@ class TrimensionApp {
             boundsRadius = Math.max(radius * 2, height) * 1.18;
         } else if (primitiveKey === 'rectangular-pyramid') {
             const { length, width, height } = params;
-            geometry = new THREE.ConeGeometry(1, height, 4, 1, false);
-            geometry.rotateY(Math.PI / 4);
-            geometry.scale(length / Math.sqrt(2), 1, width / Math.sqrt(2));
+            const yBase = -height / 2;
+            const yApex = height / 2;
+            const baseA = new THREE.Vector3(-length / 2, yBase, width / 2);
+            const baseB = new THREE.Vector3(length / 2, yBase, width / 2);
+            const baseC = new THREE.Vector3(length / 2, yBase, -width / 2);
+            const baseD = new THREE.Vector3(-length / 2, yBase, -width / 2);
+            const apexTargets = {
+                center: new THREE.Vector3(0, yApex, 0),
+                A: new THREE.Vector3(baseA.x, yApex, baseA.z),
+                B: new THREE.Vector3(baseB.x, yApex, baseB.z),
+                C: new THREE.Vector3(baseC.x, yApex, baseC.z),
+                D: new THREE.Vector3(baseD.x, yApex, baseD.z)
+            };
+            const selectedApexPosition = params.apexPosition || 'center';
+            const apex = (apexTargets[selectedApexPosition] || apexTargets.center).clone();
+
+            const localPoints = [baseA.clone(), baseB.clone(), baseC.clone(), baseD.clone(), apex.clone()];
             if (slot.orientation === 'apex-down') {
-                geometry.rotateZ(Math.PI);
-                points = [
-                    { id: 'A', label: 'A', description: 'top front left', position: new THREE.Vector3(-length / 2, height / 2, width / 2) },
-                    { id: 'B', label: 'B', description: 'top front right', position: new THREE.Vector3(length / 2, height / 2, width / 2) },
-                    { id: 'C', label: 'C', description: 'top back right', position: new THREE.Vector3(length / 2, height / 2, -width / 2) },
-                    { id: 'D', label: 'D', description: 'top back left', position: new THREE.Vector3(-length / 2, height / 2, -width / 2) },
-                    { id: 'E', label: 'E', description: 'apex', position: new THREE.Vector3(0, -height / 2, 0) },
-                    { id: 'O', label: 'O', description: 'base centre', position: new THREE.Vector3(0, height / 2, 0) }
-                ];
-            } else {
-                points = [
-                    { id: 'A', label: 'A', description: 'base front left', position: new THREE.Vector3(-length / 2, -height / 2, width / 2) },
-                    { id: 'B', label: 'B', description: 'base front right', position: new THREE.Vector3(length / 2, -height / 2, width / 2) },
-                    { id: 'C', label: 'C', description: 'base back right', position: new THREE.Vector3(length / 2, -height / 2, -width / 2) },
-                    { id: 'D', label: 'D', description: 'base back left', position: new THREE.Vector3(-length / 2, -height / 2, -width / 2) },
-                    { id: 'E', label: 'E', description: 'apex', position: new THREE.Vector3(0, height / 2, 0) },
-                    { id: 'O', label: 'O', description: 'base centre', position: new THREE.Vector3(0, -height / 2, 0) }
-                ];
+                localPoints.forEach((pt) => {
+                    pt.x *= -1;
+                    pt.y *= -1;
+                });
             }
+
+            const [A, B, C, D, E] = localPoints;
+            const flatVertices = [
+                A.x, A.y, A.z,
+                B.x, B.y, B.z,
+                C.x, C.y, C.z,
+                D.x, D.y, D.z,
+                E.x, E.y, E.z
+            ];
+
+            const indices = [
+                0, 2, 1,
+                0, 3, 2,
+                0, 1, 4,
+                1, 2, 4,
+                2, 3, 4,
+                3, 0, 4
+            ];
+
+            geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(flatVertices, 3));
+            geometry.setIndex(indices);
+            geometry.computeVertexNormals();
+
+            const baseCentre = new THREE.Vector3(0, yBase, 0);
+            if (slot.orientation === 'apex-down') {
+                baseCentre.x *= -1;
+                baseCentre.y *= -1;
+            }
+
+            const baseDescPrefix = slot.orientation === 'apex-down' ? 'top' : 'base';
+            points = [
+                { id: 'A', label: 'A', description: `${baseDescPrefix} front left`, position: A },
+                { id: 'B', label: 'B', description: `${baseDescPrefix} front right`, position: B },
+                { id: 'C', label: 'C', description: `${baseDescPrefix} back right`, position: C },
+                { id: 'D', label: 'D', description: `${baseDescPrefix} back left`, position: D },
+                { id: 'E', label: 'E', description: 'apex', position: E },
+                { id: 'O', label: 'O', description: 'base centre', position: baseCentre }
+            ];
             boundsRadius = Math.max(length, width, height) * 1.15;
         } else {
             throw new Error(`Unknown primitive key: ${primitiveKey}`);
