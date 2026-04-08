@@ -61,10 +61,7 @@ textarea {
     display: flex;
     align-items: center;
     justify-content: center;
-    background:
-        radial-gradient(circle at 20% 20%, rgba(74, 144, 226, 0.22), transparent 30%),
-        radial-gradient(circle at 80% 30%, rgba(107, 163, 232, 0.15), transparent 24%),
-        linear-gradient(180deg, #1A2F42 0%, #132434 100%);
+    background: #1A2F42;
     z-index: 2000;
     transition: opacity 0.45s ease, visibility 0.45s ease;
 }
