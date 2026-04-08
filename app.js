@@ -2079,6 +2079,11 @@ class TrimensionApp {
             const pointMap = new Map(points.map((point) => [point.id, point.position]));
             const intrinsicRightAngleTriples = this.collectRightAngleTriples(pointMap, intrinsicRightAngleEdgePairs);
             const sharedMarkerSizeByVertex = new Map();
+            const primitiveCenterLocal = new THREE.Vector3();
+            if (points.length > 0) {
+                points.forEach((point) => primitiveCenterLocal.add(point.position));
+                primitiveCenterLocal.multiplyScalar(1 / points.length);
+            }
 
             intrinsicRightAngleTriples.forEach(([vertexId, armId1, armId2]) => {
                 const vertex = pointMap.get(vertexId);
@@ -2102,6 +2107,19 @@ class TrimensionApp {
                 const armPoint1 = pointMap.get(armId1);
                 const armPoint2 = pointMap.get(armId2);
                 if (!vertex || !armPoint1 || !armPoint2) return;
+
+                const arm1 = armPoint1.clone().sub(vertex);
+                const arm2 = armPoint2.clone().sub(vertex);
+                const faceNormalLocal = new THREE.Vector3().crossVectors(arm1, arm2);
+                if (faceNormalLocal.lengthSq() < 1e-10) return;
+                faceNormalLocal.normalize();
+
+                const facePointLocal = vertex.clone().add(armPoint1).add(armPoint2).multiplyScalar(1 / 3);
+                const outwardRef = facePointLocal.clone().sub(primitiveCenterLocal);
+                if (faceNormalLocal.dot(outwardRef) < 0) {
+                    faceNormalLocal.multiplyScalar(-1);
+                }
+
                 const marker = this.createRightAngleMarker(
                     vertex,
                     armPoint1,
@@ -2110,6 +2128,9 @@ class TrimensionApp {
                     true
                 );
                 if (marker) {
+                    marker.userData.isIntrinsicRightAngleMarker = true;
+                    marker.userData.faceNormalLocal = faceNormalLocal;
+                    marker.userData.facePointLocal = facePointLocal;
                     group.add(marker);
                 }
             });
@@ -2134,6 +2155,35 @@ class TrimensionApp {
         this.primitiveMeshes.forEach((mesh) => {
             mesh.material.opacity = this.ghostFaces ? 0.14 : 0.78;
             mesh.material.needsUpdate = true;
+        });
+    }
+
+    updateIntrinsicRightAngleMarkerVisibility() {
+        if (!this.scene || !this.camera) return;
+
+        this.scene.updateMatrixWorld(true);
+
+        const facePointWorld = new THREE.Vector3();
+        const faceNormalWorld = new THREE.Vector3();
+        const toCamera = new THREE.Vector3();
+        const hostWorldQ = new THREE.Quaternion();
+
+        this.scene.traverse((obj) => {
+            if (!obj.userData?.isIntrinsicRightAngleMarker) return;
+
+            const facePointLocal = obj.userData.facePointLocal;
+            const faceNormalLocal = obj.userData.faceNormalLocal;
+            const hostGroup = obj.parent;
+            if (!facePointLocal || !faceNormalLocal || !hostGroup) {
+                obj.visible = true;
+                return;
+            }
+
+            facePointWorld.copy(facePointLocal).applyMatrix4(hostGroup.matrixWorld);
+            hostGroup.getWorldQuaternion(hostWorldQ);
+            faceNormalWorld.copy(faceNormalLocal).applyQuaternion(hostWorldQ).normalize();
+            toCamera.copy(this.camera.position).sub(facePointWorld);
+            obj.visible = faceNormalWorld.dot(toCamera) >= 0;
         });
     }
 
@@ -2715,10 +2765,16 @@ class TrimensionApp {
         outline2.renderOrder = 21;
         outline3.renderOrder = 21;
 
+        const triangleMarkerBaseSize = THREE.MathUtils.clamp(
+            Math.min(a.distanceTo(b), b.distanceTo(c), c.distanceTo(a)) * 0.16,
+            0.15,
+            0.9
+        );
+
         const rightAngleMarkers = [
-            this.createRightAngleMarker(a, b, c),
-            this.createRightAngleMarker(b, c, a),
-            this.createRightAngleMarker(c, a, b)
+            this.createRightAngleMarker(a, b, c, triangleMarkerBaseSize, false, color, 5, 1.5),
+            this.createRightAngleMarker(b, c, a, triangleMarkerBaseSize, false, color, 5, 1.5),
+            this.createRightAngleMarker(c, a, b, triangleMarkerBaseSize, false, color, 5, 1.5)
         ].filter(Boolean);
 
         const group = new THREE.Group();
@@ -2769,7 +2825,7 @@ class TrimensionApp {
         return rightAngleTriples;
     }
 
-    createRightAngleMarker(vertex, armPoint1, armPoint2, markerSizeOverride = null, useThinLine = false) {
+    createRightAngleMarker(vertex, armPoint1, armPoint2, markerSizeOverride = null, useThinLine = false, markerColor = 0x000000, markerLineWidth = 5, sizeScale = 1) {
         const arm1 = armPoint1.clone().sub(vertex);
         const arm2 = armPoint2.clone().sub(vertex);
         const len1 = arm1.length();
@@ -2790,21 +2846,22 @@ class TrimensionApp {
         const markerSize = typeof markerSizeOverride === 'number' && Number.isFinite(markerSizeOverride)
             ? markerSizeOverride
             : THREE.MathUtils.clamp(Math.min(len1, len2) * 0.16, 0.15, 0.9);
-        const p1 = vertex.clone().add(u.clone().multiplyScalar(markerSize));
-        const p2 = p1.clone().add(v.clone().multiplyScalar(markerSize));
-        const p3 = vertex.clone().add(v.clone().multiplyScalar(markerSize));
+        const finalMarkerSize = markerSize * 0.5 * sizeScale;
+        const p1 = vertex.clone().add(u.clone().multiplyScalar(finalMarkerSize));
+        const p2 = p1.clone().add(v.clone().multiplyScalar(finalMarkerSize));
+        const p3 = vertex.clone().add(v.clone().multiplyScalar(finalMarkerSize));
 
         if (useThinLine) {
             const markerGeometry = new THREE.BufferGeometry().setFromPoints([p1, p2, p3]);
             const markerLine = new THREE.Line(
                 markerGeometry,
-                new THREE.LineBasicMaterial({ color: 0x000000, transparent: false, opacity: 1 })
+                new THREE.LineBasicMaterial({ color: markerColor, transparent: false, opacity: 1 })
             );
             markerLine.renderOrder = 22;
             return markerLine;
         }
 
-        const markerLine = this.createThickPolyline([p1, p2, p3], 0x000000, 5);
+        const markerLine = this.createThickPolyline([p1, p2, p3], markerColor, markerLineWidth);
         markerLine.renderOrder = 22;
         return markerLine;
     }
@@ -3243,6 +3300,7 @@ class TrimensionApp {
         if (!this.renderer) return;
         this.animationFrameId = window.requestAnimationFrame(() => this.animate());
         this.controls.update();
+        this.updateIntrinsicRightAngleMarkerVisibility();
         this.renderer.render(this.scene, this.camera);
     }
 
