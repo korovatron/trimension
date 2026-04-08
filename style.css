@@ -36,6 +36,7 @@ body {
     height: 100%;
     min-height: 100vh;
     min-height: var(--actual-vh, 100vh);
+    background: var(--bg-primary);
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
 }
