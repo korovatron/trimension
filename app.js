@@ -1743,6 +1743,15 @@ class TrimensionApp {
         }) || null;
     }
 
+    hasMidpointForPair(pointIds) {
+        const signature = this.makeMidpointSignature(pointIds);
+        if (!signature) {
+            return false;
+        }
+
+        return this.sceneObjects.some((entry) => entry.definition?.kind === 'midpoint-point' && entry.definition.signature === signature);
+    }
+
     removeEdgeLabelsForPointPair(pointIds) {
         const normalized = this.normalizePointPairIds(pointIds);
         if (!normalized) {
@@ -1761,6 +1770,32 @@ class TrimensionApp {
             const pair = this.normalizePointPairIds(definition.pointIds);
             const isTargetPair = !!pair && pair[0] === normalized[0] && pair[1] === normalized[1];
             if (!isTargetPair) {
+                survivors.push(entry);
+                return;
+            }
+
+            this.scene.remove(entry.object3D);
+            this.disposeObject3D(entry.object3D);
+        });
+
+        this.sceneObjects = survivors;
+    }
+
+    removeMidpointPointsForPair(pointIds, options = {}) {
+        const normalized = this.normalizePointPairIds(pointIds);
+        if (!normalized) {
+            return;
+        }
+
+        const onlyIfDisconnected = options.onlyIfDisconnected === true;
+        if (onlyIfDisconnected && this.canAttachLabelToPointPair(normalized)) {
+            return;
+        }
+
+        const signature = this.makeMidpointSignature(normalized);
+        const survivors = [];
+        this.sceneObjects.forEach((entry) => {
+            if (entry.definition?.kind !== 'midpoint-point' || entry.definition.signature !== signature) {
                 survivors.push(entry);
                 return;
             }
@@ -1797,6 +1832,11 @@ class TrimensionApp {
         const y = intersectionPoint.y.toFixed(3);
         const z = intersectionPoint.z.toFixed(3);
         return `${leftKey}|${rightKey}|${x}|${y}|${z}`;
+    }
+
+    makeMidpointSignature(pointIds) {
+        const normalized = this.normalizePointPairIds(pointIds);
+        return normalized ? `midpoint|${normalized[0]}|${normalized[1]}` : null;
     }
 
     changeSelectedPointLabel() {
@@ -2514,6 +2554,10 @@ class TrimensionApp {
         if (this.selectedPoints.length === 2 && this.canAttachLabelToPointPair(this.selectedPoints)) {
             const hasExistingLabel = !!this.findEdgeLabelObject(this.selectedPoints);
             baseActions.push({ key: 'edge-label', label: hasExistingLabel ? 'Change Label' : 'Add Label' });
+
+            if (!this.hasMidpointForPair(this.selectedPoints)) {
+                baseActions.push({ key: 'add-midpoint', label: 'Add Midpoint' });
+            }
         }
 
         if (this.selectedPoints.length !== 4) {
@@ -2609,6 +2653,7 @@ class TrimensionApp {
     }
 
     refreshDerivedPoints() {
+        const priorPointMap = new Map(this.getAllPoints().map((point) => [point.id, point.position.clone()]));
         const basePoints = new Map();
         this.pointDefinitions.forEach((point) => {
             basePoints.set(point.id, point.position.clone());
@@ -2638,9 +2683,63 @@ class TrimensionApp {
             return label;
         };
 
-        const segments = this.getConstructionSegments(basePoints);
         const derived = [];
         const activeDerivedSignatures = new Set();
+
+        const midpointDefinitions = this.sceneObjects
+            .map((entry) => entry.definition)
+            .filter((definition) => definition?.kind === 'midpoint-point' && Array.isArray(definition.pointIds) && definition.pointIds.length === 2);
+        const seenMidpointSignatures = new Set();
+
+        midpointDefinitions.forEach((definition) => {
+            if (!this.canAttachLabelToPointPair(definition.pointIds)) {
+                return;
+            }
+
+            const signature = definition.signature || this.makeMidpointSignature(definition.pointIds);
+            if (!signature || seenMidpointSignatures.has(signature)) {
+                return;
+            }
+
+            const start = priorPointMap.get(definition.pointIds[0]);
+            const end = priorPointMap.get(definition.pointIds[1]);
+            if (!start || !end) {
+                return;
+            }
+
+            const midpoint = start.clone().lerp(end, 0.5);
+            if (existingPointNear(midpoint)) {
+                return;
+            }
+
+            seenMidpointSignatures.add(signature);
+            activeDerivedSignatures.add(signature);
+
+            let label = this.derivedLabelOverrides.get(signature);
+            if (label && usedLabels.has(label)) {
+                this.derivedLabelOverrides.delete(signature);
+                label = null;
+            }
+
+            if (!label) {
+                label = nextDerivedLabel();
+            } else {
+                usedLabels.add(label);
+            }
+
+            const id = `derived-${signature}`;
+            basePoints.set(id, midpoint.clone());
+            derived.push({
+                id,
+                label,
+                signature,
+                description: 'derived midpoint',
+                position: midpoint,
+                isDerived: true
+            });
+        });
+
+        const segments = this.getConstructionSegments(basePoints);
 
         for (let i = 0; i < segments.length; i += 1) {
             for (let j = i + 1; j < segments.length; j += 1) {
@@ -2874,6 +2973,26 @@ class TrimensionApp {
                     }
                 });
             }
+        }
+
+        if (actionKey === 'add-midpoint') {
+            const ids = this.normalizePointPairIds([...this.selectedPoints]);
+            if (!ids || !this.canAttachLabelToPointPair(ids) || this.hasMidpointForPair(ids)) {
+                return;
+            }
+
+            const signature = this.makeMidpointSignature(ids);
+            this.addSceneObject({
+                type: 'label',
+                name: `Midpoint ${this.formatPointSequence(ids)}`,
+                subtitle: 'Derived midpoint',
+                object3D: new THREE.Group(),
+                definition: {
+                    kind: 'midpoint-point',
+                    pointIds: ids,
+                    signature
+                }
+            });
         }
 
         if (actionKey === 'triangle') {
@@ -3330,6 +3449,12 @@ class TrimensionApp {
             return sprite;
         }
 
+        if (definition.kind === 'midpoint-point') {
+            const midpointHolder = new THREE.Group();
+            midpointHolder.visible = false;
+            return midpointHolder;
+        }
+
         if (definition.kind === 'segment') {
             const vectors = this.getVectorsByPointIds(definition.pointIds || []);
             if (!vectors || vectors.length !== 2) return null;
@@ -3408,6 +3533,28 @@ class TrimensionApp {
         this.renderObjectsList();
     }
 
+    pruneOrphanedSceneObjects() {
+        const validPointIds = new Set(this.getAllPoints().map((p) => p.id));
+        const orphaned = [];
+        const remaining = [];
+        this.sceneObjects.forEach((entry) => {
+            const def = entry.definition;
+            if (def && Array.isArray(def.pointIds) && def.pointIds.length > 0) {
+                if (def.pointIds.some((id) => !validPointIds.has(id))) {
+                    orphaned.push(entry);
+                    return;
+                }
+            }
+            remaining.push(entry);
+        });
+        if (orphaned.length === 0) return;
+        this.sceneObjects = remaining;
+        orphaned.forEach((entry) => {
+            this.scene.remove(entry.object3D);
+            this.disposeObject3D(entry.object3D);
+        });
+    }
+
     deleteObject(objectId) {
         const index = this.sceneObjects.findIndex((entry) => entry.id === objectId);
         if (index === -1) return;
@@ -3415,11 +3562,13 @@ class TrimensionApp {
         const [item] = this.sceneObjects.splice(index, 1);
         if (item.definition?.kind === 'segment' && Array.isArray(item.definition.pointIds) && item.definition.pointIds.length === 2) {
             this.removeEdgeLabelsForPointPair(item.definition.pointIds);
+            this.removeMidpointPointsForPair(item.definition.pointIds, { onlyIfDisconnected: true });
         }
         this.scene.remove(item.object3D);
         this.disposeObject3D(item.object3D);
-        this.renderObjectsList();
         this.refreshDerivedPoints();
+        this.pruneOrphanedSceneObjects();
+        this.renderObjectsList();
         this.buildPointMarkers();
         this.renderPointsList();
         this.renderSelectionSummary();
