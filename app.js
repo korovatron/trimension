@@ -1677,6 +1677,7 @@ class TrimensionApp {
         let geometry;
         let boundsRadius = 6;
         let guideCircles = [];
+        let intrinsicRightAngleEdgePairs = [];
 
         if (primitiveKey === 'cuboid') {
             const { width, depth, height } = params;
@@ -1690,6 +1691,11 @@ class TrimensionApp {
                 { id: 'F', label: 'F', description: 'top front right', position: new THREE.Vector3(width / 2, height / 2, depth / 2) },
                 { id: 'G', label: 'G', description: 'top back right', position: new THREE.Vector3(width / 2, height / 2, -depth / 2) },
                 { id: 'H', label: 'H', description: 'top back left', position: new THREE.Vector3(-width / 2, height / 2, -depth / 2) }
+            ];
+            intrinsicRightAngleEdgePairs = [
+                ['A', 'B'], ['B', 'C'], ['C', 'D'], ['D', 'A'],
+                ['E', 'F'], ['F', 'G'], ['G', 'H'], ['H', 'E'],
+                ['A', 'E'], ['B', 'F'], ['C', 'G'], ['D', 'H']
             ];
             boundsRadius = Math.max(width, depth, height) * 1.15;
         } else if (primitiveKey === 'right-triangle-prism') {
@@ -1738,6 +1744,11 @@ class TrimensionApp {
                 { id: 'E', label: 'E', description: `back base B (${modeDesc})`, position: posE },
                 { id: 'F', label: 'F', description: `back apex C (${modeDesc})`, position: posF }
             ];
+            intrinsicRightAngleEdgePairs = [
+                ['A', 'B'], ['B', 'C'], ['C', 'A'],
+                ['D', 'E'], ['E', 'F'], ['F', 'D'],
+                ['A', 'D'], ['B', 'E'], ['C', 'F']
+            ];
 
             boundsRadius = Math.max(legA, legB, length) * 1.2;
         } else if (primitiveKey === 'tetrahedron') {
@@ -1777,6 +1788,10 @@ class TrimensionApp {
                 { id: 'B', label: 'B', description: `base vertex B (${modeDesc})`, position: baseB },
                 { id: 'C', label: 'C', description: `base vertex C (${modeDesc})`, position: baseC },
                 { id: 'D', label: 'D', description: apexDesc, position: apex }
+            ];
+            intrinsicRightAngleEdgePairs = [
+                ['A', 'B'], ['B', 'C'], ['C', 'A'],
+                ['A', 'D'], ['B', 'D'], ['C', 'D']
             ];
 
             boundsRadius = Math.max(params.base, params.triangleHeight, height) * 1.2;
@@ -1833,6 +1848,12 @@ class TrimensionApp {
                 { id: 'F', label: 'F', description: 'back bottom right', position: new THREE.Vector3(xRight, yBase, zBack) },
                 { id: 'G', label: 'G', description: 'back top right', position: new THREE.Vector3(xRight, yBase + rightHeight, zBack) },
                 { id: 'H', label: 'H', description: 'back top left', position: new THREE.Vector3(xLeft, yBase + leftHeight, zBack) }
+            ];
+
+            intrinsicRightAngleEdgePairs = [
+                ['A', 'B'], ['B', 'C'], ['C', 'D'], ['D', 'A'],
+                ['E', 'F'], ['F', 'G'], ['G', 'H'], ['H', 'E'],
+                ['A', 'E'], ['B', 'F'], ['C', 'G'], ['D', 'H']
             ];
 
             const heightDelta = leftHeight - rightHeight;
@@ -2023,6 +2044,10 @@ class TrimensionApp {
                 { id: 'E', label: 'E', description: 'apex', position: E },
                 { id: 'O', label: 'O', description: 'base centre', position: baseCentre }
             ];
+            intrinsicRightAngleEdgePairs = [
+                ['A', 'B'], ['B', 'C'], ['C', 'D'], ['D', 'A'],
+                ['A', 'E'], ['B', 'E'], ['C', 'E'], ['D', 'E']
+            ];
             boundsRadius = Math.max(length, width, height) * 1.15;
         } else {
             throw new Error(`Unknown primitive key: ${primitiveKey}`);
@@ -2049,6 +2074,46 @@ class TrimensionApp {
         );
         edges.renderOrder = 6;
         group.add(mesh, edges);
+
+        if (intrinsicRightAngleEdgePairs.length > 0) {
+            const pointMap = new Map(points.map((point) => [point.id, point.position]));
+            const intrinsicRightAngleTriples = this.collectRightAngleTriples(pointMap, intrinsicRightAngleEdgePairs);
+            const sharedMarkerSizeByVertex = new Map();
+
+            intrinsicRightAngleTriples.forEach(([vertexId, armId1, armId2]) => {
+                const vertex = pointMap.get(vertexId);
+                const armPoint1 = pointMap.get(armId1);
+                const armPoint2 = pointMap.get(armId2);
+                if (!vertex || !armPoint1 || !armPoint2) return;
+
+                const len1 = armPoint1.distanceTo(vertex);
+                const len2 = armPoint2.distanceTo(vertex);
+                if (len1 < 1e-6 || len2 < 1e-6) return;
+
+                const candidateSize = THREE.MathUtils.clamp(Math.min(len1, len2) * 0.16, 0.15, 0.9);
+                const existingSize = sharedMarkerSizeByVertex.get(vertexId);
+                if (existingSize == null || candidateSize < existingSize) {
+                    sharedMarkerSizeByVertex.set(vertexId, candidateSize);
+                }
+            });
+
+            intrinsicRightAngleTriples.forEach(([vertexId, armId1, armId2]) => {
+                const vertex = pointMap.get(vertexId);
+                const armPoint1 = pointMap.get(armId1);
+                const armPoint2 = pointMap.get(armId2);
+                if (!vertex || !armPoint1 || !armPoint2) return;
+                const marker = this.createRightAngleMarker(
+                    vertex,
+                    armPoint1,
+                    armPoint2,
+                    sharedMarkerSizeByVertex.get(vertexId),
+                    true
+                );
+                if (marker) {
+                    group.add(marker);
+                }
+            });
+        }
 
         if (guideCircles.length > 0) {
             guideCircles.forEach((circlePoints) => {
@@ -2661,7 +2726,50 @@ class TrimensionApp {
         return group;
     }
 
-    createRightAngleMarker(vertex, armPoint1, armPoint2) {
+    collectRightAngleTriples(pointMap, edgePairs) {
+        const adjacency = new Map();
+        const addNeighbor = (fromId, toId) => {
+            if (!adjacency.has(fromId)) adjacency.set(fromId, new Set());
+            adjacency.get(fromId).add(toId);
+        };
+
+        edgePairs.forEach(([idA, idB]) => {
+            if (!pointMap.has(idA) || !pointMap.has(idB)) return;
+            addNeighbor(idA, idB);
+            addNeighbor(idB, idA);
+        });
+
+        const rightAngleTriples = [];
+        const rightAngleToleranceRadians = THREE.MathUtils.degToRad(2);
+
+        adjacency.forEach((neighborSet, vertexId) => {
+            const neighbors = Array.from(neighborSet);
+            const vertex = pointMap.get(vertexId);
+            if (!vertex || neighbors.length < 2) return;
+
+            for (let i = 0; i < neighbors.length; i += 1) {
+                for (let j = i + 1; j < neighbors.length; j += 1) {
+                    const armPoint1 = pointMap.get(neighbors[i]);
+                    const armPoint2 = pointMap.get(neighbors[j]);
+                    if (!armPoint1 || !armPoint2) continue;
+
+                    const arm1 = armPoint1.clone().sub(vertex);
+                    const arm2 = armPoint2.clone().sub(vertex);
+                    if (arm1.lengthSq() < 1e-8 || arm2.lengthSq() < 1e-8) continue;
+
+                    const cosTheta = THREE.MathUtils.clamp(arm1.normalize().dot(arm2.normalize()), -1, 1);
+                    const angle = Math.acos(cosTheta);
+                    if (Math.abs(angle - Math.PI / 2) <= rightAngleToleranceRadians) {
+                        rightAngleTriples.push([vertexId, neighbors[i], neighbors[j]]);
+                    }
+                }
+            }
+        });
+
+        return rightAngleTriples;
+    }
+
+    createRightAngleMarker(vertex, armPoint1, armPoint2, markerSizeOverride = null, useThinLine = false) {
         const arm1 = armPoint1.clone().sub(vertex);
         const arm2 = armPoint2.clone().sub(vertex);
         const len1 = arm1.length();
@@ -2679,11 +2787,24 @@ class TrimensionApp {
             return null;
         }
 
-        const markerSize = THREE.MathUtils.clamp(Math.min(len1, len2) * 0.16, 0.15, 0.9);
+        const markerSize = typeof markerSizeOverride === 'number' && Number.isFinite(markerSizeOverride)
+            ? markerSizeOverride
+            : THREE.MathUtils.clamp(Math.min(len1, len2) * 0.16, 0.15, 0.9);
         const p1 = vertex.clone().add(u.clone().multiplyScalar(markerSize));
         const p2 = p1.clone().add(v.clone().multiplyScalar(markerSize));
         const p3 = vertex.clone().add(v.clone().multiplyScalar(markerSize));
-        const markerLine = this.createThickPolyline([p1, p2, p3], 0x000000, 4.5);
+
+        if (useThinLine) {
+            const markerGeometry = new THREE.BufferGeometry().setFromPoints([p1, p2, p3]);
+            const markerLine = new THREE.Line(
+                markerGeometry,
+                new THREE.LineBasicMaterial({ color: 0x000000, transparent: false, opacity: 1 })
+            );
+            markerLine.renderOrder = 22;
+            return markerLine;
+        }
+
+        const markerLine = this.createThickPolyline([p1, p2, p3], 0x000000, 5);
         markerLine.renderOrder = 22;
         return markerLine;
     }
