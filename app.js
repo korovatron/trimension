@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Line2 } from 'three/addons/lines/Line2.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
@@ -382,7 +382,7 @@ class TrimensionApp {
         ];
         this.nextSlotId = 1;
         this.compositeGroup = null;
-        this.slotGroupMap = new Map();   // slotId → Three.js Group
+        this.slotGroupMap = new Map();   // slotId -> Three.js Group
         this.primitiveMeshes = [];       // one mesh per slot
         this.slotLinkages = [];          // { fromSlotId, fromParam, toSlotId, toParam }
 
@@ -1056,7 +1056,7 @@ class TrimensionApp {
         if (!this.primitiveMeta[primitiveKey]) return;
 
         if (this.compositeSlots.length === 0) {
-            // First slot — reset everything
+            // First slot - reset everything
             const slot = {
                 id: this.nextSlotId++,
                 primitive: primitiveKey,
@@ -1222,7 +1222,7 @@ class TrimensionApp {
             removeBtn.className = 'card-remove-btn';
             removeBtn.dataset.removeSlotId = String(slot.id);
             removeBtn.setAttribute('aria-label', `Remove ${this.primitiveMeta[slot.primitive].label}`);
-            removeBtn.textContent = '×';
+            removeBtn.textContent = 'X';
             header.appendChild(removeBtn);
             card.appendChild(header);
 
@@ -1320,7 +1320,7 @@ class TrimensionApp {
                 triangleModeCycleBtn.type = 'button';
                 triangleModeCycleBtn.className = 'card-cycle-btn';
                 triangleModeCycleBtn.dataset.cycleTriangleModeSlotId = String(slot.id);
-                triangleModeCycleBtn.textContent = `↻ ${this.getTriangularPrismModeLabel(slot.params.triangleMode)}`;
+                triangleModeCycleBtn.textContent = `Cycle: ${this.getTriangularPrismModeLabel(slot.params.triangleMode)}`;
                 card.appendChild(triangleModeCycleBtn);
             }
 
@@ -1329,14 +1329,14 @@ class TrimensionApp {
                 tetrahedronModeCycleBtn.type = 'button';
                 tetrahedronModeCycleBtn.className = 'card-cycle-btn';
                 tetrahedronModeCycleBtn.dataset.cycleTetrahedronModeSlotId = String(slot.id);
-                tetrahedronModeCycleBtn.textContent = `↻ Base: ${this.getTetrahedronTriangleModeLabel(slot.params.baseTriangleMode)}`;
+                tetrahedronModeCycleBtn.textContent = `Cycle Base: ${this.getTetrahedronTriangleModeLabel(slot.params.baseTriangleMode)}`;
                 card.appendChild(tetrahedronModeCycleBtn);
 
                 const tetrahedronApexCycleBtn = document.createElement('button');
                 tetrahedronApexCycleBtn.type = 'button';
                 tetrahedronApexCycleBtn.className = 'card-cycle-btn';
                 tetrahedronApexCycleBtn.dataset.cycleTetrahedronApexSlotId = String(slot.id);
-                tetrahedronApexCycleBtn.textContent = `↻ Apex: ${this.getTetrahedronApexLabel(slot.params.apexPosition)}`;
+                tetrahedronApexCycleBtn.textContent = `Cycle Apex: ${this.getTetrahedronApexLabel(slot.params.apexPosition)}`;
                 card.appendChild(tetrahedronApexCycleBtn);
             }
 
@@ -1345,7 +1345,7 @@ class TrimensionApp {
                 apexCycleBtn.type = 'button';
                 apexCycleBtn.className = 'card-cycle-btn';
                 apexCycleBtn.dataset.cycleApexSlotId = String(slot.id);
-                apexCycleBtn.textContent = `↻ Apex: ${this.getRectangularPyramidApexLabel(slot.params.apexPosition)}`;
+                apexCycleBtn.textContent = `Cycle Apex: ${this.getRectangularPyramidApexLabel(slot.params.apexPosition)}`;
                 card.appendChild(apexCycleBtn);
             }
 
@@ -1362,7 +1362,7 @@ class TrimensionApp {
                         cycleBtn.type = 'button';
                         cycleBtn.className = 'card-cycle-btn';
                         cycleBtn.dataset.cycleSlotId = String(slot.id);
-                        cycleBtn.textContent = `↻ ${currentLabel}`;
+                        cycleBtn.textContent = `Cycle: ${currentLabel}`;
                         card.appendChild(cycleBtn);
                     } else {
                         const faceInfo = document.createElement('div');
@@ -1752,6 +1752,32 @@ class TrimensionApp {
         return this.sceneObjects.some((entry) => entry.definition?.kind === 'midpoint-point' && entry.definition.signature === signature);
     }
 
+    getMidpointSignatureForPointId(pointId) {
+        const point = this.getPointById(pointId);
+        if (!point || !point.isDerived) {
+            return null;
+        }
+
+        if (typeof point.signature === 'string' && point.signature.startsWith('midpoint|')) {
+            return point.signature;
+        }
+
+        if (typeof point.id === 'string' && point.id.startsWith('derived-midpoint|')) {
+            return point.id.replace('derived-', '');
+        }
+
+        return null;
+    }
+
+    findMidpointObjectByPointId(pointId) {
+        const signature = this.getMidpointSignatureForPointId(pointId);
+        if (!signature) {
+            return null;
+        }
+
+        return this.sceneObjects.find((entry) => entry.definition?.kind === 'midpoint-point' && entry.definition.signature === signature) || null;
+    }
+
     removeEdgeLabelsForPointPair(pointIds) {
         const normalized = this.normalizePointPairIds(pointIds);
         if (!normalized) {
@@ -1805,6 +1831,100 @@ class TrimensionApp {
         });
 
         this.sceneObjects = survivors;
+    }
+
+    getTriangleEdgePairs(pointIds) {
+        if (!Array.isArray(pointIds) || pointIds.length !== 3) {
+            return [];
+        }
+
+        return [
+            [pointIds[0], pointIds[1]],
+            [pointIds[1], pointIds[2]],
+            [pointIds[2], pointIds[0]]
+        ];
+    }
+
+    getPlaneEdgePairs(pointIds) {
+        if (!Array.isArray(pointIds) || pointIds.length !== 4) {
+            return [];
+        }
+
+        return [
+            [pointIds[0], pointIds[1]],
+            [pointIds[1], pointIds[2]],
+            [pointIds[2], pointIds[3]],
+            [pointIds[3], pointIds[0]]
+        ];
+    }
+
+    ensureHiddenSupportSegment(pointIds, reasonLabel = 'Support edge', ownerId = null) {
+        const normalized = this.normalizePointPairIds(pointIds);
+        if (!normalized) {
+            return;
+        }
+
+        if (this.canAttachLabelToPointPair(normalized)) {
+            return;
+        }
+
+        this.addSceneObject({
+            type: 'segment',
+            name: `Ghost ${this.formatPointSequence(normalized)}`,
+            subtitle: reasonLabel,
+            object3D: new THREE.Group(),
+            definition: {
+                kind: 'segment',
+                pointIds: normalized,
+                hidden: true,
+                supportOwnerId: ownerId
+            }
+        });
+    }
+
+    ensureHiddenSupportSegmentsForPairs(pairs, reasonLabel = 'Support edge', ownerId = null) {
+        if (!Array.isArray(pairs) || pairs.length === 0) {
+            return;
+        }
+
+        pairs.forEach((pair) => {
+            this.ensureHiddenSupportSegment(pair, reasonLabel, ownerId);
+        });
+    }
+
+    removeHiddenSupportSegmentsForOwner(ownerId) {
+        if (!Number.isFinite(ownerId)) {
+            return;
+        }
+
+        const survivors = [];
+        const removedPairs = [];
+        this.sceneObjects.forEach((entry) => {
+            const definition = entry.definition;
+            const isOwnedHiddenSupportSegment = !!definition
+                && definition.kind === 'segment'
+                && definition.hidden === true
+                && definition.supportOwnerId === ownerId;
+
+            if (!isOwnedHiddenSupportSegment) {
+                survivors.push(entry);
+                return;
+            }
+
+            const pair = this.normalizePointPairIds(definition.pointIds || []);
+            if (pair) {
+                removedPairs.push(pair);
+            }
+
+            this.scene.remove(entry.object3D);
+            this.disposeObject3D(entry.object3D);
+        });
+
+        this.sceneObjects = survivors;
+
+        removedPairs.forEach((pair) => {
+            this.removeEdgeLabelsForPointPair(pair);
+        });
     }
 
     normalizePointLabelInput(rawLabel) {
@@ -1880,8 +2000,8 @@ class TrimensionApp {
 
     updatePanelCopy() {
         if (this.compositeSlots.length === 0) {
-            this.primitiveChip.textContent = '—';
-            this.orientationChip.textContent = '—';
+            this.primitiveChip.textContent = '-';
+            this.orientationChip.textContent = '-';
             return;
         }
         const slot0 = this.compositeSlots[0];
@@ -2524,7 +2644,7 @@ class TrimensionApp {
             if (index < this.selectedPoints.length - 1) {
                 const arrow = document.createElement('span');
                 arrow.className = 'selection-arrow';
-                arrow.textContent = '→';
+                arrow.textContent = '->';
                 this.selectionSummaryEl.appendChild(arrow);
             }
         });
@@ -2550,6 +2670,13 @@ class TrimensionApp {
 
     getValidActionsForSelection() {
         const baseActions = [...(this.actionsByCount[this.selectedPoints.length] || [])];
+
+        if (this.selectedPoints.length === 1) {
+            const midpointObject = this.findMidpointObjectByPointId(this.selectedPoints[0]);
+            if (midpointObject) {
+                baseActions.push({ key: 'delete-midpoint', label: 'Delete Midpoint' });
+            }
+        }
 
         if (this.selectedPoints.length === 2 && this.canAttachLabelToPointPair(this.selectedPoints)) {
             const hasExistingLabel = !!this.findEdgeLabelObject(this.selectedPoints);
@@ -2897,6 +3024,22 @@ class TrimensionApp {
             return;
         }
 
+        if (actionKey === 'delete-midpoint') {
+            if (this.selectedPoints.length !== 1) {
+                return;
+            }
+
+            const midpointObject = this.findMidpointObjectByPointId(this.selectedPoints[0]);
+            if (!midpointObject) {
+                return;
+            }
+
+            this.deleteObject(midpointObject.id);
+            this.clearSelection();
+            this.closePanelOnMobile();
+            return;
+        }
+
         if (actionKey === 'segment') {
             const ids = [...this.selectedPoints];
             const color = this.nextConstructionColor();
@@ -2993,13 +3136,28 @@ class TrimensionApp {
                     signature
                 }
             });
+            const derivedId = `derived-${signature}`; 
+            this.addSceneObject({
+                type: 'segment',
+                name: 'Ghost sub-segment A',
+                subtitle: 'Midpoint sub-segment',
+                object3D: new THREE.Group(),
+                definition: { kind: 'segment', pointIds: [ids[0], derivedId], hidden: true }
+            });
+            this.addSceneObject({
+                type: 'segment',
+                name: 'Ghost sub-segment B',
+                subtitle: 'Midpoint sub-segment',
+                object3D: new THREE.Group(),
+                definition: { kind: 'segment', pointIds: [derivedId, ids[1]], hidden: true }
+            });
         }
 
         if (actionKey === 'triangle') {
             const ids = [...this.selectedPoints];
             const color = this.nextConstructionColor();
             const triangle = this.createTriangle(vectors[0], vectors[1], vectors[2], color, 0.28);
-            this.addSceneObject({
+            const triangleObject = this.addSceneObject({
                 type: 'triangle',
                 name: `Triangle ${this.formatPointSequence(ids)}`,
                 subtitle: 'Three-point section',
@@ -3011,6 +3169,7 @@ class TrimensionApp {
                     opacity: 0.28
                 }
             });
+            this.ensureHiddenSupportSegmentsForPairs(this.getTriangleEdgePairs(ids), 'Triangle support edge', triangleObject?.id ?? null);
         }
 
         if (actionKey === 'angle') {
@@ -3040,7 +3199,7 @@ class TrimensionApp {
             const orderedVectors = this.getVectorsByPointIds(orderedIds);
             const color = this.nextConstructionColor();
             const plane = this.createQuad(orderedVectors, color, 0.2);
-            this.addSceneObject({
+            const planeObject = this.addSceneObject({
                 type: 'plane',
                 name: `Plane ${this.formatPointSequence(orderedIds)}`,
                 subtitle: 'Four-point shading',
@@ -3052,6 +3211,7 @@ class TrimensionApp {
                     opacity: 0.2
                 }
             });
+            this.ensureHiddenSupportSegmentsForPairs(this.getPlaneEdgePairs(orderedIds), 'Plane support edge', planeObject?.id ?? null);
         }
 
         this.clearSelection();
@@ -3270,7 +3430,7 @@ class TrimensionApp {
         const labelPoint = vertex.clone()
             .add(dir1.clone().multiplyScalar(Math.cos(rawAngle / 2) * labelRadius))
             .add(tangent.clone().multiplyScalar(Math.sin(rawAngle / 2) * labelRadius));
-        const label = this.createTextSprite(`∠${angleText}`, {
+        const label = this.createTextSprite(`angle ${angleText}`, {
             fontSize: 42,
             textColor: '#000000',
             background: '#9de7ff',
@@ -3353,7 +3513,7 @@ class TrimensionApp {
     addSceneObject({ type, name, subtitle, object3D, definition = null }) {
         object3D.userData.sceneObjectId = this.nextObjectId;
         this.scene.add(object3D);
-        this.sceneObjects.unshift({
+        const entry = {
             id: this.nextObjectId,
             type,
             name,
@@ -3361,7 +3521,8 @@ class TrimensionApp {
             object3D,
             definition,
             visible: true
-        });
+        };
+        this.sceneObjects.unshift(entry);
         this.nextObjectId += 1;
         this.renderObjectsList();
         this.refreshDerivedPoints();
@@ -3369,6 +3530,7 @@ class TrimensionApp {
         this.renderPointsList();
         this.renderSelectionSummary();
         this.renderActions();
+        return entry;
     }
 
     getVectorsByPointIds(pointIds) {
@@ -3419,6 +3581,10 @@ class TrimensionApp {
     createObjectFromDefinition(definition) {
         if (!definition || !definition.kind) {
             return null;
+        }
+
+        if (definition.hidden) {
+            return new THREE.Group();
         }
 
         if (definition.kind === 'point-label') {
@@ -3486,7 +3652,12 @@ class TrimensionApp {
         const SECTION_TYPES = { triangles: 'triangle', segments: 'segment', angles: 'angle', planes: 'plane', labels: 'label' };
         for (const [key, type] of Object.entries(SECTION_TYPES)) {
             const sec = this.objectSections[key];
-            const items = this.sceneObjects.filter((item) => item.type === type);
+            const items = this.sceneObjects.filter((item) => {
+                if (item.type !== type) return false;
+                if (item.definition?.hidden) return false;
+                if (item.definition?.kind === 'midpoint-point') return false;
+                return true;
+            });
             sec.list.innerHTML = '';
             items.forEach((item) => sec.list.appendChild(this.renderObjectItem(item)));
             sec.count.textContent = items.length > 0 ? `(${items.length})` : '';
@@ -3518,7 +3689,7 @@ class TrimensionApp {
                     title="Click to ${item.visible ? 'hide' : 'show'} object"
                     style="background-color: ${item.visible && itemColor ? itemColor : 'transparent'};"
                 ></button>
-                <button type="button" class="object-delete" data-delete-object-id="${item.id}" aria-label="Delete object" title="Delete object">×</button>
+                <button type="button" class="object-delete" data-delete-object-id="${item.id}" aria-label="Delete object" title="Delete object">X</button>
             </div>
         `;
         return row;
@@ -3566,6 +3737,7 @@ class TrimensionApp {
         }
         this.scene.remove(item.object3D);
         this.disposeObject3D(item.object3D);
+        this.removeHiddenSupportSegmentsForOwner(item.id);
         this.refreshDerivedPoints();
         this.pruneOrphanedSceneObjects();
         this.renderObjectsList();
