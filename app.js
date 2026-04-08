@@ -68,6 +68,68 @@ document.addEventListener('keydown', (event) => {
     }
 });
 
+function normalizeTriangularPrismMode(mode) {
+    return mode === 'equilateral' ? 'isosceles' : (mode || 'isosceles');
+}
+
+function getTriangularPrismProfilePoints(params, zPos) {
+    const { legA, legB } = params;
+    const mode = normalizeTriangularPrismMode(params.triangleMode);
+
+    if (mode === 'isosceles') {
+        return [
+            new THREE.Vector3(-legA / 2, -legB / 2, zPos),
+            new THREE.Vector3(legA / 2, -legB / 2, zPos),
+            new THREE.Vector3(0, legB / 2, zPos)
+        ];
+    }
+
+    if (mode === 'right-above-B') {
+        return [
+            new THREE.Vector3(0, -legB / 2, zPos),
+            new THREE.Vector3(legA, -legB / 2, zPos),
+            new THREE.Vector3(legA, legB / 2, zPos)
+        ];
+    }
+
+    return [
+        new THREE.Vector3(0, -legB / 2, zPos),
+        new THREE.Vector3(legA, -legB / 2, zPos),
+        new THREE.Vector3(0, legB / 2, zPos)
+    ];
+}
+
+function getTriangleCentroid(a, b, c) {
+    return new THREE.Vector3(
+        (a.x + b.x + c.x) / 3,
+        (a.y + b.y + c.y) / 3,
+        (a.z + b.z + c.z) / 3
+    );
+}
+
+function normalizeTetrahedronBaseMode(mode) {
+    return mode || 'isosceles';
+}
+
+function getTetrahedronBasePoints(params, yPos) {
+    const { base, triangleHeight } = params;
+    const mode = normalizeTetrahedronBaseMode(params.baseTriangleMode);
+
+    if (mode === 'right-angled') {
+        return [
+            new THREE.Vector3(-base / 3, yPos, -triangleHeight / 3),
+            new THREE.Vector3((2 * base) / 3, yPos, -triangleHeight / 3),
+            new THREE.Vector3(-base / 3, yPos, (2 * triangleHeight) / 3)
+        ];
+    }
+
+    return [
+        new THREE.Vector3(-base / 2, yPos, -triangleHeight / 3),
+        new THREE.Vector3(base / 2, yPos, -triangleHeight / 3),
+        new THREE.Vector3(0, yPos, (2 * triangleHeight) / 3)
+    ];
+}
+
 const ATTACHMENT_FACES = {
     cuboid: [
         { id: 'top',    type: 'rectangle', normal: new THREE.Vector3(0, 1, 0),   uAxis: new THREE.Vector3(1, 0, 0), center: (p) => new THREE.Vector3(0, p.height / 2, 0),   dims: ['width', 'depth'],  label: 'Top' },
@@ -96,9 +158,8 @@ const ATTACHMENT_FACES = {
             id: 'base-rectangle',
             type: 'rectangle',
             normal: (p) => {
-                const mode = p.triangleMode || 'equilateral';
-                if (mode === 'equilateral') {
-                    const h = (p.legA * Math.sqrt(3)) / 2;
+                const mode = p.triangleMode === 'equilateral' ? 'isosceles' : (p.triangleMode || 'isosceles');
+                if (mode === 'isosceles') {
                     return new THREE.Vector3(0, -1, 0);
                 } else if (mode === 'right-above-B') {
                     return new THREE.Vector3(0, -1, 0);
@@ -107,8 +168,8 @@ const ATTACHMENT_FACES = {
                 }
             },
             uAxis: (p) => {
-                const mode = p.triangleMode || 'equilateral';
-                if (mode === 'equilateral') {
+                const mode = p.triangleMode === 'equilateral' ? 'isosceles' : (p.triangleMode || 'isosceles');
+                if (mode === 'isosceles') {
                     return new THREE.Vector3(1, 0, 0);
                 } else if (mode === 'right-above-B') {
                     return new THREE.Vector3(1, 0, 0);
@@ -117,10 +178,9 @@ const ATTACHMENT_FACES = {
                 }
             },
             center: (p) => {
-                const mode = p.triangleMode || 'equilateral';
-                if (mode === 'equilateral') {
-                    const h = (p.legA * Math.sqrt(3)) / 2;
-                    return new THREE.Vector3(0, -h / 2, 0);
+                const mode = p.triangleMode === 'equilateral' ? 'isosceles' : (p.triangleMode || 'isosceles');
+                if (mode === 'isosceles') {
+                    return new THREE.Vector3(0, -p.legB / 2, 0);
                 } else if (mode === 'right-above-B') {
                     return new THREE.Vector3(p.legA / 2, -p.legB / 2, 0);
                 } else {
@@ -128,8 +188,8 @@ const ATTACHMENT_FACES = {
                 }
             },
             dims: (p) => {
-                const mode = p.triangleMode || 'equilateral';
-                if (mode === 'equilateral') {
+                const mode = p.triangleMode === 'equilateral' ? 'isosceles' : (p.triangleMode || 'isosceles');
+                if (mode === 'isosceles') {
                     return ['legA', 'length'];
                 } else {
                     return ['legA', 'length'];
@@ -141,9 +201,9 @@ const ATTACHMENT_FACES = {
             id: 'side-rectangle',
             type: 'rectangle',
             normal: (p) => {
-                const mode = p.triangleMode || 'equilateral';
-                if (mode === 'equilateral') {
-                    return new THREE.Vector3(-Math.sqrt(3) / 2, 0.5, 0).normalize();
+                const mode = p.triangleMode === 'equilateral' ? 'isosceles' : (p.triangleMode || 'isosceles');
+                if (mode === 'isosceles') {
+                    return new THREE.Vector3(-p.legB, p.legA / 2, 0).normalize();
                 } else if (mode === 'right-above-B') {
                     return new THREE.Vector3(1, 0, 0);
                 } else {
@@ -152,9 +212,8 @@ const ATTACHMENT_FACES = {
             },
             uAxis: new THREE.Vector3(0, 0, 1),
             center: (p) => {
-                const mode = p.triangleMode || 'equilateral';
-                if (mode === 'equilateral') {
-                    const h = (p.legA * Math.sqrt(3)) / 2;
+                const mode = p.triangleMode === 'equilateral' ? 'isosceles' : (p.triangleMode || 'isosceles');
+                if (mode === 'isosceles') {
                     return new THREE.Vector3(-p.legA / 4, 0, 0);
                 } else if (mode === 'right-above-B') {
                     return new THREE.Vector3(p.legA, 0, 0);
@@ -163,9 +222,9 @@ const ATTACHMENT_FACES = {
                 }
             },
             dims: (p) => {
-                const mode = p.triangleMode || 'equilateral';
-                if (mode === 'equilateral') {
-                    return ['length', 'legA'];
+                const mode = p.triangleMode === 'equilateral' ? 'isosceles' : (p.triangleMode || 'isosceles');
+                if (mode === 'isosceles') {
+                    return ['length', 'isoscelesSide'];
                 } else {
                     return ['length', 'legB'];
                 }
@@ -176,9 +235,9 @@ const ATTACHMENT_FACES = {
             id: 'hypotenuse-rectangle',
             type: 'rectangle',
             normal: (p) => {
-                const mode = p.triangleMode || 'equilateral';
-                if (mode === 'equilateral') {
-                    return new THREE.Vector3(Math.sqrt(3) / 2, 0.5, 0).normalize();
+                const mode = p.triangleMode === 'equilateral' ? 'isosceles' : (p.triangleMode || 'isosceles');
+                if (mode === 'isosceles') {
+                    return new THREE.Vector3(p.legB, p.legA / 2, 0).normalize();
                 } else if (mode === 'right-above-B') {
                     return new THREE.Vector3(-p.legB, p.legA, 0).normalize();
                 } else {
@@ -187,23 +246,57 @@ const ATTACHMENT_FACES = {
             },
             uAxis: new THREE.Vector3(0, 0, 1),
             center: (p) => {
-                const mode = p.triangleMode || 'equilateral';
-                if (mode === 'equilateral') {
-                    const h = (p.legA * Math.sqrt(3)) / 2;
+                const mode = p.triangleMode === 'equilateral' ? 'isosceles' : (p.triangleMode || 'isosceles');
+                if (mode === 'isosceles') {
                     return new THREE.Vector3(p.legA / 4, 0, 0);
                 } else {
                     return new THREE.Vector3(p.legA / 2, 0, 0);
                 }
             },
             dims: (p) => {
-                const mode = p.triangleMode || 'equilateral';
-                if (mode === 'equilateral') {
-                    return ['length', 'legA'];
+                const mode = p.triangleMode === 'equilateral' ? 'isosceles' : (p.triangleMode || 'isosceles');
+                if (mode === 'isosceles') {
+                    return ['length', 'isoscelesSide'];
                 } else {
                     return ['length', 'hypotenuse'];
                 }
             },
             label: 'Hypotenuse Rectangle'
+        },
+        {
+            id: 'front-triangle',
+            type: 'triangle',
+            normal: new THREE.Vector3(0, 0, 1),
+            uAxis: new THREE.Vector3(1, 0, 0),
+            center: (p) => {
+                const [a, b, c] = getTriangularPrismProfilePoints(p, p.length / 2);
+                return getTriangleCentroid(a, b, c);
+            },
+            dims: ['legA', 'legB'],
+            label: 'Front Triangle'
+        },
+        {
+            id: 'back-triangle',
+            type: 'triangle',
+            normal: new THREE.Vector3(0, 0, -1),
+            uAxis: new THREE.Vector3(1, 0, 0),
+            center: (p) => {
+                const [a, b, c] = getTriangularPrismProfilePoints(p, -p.length / 2);
+                return getTriangleCentroid(a, b, c);
+            },
+            dims: ['legA', 'legB'],
+            label: 'Back Triangle'
+        },
+    ],
+    tetrahedron: [
+        {
+            id: 'base-triangle',
+            type: 'triangle',
+            normal: new THREE.Vector3(0, -1, 0),
+            uAxis: new THREE.Vector3(1, 0, 0),
+            center: (p) => new THREE.Vector3(0, -p.height / 2, 0),
+            dims: ['base', 'triangleHeight'],
+            label: 'Base Triangle'
         },
     ],
     'trapezium-prism': [],
@@ -272,7 +365,8 @@ class TrimensionApp {
 
         this.defaultParams = {
             cuboid: { width: 7, depth: 4, height: 5 },
-            'right-triangle-prism': { legA: 5, legB: 4, length: 7, triangleMode: 'equilateral' },
+            'right-triangle-prism': { legA: 5, legB: 4, length: 7, triangleMode: 'isosceles' },
+            tetrahedron: { base: 6, triangleHeight: 4.5, height: 6, baseTriangleMode: 'isosceles', apexPosition: 'A' },
             'trapezium-prism': { baseWidth: 6, leftHeight: 4, rightHeight: 2.5, length: 7 },
             sphere: { radius: 3 },
             hemisphere: { radius: 3 },
@@ -296,6 +390,9 @@ class TrimensionApp {
                 { value: 'standard', label: 'Standard' }
             ],
             'right-triangle-prism': [
+                { value: 'standard', label: 'Standard' }
+            ],
+            tetrahedron: [
                 { value: 'standard', label: 'Standard' }
             ],
             'trapezium-prism': [
@@ -331,9 +428,20 @@ class TrimensionApp {
         ];
 
         this.triangularPrismModes = [
-            { value: 'equilateral', label: 'Equilateral' },
+            { value: 'isosceles', label: 'Isosceles' },
             { value: 'right-above-A', label: 'Right Angle at A' },
             { value: 'right-above-B', label: 'Right Angle at B' }
+        ];
+
+        this.tetrahedronTriangleModes = [
+            { value: 'isosceles', label: 'Isosceles' },
+            { value: 'right-angled', label: 'Right-Angled' }
+        ];
+
+        this.tetrahedronApexPositions = [
+            { value: 'A', label: 'Above A' },
+            { value: 'B', label: 'Above B' },
+            { value: 'C', label: 'Above C' }
         ];
 
         this.primitiveMeta = {
@@ -346,11 +454,19 @@ class TrimensionApp {
                 ]
             },
             'right-triangle-prism': {
-                label: 'Right-Triangle Prism',
+                label: 'Triangle Prism',
                 params: [
                     { key: 'legA', label: 'Triangle Leg A', min: 2, max: 10, step: 0.5 },
                     { key: 'legB', label: 'Triangle Leg B', min: 2, max: 10, step: 0.5 },
                     { key: 'length', label: 'Prism Length', min: 2, max: 12, step: 0.5 }
+                ]
+            },
+            tetrahedron: {
+                label: 'Tetrahedron',
+                params: [
+                    { key: 'base', label: 'Triangle Base', min: 2, max: 10, step: 0.5 },
+                    { key: 'triangleHeight', label: 'Triangle Height', min: 2, max: 10, step: 0.5 },
+                    { key: 'height', label: 'Apex Height', min: 2, max: 10, step: 0.5 }
                 ]
             },
             'trapezium-prism': {
@@ -555,6 +671,18 @@ class TrimensionApp {
             const triangleModeBtn = event.target.closest('[data-cycle-triangle-mode-slot-id]');
             if (triangleModeBtn) {
                 this.cycleTriangularPrismMode(Number(triangleModeBtn.dataset.cycleTriangleModeSlotId));
+                return;
+            }
+
+            const tetrahedronModeBtn = event.target.closest('[data-cycle-tetrahedron-mode-slot-id]');
+            if (tetrahedronModeBtn) {
+                this.cycleTetrahedronTriangleMode(Number(tetrahedronModeBtn.dataset.cycleTetrahedronModeSlotId));
+                return;
+            }
+
+            const tetrahedronApexBtn = event.target.closest('[data-cycle-tetrahedron-apex-slot-id]');
+            if (tetrahedronApexBtn) {
+                this.cycleTetrahedronApex(Number(tetrahedronApexBtn.dataset.cycleTetrahedronApexSlotId));
                 return;
             }
 
@@ -766,6 +894,11 @@ class TrimensionApp {
             return slot.params[dimKey];
         }
 
+        if (slot.primitive === 'right-triangle-prism' && dimKey === 'isoscelesSide') {
+            const { legA, legB } = slot.params;
+            return Math.hypot(legA / 2, legB);
+        }
+
         if (slot.primitive === 'right-triangle-prism' && dimKey === 'hypotenuse') {
             const { legA, legB } = slot.params;
             return Math.hypot(legA, legB);
@@ -910,8 +1043,15 @@ class TrimensionApp {
         const guestDims = this.resolveFaceDims(guestFaceDef, guestSlot.params);
         hostDims.forEach((dim, i) => {
             const guestDim = guestDims[i];
-            if (!guestDim || !Object.prototype.hasOwnProperty.call(guestSlot.params, guestDim)) return;
             const hostValue = this.getFaceDimValue(hostSlot, hostFaceDef, dim);
+            if (guestSlot.primitive === 'right-triangle-prism' && guestDim === 'isoscelesSide') {
+                const halfBase = guestSlot.params.legA / 2;
+                if (typeof hostValue === 'number' && Number.isFinite(hostValue) && hostValue >= halfBase) {
+                    guestSlot.params.legB = Math.sqrt(Math.max(0, hostValue * hostValue - halfBase * halfBase));
+                }
+                return;
+            }
+            if (!guestDim || !Object.prototype.hasOwnProperty.call(guestSlot.params, guestDim)) return;
             if (typeof hostValue === 'number' && Number.isFinite(hostValue)) {
                 guestSlot.params[guestDim] = hostValue;
             }
@@ -981,7 +1121,8 @@ class TrimensionApp {
     }
 
     getTriangularPrismModeLabel(mode) {
-        return this.triangularPrismModes.find((opt) => opt.value === mode)?.label || 'Equilateral';
+        const normalizedMode = mode === 'equilateral' ? 'isosceles' : mode;
+        return this.triangularPrismModes.find((opt) => opt.value === normalizedMode)?.label || 'Isosceles';
     }
 
     cycleTriangularPrismMode(slotId) {
@@ -989,10 +1130,48 @@ class TrimensionApp {
         if (!slot || slot.primitive !== 'right-triangle-prism') return;
 
         const options = this.triangularPrismModes;
-        const current = slot.params.triangleMode || 'equilateral';
+        const current = slot.params.triangleMode === 'equilateral' ? 'isosceles' : (slot.params.triangleMode || 'isosceles');
         const currentIndex = options.findIndex((opt) => opt.value === current);
         const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % options.length : 0;
         slot.params.triangleMode = options[nextIndex].value;
+
+        this.resetSceneObjects();
+        this.buildComposite();
+        this.renderCompositeCards();
+    }
+
+    getTetrahedronTriangleModeLabel(mode) {
+        return this.tetrahedronTriangleModes.find((opt) => opt.value === normalizeTetrahedronBaseMode(mode))?.label || 'Isosceles';
+    }
+
+    cycleTetrahedronTriangleMode(slotId) {
+        const slot = this.compositeSlots.find((s) => s.id === slotId);
+        if (!slot || slot.primitive !== 'tetrahedron') return;
+
+        const options = this.tetrahedronTriangleModes;
+        const current = normalizeTetrahedronBaseMode(slot.params.baseTriangleMode);
+        const currentIndex = options.findIndex((opt) => opt.value === current);
+        const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % options.length : 0;
+        slot.params.baseTriangleMode = options[nextIndex].value;
+
+        this.resetSceneObjects();
+        this.buildComposite();
+        this.renderCompositeCards();
+    }
+
+    getTetrahedronApexLabel(apexPosition) {
+        return this.tetrahedronApexPositions.find((opt) => opt.value === apexPosition)?.label || 'Above A';
+    }
+
+    cycleTetrahedronApex(slotId) {
+        const slot = this.compositeSlots.find((s) => s.id === slotId);
+        if (!slot || slot.primitive !== 'tetrahedron') return;
+
+        const options = this.tetrahedronApexPositions;
+        const current = slot.params.apexPosition || 'A';
+        const currentIndex = options.findIndex((opt) => opt.value === current);
+        const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % options.length : 0;
+        slot.params.apexPosition = options[nextIndex].value;
 
         this.resetSceneObjects();
         this.buildComposite();
@@ -1164,6 +1343,22 @@ class TrimensionApp {
                 triangleModeCycleBtn.dataset.cycleTriangleModeSlotId = String(slot.id);
                 triangleModeCycleBtn.textContent = `↻ ${this.getTriangularPrismModeLabel(slot.params.triangleMode)}`;
                 card.appendChild(triangleModeCycleBtn);
+            }
+
+            if (slot.primitive === 'tetrahedron') {
+                const tetrahedronModeCycleBtn = document.createElement('button');
+                tetrahedronModeCycleBtn.type = 'button';
+                tetrahedronModeCycleBtn.className = 'card-cycle-btn';
+                tetrahedronModeCycleBtn.dataset.cycleTetrahedronModeSlotId = String(slot.id);
+                tetrahedronModeCycleBtn.textContent = `↻ Base: ${this.getTetrahedronTriangleModeLabel(slot.params.baseTriangleMode)}`;
+                card.appendChild(tetrahedronModeCycleBtn);
+
+                const tetrahedronApexCycleBtn = document.createElement('button');
+                tetrahedronApexCycleBtn.type = 'button';
+                tetrahedronApexCycleBtn.className = 'card-cycle-btn';
+                tetrahedronApexCycleBtn.dataset.cycleTetrahedronApexSlotId = String(slot.id);
+                tetrahedronApexCycleBtn.textContent = `↻ Apex: ${this.getTetrahedronApexLabel(slot.params.apexPosition)}`;
+                card.appendChild(tetrahedronApexCycleBtn);
             }
 
             if (slot.primitive === 'rectangular-pyramid') {
@@ -1502,23 +1697,8 @@ class TrimensionApp {
             const zFront = length / 2;
             const zBack = -length / 2;
 
-            let posA, posB, posC;
-            const mode = triangleMode || 'equilateral';
-
-            if (mode === 'equilateral') {
-                const h = (legA * Math.sqrt(3)) / 2;
-                posA = new THREE.Vector3(-legA / 2, -h / 2, zFront);
-                posB = new THREE.Vector3(legA / 2, -h / 2, zFront);
-                posC = new THREE.Vector3(0, h / 2, zFront);
-            } else if (mode === 'right-above-B') {
-                posA = new THREE.Vector3(0, -legB / 2, zFront);
-                posB = new THREE.Vector3(legA, -legB / 2, zFront);
-                posC = new THREE.Vector3(legA, legB / 2, zFront);
-            } else {
-                posA = new THREE.Vector3(0, -legB / 2, zFront);
-                posB = new THREE.Vector3(legA, -legB / 2, zFront);
-                posC = new THREE.Vector3(0, legB / 2, zFront);
-            }
+            const mode = normalizeTriangularPrismMode(triangleMode);
+            const [posA, posB, posC] = getTriangularPrismProfilePoints(params, zFront);
 
             const posD = new THREE.Vector3(posA.x, posA.y, zBack);
             const posE = new THREE.Vector3(posB.x, posB.y, zBack);
@@ -1549,7 +1729,7 @@ class TrimensionApp {
             geometry.setIndex(indices);
             geometry.computeVertexNormals();
 
-            const modeDesc = mode === 'equilateral' ? 'equilateral' : mode === 'right-above-B' ? 'right angle at B' : 'right angle at A';
+            const modeDesc = mode === 'isosceles' ? 'isosceles' : mode === 'right-above-B' ? 'right angle at B' : 'right angle at A';
             points = [
                 { id: 'A', label: 'A', description: `front base A (${modeDesc})`, position: posA },
                 { id: 'B', label: 'B', description: `front base B (${modeDesc})`, position: posB },
@@ -1560,6 +1740,46 @@ class TrimensionApp {
             ];
 
             boundsRadius = Math.max(legA, legB, length) * 1.2;
+        } else if (primitiveKey === 'tetrahedron') {
+            const { height, baseTriangleMode, apexPosition } = params;
+            const yBase = -height / 2;
+            const yApex = height / 2;
+            const [baseA, baseB, baseC] = getTetrahedronBasePoints(params, yBase);
+            const apexTargetKey = apexPosition || 'A';
+            const apexTargets = { A: baseA, B: baseB, C: baseC };
+            const apexAnchor = apexTargets[apexTargetKey] || baseA;
+            const apex = new THREE.Vector3(apexAnchor.x, yApex, apexAnchor.z);
+
+            const vertices = [
+                baseA.x, baseA.y, baseA.z,
+                baseB.x, baseB.y, baseB.z,
+                baseC.x, baseC.y, baseC.z,
+                apex.x, apex.y, apex.z
+            ];
+
+            const indices = [
+                0, 2, 1,
+                0, 1, 3,
+                1, 2, 3,
+                2, 0, 3
+            ];
+
+            geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            geometry.setIndex(indices);
+            geometry.computeVertexNormals();
+
+            const baseMode = normalizeTetrahedronBaseMode(baseTriangleMode);
+            const modeDesc = baseMode === 'right-angled' ? 'right-angled base' : 'isosceles base';
+            const apexDesc = `apex ${this.tetrahedronApexPositions.find((opt) => opt.value === apexTargetKey)?.label?.toLowerCase() || 'above A'}`;
+            points = [
+                { id: 'A', label: 'A', description: `base vertex A (${modeDesc})`, position: baseA },
+                { id: 'B', label: 'B', description: `base vertex B (${modeDesc})`, position: baseB },
+                { id: 'C', label: 'C', description: `base vertex C (${modeDesc})`, position: baseC },
+                { id: 'D', label: 'D', description: apexDesc, position: apex }
+            ];
+
+            boundsRadius = Math.max(params.base, params.triangleHeight, height) * 1.2;
         } else if (primitiveKey === 'trapezium-prism') {
             const { baseWidth, leftHeight, rightHeight, length } = params;
             const zFront = length / 2;
