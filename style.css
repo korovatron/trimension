@@ -26,6 +26,10 @@
     --safe-area-right: env(safe-area-inset-right);
 }
 
+html[data-theme="dark"] {
+    --canvas-bg: #606060;
+}
+
 html,
 body {
     width: 100%;
@@ -784,6 +788,128 @@ textarea {
     margin-bottom: 0;
 }
 
+.panel-top-controls-secondary {
+    margin-bottom: 0;
+}
+
+.bottom-controls-row {
+    align-items: center;
+}
+
+.bottom-half-buttons {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    width: 100%;
+}
+
+.bottom-half-btn {
+    flex: 1;
+    min-width: 0;
+}
+
+.top-btn-spacer {
+    min-height: 40px;
+}
+
+.grid-icon {
+    color: #666;
+    transition: color 0.2s;
+    cursor: pointer;
+}
+
+.grid-icon.grid-active {
+    color: #ffffff;
+}
+
+.label-badge-icon {
+    color: #666;
+    transition: color 0.2s;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 14px;
+}
+
+#label-badge-icon {
+    background: #666;
+    border: 1px solid #666;
+    border-radius: 4px;
+    padding: 2px 4px;
+    min-width: 18px;
+    color: #2A3F5A;
+}
+
+.label-badge-icon.label-badge-active {
+    color: #ffffff;
+}
+
+#label-badge-icon.label-badge-active {
+    background: #ffffff;
+    border-color: #ffffff;
+    color: #2A3F5A;
+}
+
+.label-badge-separator {
+    color: #666;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.ghost-icon {
+    color: #666;
+    transition: color 0.2s;
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+}
+
+.ghost-icon.ghost-active {
+    color: #ffffff;
+}
+
+.ghost-separator {
+    color: #666;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.theme-icon {
+    color: #666;
+    transition: color 0.2s;
+}
+
+.theme-icon.theme-active {
+    color: #ffffff;
+}
+
+.theme-separator {
+    color: #666;
+}
+
+.size-option {
+    color: #666;
+    transition: color 0.2s;
+}
+
+.size-option.size-active {
+    color: #ffffff;
+}
+
+.size-separator {
+    color: #666;
+}
+
+@media (hover: hover) {
+    #grid-toggle-btn:hover {
+        background: #354d6b !important;
+    }
+}
+
 .add-button {
     position: relative;
     padding: 8px 12px;
@@ -958,7 +1084,7 @@ textarea {
     right: 0;
     bottom: 0;
     left: 0;
-    background: #ffffff;
+    background: var(--canvas-bg);
 }
 
 #three-canvas {

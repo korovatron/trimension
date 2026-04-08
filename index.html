@@ -44,19 +44,58 @@
                         </svg>
                     </button>
                     <button id="reset-view-btn" class="top-btn" type="button">RESET<br>VIEW</button>
-                    <button id="ghost-toggle-btn" class="top-btn" type="button">GHOST<br>FACES</button>
+                    <button id="ghost-toggle-btn" class="top-btn" type="button" title="Ghost faces enabled (click to disable)">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <svg class="ghost-icon ghost-active" id="ghost-wire-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                                <polygon points="12,3 20,7.5 12,12 4,7.5"></polygon>
+                                <polyline points="4,7.5 4,16.5 12,21 20,16.5 20,7.5"></polyline>
+                                <line x1="12" y1="12" x2="12" y2="21"></line>
+                            </svg>
+                            <span class="ghost-separator">|</span>
+                            <svg class="ghost-icon" id="ghost-solid-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-linecap="round">
+                                <polygon points="12,3 20,7.5 12,12 4,7.5" fill="currentColor" fill-opacity="0.95"></polygon>
+                                <polygon points="4,7.5 12,12 12,21 4,16.5" fill="currentColor" fill-opacity="0.78"></polygon>
+                                <polygon points="20,7.5 12,12 12,21 20,16.5" fill="currentColor" fill-opacity="0.62"></polygon>
+                                <polygon points="12,3 20,7.5 12,12 4,7.5" stroke-width="2.2"></polygon>
+                                <polyline points="4,7.5 4,16.5 12,21 20,16.5 20,7.5" stroke-width="2.2"></polyline>
+                                <line x1="12" y1="12" x2="12" y2="21" stroke-width="2.2"></line>
+                            </svg>
+                        </div>
+                    </button>
 
                     <div id="add-dropdown" class="add-dropdown" style="display: none;">
-                        <div class="dropdown-item" data-primitive="cuboid"><strong>+</strong> Add Cuboid</div>
-                        <div class="dropdown-item" data-primitive="right-triangle-prism"><strong>+</strong> Add Triangle Prism</div>
-                        <div class="dropdown-item" data-primitive="tetrahedron"><strong>+</strong> Add Tetrahedron</div>
-                        <div class="dropdown-item" data-primitive="trapezium-prism"><strong>+</strong> Add Trapezium Prism</div>
-                        <div class="dropdown-item" data-primitive="sphere"><strong>+</strong> Add Sphere</div>
-                        <div class="dropdown-item" data-primitive="hemisphere"><strong>+</strong> Add Hemisphere</div>
-                        <div class="dropdown-item" data-primitive="cylinder"><strong>+</strong> Add Cylinder</div>
-                        <div class="dropdown-item" data-primitive="cone"><strong>+</strong> Add Cone</div>
-                        <div class="dropdown-item" data-primitive="rectangular-pyramid"><strong>+</strong> Add Rectangular Pyramid</div>
+                        <div class="dropdown-item" data-primitive="cuboid"><strong>+</strong> Cuboid</div>
+                        <div class="dropdown-item" data-primitive="rectangular-pyramid"><strong>+</strong> Rectangular Pyramid</div>
+                        <div class="dropdown-item" data-primitive="right-triangle-prism"><strong>+</strong> Triangle Prism</div>
+                        <div class="dropdown-item" data-primitive="tetrahedron"><strong>+</strong> Tetrahedron</div>
+                        <div class="dropdown-item" data-primitive="trapezium-prism"><strong>+</strong> Trapezium Prism</div>
+                        <div class="dropdown-item" data-primitive="sphere"><strong>+</strong> Sphere</div>
+                        <div class="dropdown-item" data-primitive="hemisphere"><strong>+</strong> Hemisphere</div>
+                        <div class="dropdown-item" data-primitive="cylinder"><strong>+</strong> Cylinder</div>
+                        <div class="dropdown-item" data-primitive="cone"><strong>+</strong> Cone</div>
                     </div>
+                </div>
+
+                <div class="top-button-row three-col-row panel-top-controls-secondary">
+                    <button id="label-badge-toggle-btn" class="top-btn" type="button" title="Label badges enabled (click to disable)">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="label-badge-icon" id="label-plain-icon" aria-hidden="true">V</span>
+                            <span class="label-badge-separator">|</span>
+                            <span class="label-badge-icon label-badge-active" id="label-badge-icon" aria-hidden="true">V</span>
+                        </div>
+                    </button>
+                    <button id="grid-toggle-btn" class="top-btn" type="button" title="Toggle Grid">
+                        <div style="display: flex; align-items: center; justify-content: center;">
+                            <svg class="grid-icon" id="grid-icon" width="20" height="20" viewBox="0 0 24 24">
+                                <rect x="3" y="3" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" />
+                                <line x1="9" y1="3" x2="9" y2="21" stroke="currentColor" stroke-width="1.5" />
+                                <line x1="15" y1="3" x2="15" y2="21" stroke="currentColor" stroke-width="1.5" />
+                                <line x1="3" y1="9" x2="21" y2="9" stroke="currentColor" stroke-width="1.5" />
+                                <line x1="3" y1="15" x2="21" y2="15" stroke="currentColor" stroke-width="1.5" />
+                            </svg>
+                        </div>
+                    </button>
+                    <div class="top-btn-spacer" aria-hidden="true"></div>
                 </div>
 
                 <div class="panel-major-divider"></div>
@@ -69,6 +108,7 @@
                     <div id="primitive-section-content" class="collapsible-section-content">
                         <select id="primitive-select" class="panel-input primitive-selector-hidden" aria-hidden="true" tabindex="-1">
                             <option value="cuboid">Cuboid</option>
+                            <option value="rectangular-pyramid">Rectangular Pyramid</option>
                             <option value="right-triangle-prism">Triangle Prism</option>
                             <option value="tetrahedron">Tetrahedron</option>
                             <option value="trapezium-prism">Trapezium Prism</option>
@@ -76,7 +116,6 @@
                             <option value="hemisphere">Hemisphere</option>
                             <option value="cylinder">Cylinder</option>
                             <option value="cone">Cone</option>
-                            <option value="rectangular-pyramid">Rectangular Pyramid</option>
                         </select>
 
                         <div id="primitive-cards-list" class="objects-list"></div>
@@ -166,10 +205,50 @@
 
                 <div class="panel-separator"></div>
 
-                <div class="top-button-row three-col-row">
-                    <button id="help-button" class="top-btn" type="button">HOW<br>TO USE</button>
-                    <button id="return-to-title" class="top-btn" type="button">TITLE<br>SCREEN</button>
-                    <button id="clear-objects-btn" class="top-btn" type="button">CLEAR ALL OBJECTS</button>
+                <div class="top-button-row three-col-row bottom-controls-row">
+                    <div class="bottom-half-buttons">
+                        <button id="return-to-title" class="top-btn bottom-half-btn" type="button" title="Return to Title Screen" aria-label="Return to Title Screen">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                            </svg>
+                        </button>
+                        <button id="help-button" class="top-btn bottom-half-btn" type="button" title="How to Use" aria-label="How to Use">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <button id="display-size-toggle-btn" class="top-btn" type="button" title="Toggle display size">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span class="size-option size-active" id="size-small" style="font-size: 11px;">A</span>
+                            <span class="size-separator">|</span>
+                            <span class="size-option" id="size-large" style="font-size: 16px;">A</span>
+                        </div>
+                    </button>
+
+                    <button id="theme-toggle" class="top-btn" type="button" title="Toggle Theme">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <svg id="light-icon" class="theme-icon theme-active" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <circle cx="12" cy="12" r="5"></circle>
+                                <line x1="12" y1="1" x2="12" y2="3"></line>
+                                <line x1="12" y1="21" x2="12" y2="23"></line>
+                                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                                <line x1="1" y1="12" x2="3" y2="12"></line>
+                                <line x1="21" y1="12" x2="23" y2="12"></line>
+                                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                            </svg>
+                            <span class="theme-separator">|</span>
+                            <svg id="dark-icon" class="theme-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                            </svg>
+                        </div>
+                    </button>
                 </div>
             </aside>
 

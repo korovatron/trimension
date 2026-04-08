@@ -322,6 +322,19 @@ class TrimensionApp {
         this.primitiveChip = document.getElementById('primitive-chip');
         this.orientationChip = document.getElementById('orientation-chip');
         this.ghostToggleBtn = document.getElementById('ghost-toggle-btn');
+        this.ghostWireIcon = document.getElementById('ghost-wire-icon');
+        this.ghostSolidIcon = document.getElementById('ghost-solid-icon');
+        this.labelBadgeToggleBtn = document.getElementById('label-badge-toggle-btn');
+        this.labelPlainIcon = document.getElementById('label-plain-icon');
+        this.labelBadgeIcon = document.getElementById('label-badge-icon');
+        this.gridToggleBtn = document.getElementById('grid-toggle-btn');
+        this.gridIcon = document.getElementById('grid-icon');
+        this.displaySizeToggleBtn = document.getElementById('display-size-toggle-btn');
+        this.sizeSmallOption = document.getElementById('size-small');
+        this.sizeLargeOption = document.getElementById('size-large');
+        this.themeToggleBtn = document.getElementById('theme-toggle');
+        this.lightIcon = document.getElementById('light-icon');
+        this.darkIcon = document.getElementById('dark-icon');
         this.addBtn = document.getElementById('add-btn');
         this.addDropdown = document.getElementById('add-dropdown');
         this.primitiveSectionHeader = document.getElementById('primitive-section-header');
@@ -333,6 +346,10 @@ class TrimensionApp {
 
         this.panelOpen = true;
         this.ghostFaces = true;
+        this.labelBadgesVisible = true;
+        this.gridVisible = false;
+        this.displaySizeMode = 'large';
+        this.themeMode = 'light';
         this.nextObjectId = 1;
         this.sceneObjects = [];
         this.selectedPoints = [];
@@ -366,14 +383,14 @@ class TrimensionApp {
 
         this.defaultParams = {
             cuboid: { width: 7, depth: 4, height: 5 },
+            'rectangular-pyramid': { length: 6.5, width: 4.5, height: 6, apexPosition: 'center' },
             'right-triangle-prism': { legA: 5, legB: 4, length: 7, triangleMode: 'isosceles' },
             tetrahedron: { base: 6, triangleHeight: 4.5, height: 6, baseTriangleMode: 'isosceles', apexPosition: 'A' },
             'trapezium-prism': { baseWidth: 6, leftHeight: 4, rightHeight: 2.5, length: 7 },
             sphere: { radius: 3 },
             hemisphere: { radius: 3 },
             cylinder: { radius: 2.5, height: 6 },
-            cone: { radius: 2.5, height: 6 },
-            'rectangular-pyramid': { length: 6.5, width: 4.5, height: 6, apexPosition: 'center' }
+            cone: { radius: 2.5, height: 6 }
         };
 
         // compositeSlots: array of { id, primitive, orientation, params, hostSlotId, hostFaceId }
@@ -560,6 +577,8 @@ class TrimensionApp {
     initThree() {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0xffffff);
+        document.documentElement.setAttribute('data-theme', this.themeMode);
+        this.scene.background.set(this.themeMode === 'dark' ? 0x606060 : 0xffffff);
 
         this.camera = new THREE.PerspectiveCamera(55, this.canvas.clientWidth / this.canvas.clientHeight, 0.1, 200);
         this.camera.position.set(10, 8, 11);
@@ -588,6 +607,7 @@ class TrimensionApp {
 
         this.grid = new THREE.GridHelper(26, 26, 0xd9d9d9, 0xebebeb);
         this.grid.position.y = -4.5;
+        this.grid.visible = this.gridVisible;
         this.scene.add(this.grid);
 
         window.addEventListener('resize', this.handleWindowResize);
@@ -622,7 +642,7 @@ class TrimensionApp {
                     const item = document.createElement('div');
                     item.className = 'dropdown-item';
                     item.dataset.primitive = primKey;
-                    item.innerHTML = `<strong>+</strong> Add ${this.primitiveMeta[primKey].label}`;
+                    item.innerHTML = `<strong>+</strong> ${this.primitiveMeta[primKey].label}`;
                     this.addDropdown.appendChild(item);
                 });
             }
@@ -734,7 +754,10 @@ class TrimensionApp {
             });
         });
 
-        document.getElementById('clear-objects-btn').addEventListener('click', () => this.clearObjects());
+        const clearObjectsBtn = document.getElementById('clear-objects-btn');
+        if (clearObjectsBtn) {
+            clearObjectsBtn.addEventListener('click', () => this.clearObjects());
+        }
         document.getElementById('reset-view-btn').addEventListener('click', () => {
             this.resetView();
             this.closePanelOnMobile();
@@ -742,8 +765,29 @@ class TrimensionApp {
         this.ghostToggleBtn.addEventListener('click', () => {
             this.ghostFaces = !this.ghostFaces;
             this.updatePrimitiveMaterial();
-            this.ghostToggleBtn.textContent = this.ghostFaces ? 'GHOST\nFACES' : 'SOLID\nFACES';
+            this.updateGhostToggleUI();
         });
+        this.updateGhostToggleUI();
+
+        if (this.labelBadgeToggleBtn) {
+            this.labelBadgeToggleBtn.addEventListener('click', () => this.toggleLabelBadgeMode());
+            this.updateLabelBadgeToggleUI();
+        }
+
+        if (this.displaySizeToggleBtn) {
+            this.displaySizeToggleBtn.addEventListener('click', () => this.toggleDisplaySizeMode());
+            this.updateDisplaySizeToggleUI();
+        }
+
+        if (this.themeToggleBtn) {
+            this.themeToggleBtn.addEventListener('click', () => this.toggleThemeMode());
+            this.updateThemeToggleUI();
+        }
+
+        if (this.gridToggleBtn) {
+            this.gridToggleBtn.addEventListener('click', () => this.toggleGrid());
+            this.updateGridToggleUI();
+        }
 
         const togglePrimitiveSection = () => {
             this.primitiveSectionCollapsed = !this.primitiveSectionCollapsed;
@@ -791,6 +835,115 @@ class TrimensionApp {
         this.panelOpen = false;
         this.controlPanel.classList.add('closed');
         this.panelToggleBtn.classList.remove('active');
+    }
+
+    toggleGrid() {
+        this.gridVisible = !this.gridVisible;
+        if (this.grid) {
+            this.grid.visible = this.gridVisible;
+        }
+        this.updateGridToggleUI();
+    }
+
+    updateGridToggleUI() {
+        if (!this.gridToggleBtn) {
+            return;
+        }
+
+        this.gridToggleBtn.style.background = this.gridVisible ? '#2A3F5A' : '#1a2a3f';
+        this.gridToggleBtn.style.opacity = this.gridVisible ? '1' : '0.6';
+        this.gridToggleBtn.title = this.gridVisible
+            ? 'Grid enabled (click to disable)'
+            : 'Grid disabled (click to enable)';
+
+        if (this.gridIcon) {
+            this.gridIcon.classList.toggle('grid-active', this.gridVisible);
+        }
+    }
+
+    updateGhostToggleUI() {
+        if (!this.ghostToggleBtn) {
+            return;
+        }
+
+        this.ghostToggleBtn.title = this.ghostFaces
+            ? 'Ghost faces enabled (click to disable)'
+            : 'Solid faces enabled (click to enable ghost mode)';
+
+        if (this.ghostWireIcon) {
+            this.ghostWireIcon.classList.toggle('ghost-active', this.ghostFaces);
+        }
+
+        if (this.ghostSolidIcon) {
+            this.ghostSolidIcon.classList.toggle('ghost-active', !this.ghostFaces);
+        }
+    }
+
+    toggleLabelBadgeMode() {
+        this.labelBadgesVisible = !this.labelBadgesVisible;
+        this.updateLabelBadgeToggleUI();
+        this.refreshSceneTextSizing();
+    }
+
+    updateLabelBadgeToggleUI() {
+        if (!this.labelBadgeToggleBtn) {
+            return;
+        }
+
+        this.labelBadgeToggleBtn.title = this.labelBadgesVisible
+            ? 'Label badges enabled (click to disable)'
+            : 'Label badges disabled (click to enable)';
+
+        if (this.labelPlainIcon) {
+            this.labelPlainIcon.classList.toggle('label-badge-active', !this.labelBadgesVisible);
+        }
+
+        if (this.labelBadgeIcon) {
+            this.labelBadgeIcon.classList.toggle('label-badge-active', this.labelBadgesVisible);
+        }
+    }
+
+    toggleDisplaySizeMode() {
+        this.displaySizeMode = this.displaySizeMode === 'small' ? 'large' : 'small';
+        this.updateDisplaySizeToggleUI();
+        this.refreshSceneTextSizing();
+    }
+
+    updateDisplaySizeToggleUI() {
+        if (this.sizeSmallOption) {
+            this.sizeSmallOption.classList.toggle('size-active', this.displaySizeMode === 'small');
+        }
+        if (this.sizeLargeOption) {
+            this.sizeLargeOption.classList.toggle('size-active', this.displaySizeMode === 'large');
+        }
+    }
+
+    refreshSceneTextSizing() {
+        this.rebuildConstructions();
+        this.buildPointMarkers();
+        this.updatePointMarkerStyles();
+    }
+
+    toggleThemeMode() {
+        this.themeMode = this.themeMode === 'light' ? 'dark' : 'light';
+        this.applyThemeMode();
+    }
+
+    applyThemeMode() {
+        document.documentElement.setAttribute('data-theme', this.themeMode);
+        if (this.scene?.background) {
+            this.scene.background.set(this.themeMode === 'dark' ? 0x606060 : 0xffffff);
+        }
+        this.updateThemeToggleUI();
+    }
+
+    updateThemeToggleUI() {
+        if (this.lightIcon) {
+            this.lightIcon.classList.toggle('theme-active', this.themeMode === 'light');
+        }
+        if (this.darkIcon) {
+            this.darkIcon.classList.toggle('theme-active', this.themeMode === 'dark');
+        }
     }
 
     onWindowResize() {
@@ -1867,6 +2020,10 @@ class TrimensionApp {
         return this.hasPrimitiveEdgeBetween(pointIds) || this.hasPrimitiveFaceBetween(pointIds) || this.hasSceneSegmentBetween(pointIds);
     }
 
+    canAttachMidpointToPointPair(pointIds) {
+        return this.hasSegmentLikeConnection(pointIds);
+    }
+
     hasSegmentLikeConnection(pointIds) {
         return this.hasPrimitiveEdgeBetween(pointIds) || this.hasSceneSegmentBetween(pointIds);
     }
@@ -1973,7 +2130,7 @@ class TrimensionApp {
         }
 
         const onlyIfDisconnected = options.onlyIfDisconnected === true;
-        if (onlyIfDisconnected && this.canAttachLabelToPointPair(normalized)) {
+        if (onlyIfDisconnected && this.canAttachMidpointToPointPair(normalized)) {
             return;
         }
 
@@ -2709,7 +2866,8 @@ class TrimensionApp {
 
         this.pointMarkers.clear();
 
-        const markerGeometry = new THREE.SphereGeometry(0.1, 18, 18);
+        const markerRadius = this.displaySizeMode === 'small' ? 0.075 : 0.1;
+        const markerGeometry = new THREE.SphereGeometry(markerRadius, 18, 18);
         this.getAllPoints().forEach((point) => {
             const markerColor = point.isDerived ? 0x2e7d32 : 0x000000;
             const marker = new THREE.Mesh(markerGeometry, new THREE.MeshBasicMaterial({ color: markerColor }));
@@ -2837,11 +2995,13 @@ class TrimensionApp {
             }
         }
 
-        if (this.selectedPoints.length === 2 && this.canAttachLabelToPointPair(this.selectedPoints)) {
-            const hasExistingLabel = !!this.findEdgeLabelObject(this.selectedPoints);
-            baseActions.push({ key: 'edge-label', label: hasExistingLabel ? 'Change Label' : 'Add Label' });
+        if (this.selectedPoints.length === 2) {
+            if (this.canAttachLabelToPointPair(this.selectedPoints)) {
+                const hasExistingLabel = !!this.findEdgeLabelObject(this.selectedPoints);
+                baseActions.push({ key: 'edge-label', label: hasExistingLabel ? 'Change Label' : 'Add Label' });
+            }
 
-            if (!this.hasMidpointForPair(this.selectedPoints)) {
+            if (this.canAttachMidpointToPointPair(this.selectedPoints) && !this.hasMidpointForPair(this.selectedPoints)) {
                 baseActions.push({ key: 'add-midpoint', label: 'Add Midpoint' });
             }
         }
@@ -2987,7 +3147,7 @@ class TrimensionApp {
         const seenMidpointSignatures = new Set();
 
         midpointDefinitions.forEach((definition) => {
-            if (!this.canAttachLabelToPointPair(definition.pointIds)) {
+            if (!this.canAttachMidpointToPointPair(definition.pointIds)) {
                 return;
             }
 
@@ -3288,7 +3448,7 @@ class TrimensionApp {
 
         if (actionKey === 'add-midpoint') {
             const ids = this.normalizePointPairIds([...this.selectedPoints]);
-            if (!ids || !this.canAttachLabelToPointPair(ids) || this.hasMidpointForPair(ids)) {
+            if (!ids || !this.canAttachMidpointToPointPair(ids) || this.hasMidpointForPair(ids)) {
                 return;
             }
 
@@ -3632,8 +3792,13 @@ class TrimensionApp {
     }
 
     createTextSprite(text, options = {}) {
-        const fontSize = options.fontSize || 48;
-        const padding = 22;
+        const baseFontSize = options.fontSize || 48;
+        const displayScale = this.displaySizeMode === 'small' ? 0.78 : 1.14;
+        const fontSize = Math.max(12, Math.round(baseFontSize * displayScale));
+        const badgeVisible = options.forceBadge === true || this.labelBadgesVisible !== false;
+        const padding = badgeVisible
+            ? Math.max(10, Math.round(22 * displayScale))
+            : Math.max(2, Math.round(6 * displayScale));
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
@@ -3655,15 +3820,22 @@ class TrimensionApp {
 
         const background = options.background || '#ffd84d';
         const borderColor = options.borderColor || '#000000';
-        const borderWidth = options.borderWidth || 4;
-        const radius = options.cornerRadius || 16;
-        drawContext.fillStyle = background;
-        this.drawRoundedRect(drawContext, borderWidth / 2, borderWidth / 2, logicalWidth - borderWidth, logicalHeight - borderWidth, radius);
-        drawContext.fill();
+        const borderWidth = badgeVisible
+            ? Math.max(2, Math.round((options.borderWidth || 4) * displayScale))
+            : 0;
+        const radius = badgeVisible
+            ? Math.max(8, Math.round((options.cornerRadius || 16) * displayScale))
+            : 0;
 
-        drawContext.lineWidth = borderWidth;
-        drawContext.strokeStyle = borderColor;
-        drawContext.stroke();
+        if (badgeVisible) {
+            drawContext.fillStyle = background;
+            this.drawRoundedRect(drawContext, borderWidth / 2, borderWidth / 2, logicalWidth - borderWidth, logicalHeight - borderWidth, radius);
+            drawContext.fill();
+
+            drawContext.lineWidth = borderWidth;
+            drawContext.strokeStyle = borderColor;
+            drawContext.stroke();
+        }
 
         drawContext.fillStyle = options.textColor || '#ffffff';
         drawContext.fillText(text, logicalWidth / 2, logicalHeight / 2 + 2);
