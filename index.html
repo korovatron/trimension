@@ -7,6 +7,7 @@
     <meta name="description" content="Trimension is a classroom-first 3D maths visualiser for exploring primitives, internal segments, triangles, planes, and labelled constructions.">
     <title>Trimension</title>
     <link rel="icon" type="image/svg+xml" href="images/favicon.svg">
+    <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
@@ -283,5 +284,16 @@
     }
     </script>
     <script type="module" src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./service-worker.js', { scope: './' })
+                .then((registration) => {
+                    console.log('Service Worker registered successfully', registration);
+                })
+                .catch((error) => {
+                    console.error('Service Worker registration failed:', error);
+                });
+        }
+    </script>
 </body>
 </html>
