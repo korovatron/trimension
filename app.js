@@ -338,6 +338,7 @@ class TrimensionApp {
         this.selectedPoints = [];
         this.pointDefinitions = [];
         this.derivedPoints = [];
+        this.derivedLabelOverrides = new Map();
         this.pointMarkers = new Map();
         this.pointSprites = [];
         this.labelSprites = [];
@@ -1640,10 +1641,20 @@ class TrimensionApp {
         return !this.getAllPoints().some((point) => point.id !== excludePointId && point.label === label);
     }
 
+    makeDerivedSignature(firstSegment, secondSegment, intersectionPoint) {
+        const firstKey = [...firstSegment.pointIds].sort().join('-');
+        const secondKey = [...secondSegment.pointIds].sort().join('-');
+        const [leftKey, rightKey] = [firstKey, secondKey].sort();
+        const x = intersectionPoint.x.toFixed(3);
+        const y = intersectionPoint.y.toFixed(3);
+        const z = intersectionPoint.z.toFixed(3);
+        return `${leftKey}|${rightKey}|${x}|${y}|${z}`;
+    }
+
     changeSelectedPointLabel() {
         const pointId = this.selectedPoints[0];
         const point = this.getPointById(pointId);
-        if (!point || point.isDerived) {
+        if (!point) {
             return;
         }
 
@@ -1663,8 +1674,16 @@ class TrimensionApp {
             return;
         }
 
-        point.label = nextLabel;
-        this.refreshDerivedPoints();
+        if (point.isDerived) {
+            point.label = nextLabel;
+            if (point.signature) {
+                this.derivedLabelOverrides.set(point.signature, nextLabel);
+            }
+        } else {
+            point.label = nextLabel;
+            this.refreshDerivedPoints();
+        }
+
         this.buildPointMarkers();
         this.renderPointsList();
         this.renderSelectionSummary();
@@ -2467,6 +2486,7 @@ class TrimensionApp {
 
         const segments = this.getConstructionSegments(basePoints);
         const derived = [];
+        const activeDerivedSignatures = new Set();
 
         for (let i = 0; i < segments.length; i += 1) {
             for (let j = i + 1; j < segments.length; j += 1) {
@@ -2487,18 +2507,39 @@ class TrimensionApp {
                     continue;
                 }
 
-                const label = nextDerivedLabel();
-                const id = `derived-${label}`;
+                const signature = this.makeDerivedSignature(first, second, intersection);
+                activeDerivedSignatures.add(signature);
+
+                let label = this.derivedLabelOverrides.get(signature);
+                if (label && usedLabels.has(label)) {
+                    this.derivedLabelOverrides.delete(signature);
+                    label = null;
+                }
+
+                if (!label) {
+                    label = nextDerivedLabel();
+                } else {
+                    usedLabels.add(label);
+                }
+
+                const id = `derived-${signature}`;
                 basePoints.set(id, intersection.clone());
                 derived.push({
                     id,
                     label,
+                    signature,
                     description: 'derived intersection',
                     position: intersection,
                     isDerived: true
                 });
             }
         }
+
+        Array.from(this.derivedLabelOverrides.keys()).forEach((signature) => {
+            if (!activeDerivedSignatures.has(signature)) {
+                this.derivedLabelOverrides.delete(signature);
+            }
+        });
 
         this.derivedPoints = derived;
         const validPointIds = new Set(this.getAllPoints().map((point) => point.id));
