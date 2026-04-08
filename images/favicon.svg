@@ -1,21 +1,21 @@
-<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <!-- Dark background -->
-  <rect width="32" height="32" fill="#1a2a3f"/>
+  <rect width="512" height="512" fill="#1a2a3f"/>
   
-  <!-- Isometric cube with colored faces, optimized for favicon space -->
+  <!-- Isometric cube with colored faces, scaled for 512x512 -->
   <!-- Top face (Yellow) -->
-  <polygon points="16,3 28,11 16,19 4,11" fill="#FFD700" opacity="0.95"/>
+  <polygon points="256,48 448,176 256,304 64,176" fill="#FFD700" opacity="0.95"/>
   
   <!-- Left face (Red) -->
-  <polygon points="4,11 16,19 16,29 4,21" fill="#FF5555" opacity="0.85"/>
+  <polygon points="64,176 256,304 256,464 64,336" fill="#FF5555" opacity="0.85"/>
   
   <!-- Right face (Blue) -->
-  <polygon points="28,11 16,19 16,29 28,21" fill="#5B9EFF" opacity="0.75"/>
+  <polygon points="448,176 256,304 256,464 448,336" fill="#5B9EFF" opacity="0.75"/>
   
   <!-- Outline edges for clarity -->
-  <polygon points="16,3 28,11 16,19 4,11" fill="none" stroke="#333333" stroke-width="0.8" stroke-linejoin="round"/>
-  <polygon points="4,11 16,19 16,29 4,21" fill="none" stroke="#333333" stroke-width="0.8" stroke-linejoin="round"/>
-  <polygon points="28,11 16,19 16,29 28,21" fill="none" stroke="#333333" stroke-width="0.8" stroke-linejoin="round"/>
-  <polyline points="4,11 4,21 16,29 28,21" fill="none" stroke="#333333" stroke-width="0.8" stroke-linejoin="round"/>
-  <line x1="16" y1="19" x2="16" y2="29" stroke="#333333" stroke-width="0.8"/>
+  <polygon points="256,48 448,176 256,304 64,176" fill="none" stroke="#333333" stroke-width="12.8" stroke-linejoin="round"/>
+  <polygon points="64,176 256,304 256,464 64,336" fill="none" stroke="#333333" stroke-width="12.8" stroke-linejoin="round"/>
+  <polygon points="448,176 256,304 256,464 448,336" fill="none" stroke="#333333" stroke-width="12.8" stroke-linejoin="round"/>
+  <polyline points="64,176 64,336 256,464 448,336" fill="none" stroke="#333333" stroke-width="12.8" stroke-linejoin="round"/>
+  <line x1="256" y1="304" x2="256" y2="464" stroke="#333333" stroke-width="12.8"/>
 </svg>
