@@ -360,7 +360,7 @@ class TrimensionApp {
             planes: true,
             labels: true
         };
-        this.primitiveSectionCollapsed = true;
+        this.primitiveSectionCollapsed = false;
         this.pointsSectionCollapsed = true;
 
         this.defaultParams = {
@@ -734,7 +734,6 @@ class TrimensionApp {
             });
         });
 
-        document.getElementById('clear-selection-btn').addEventListener('click', () => this.clearSelection());
         document.getElementById('clear-objects-btn').addEventListener('click', () => this.clearObjects());
         document.getElementById('reset-view-btn').addEventListener('click', () => {
             this.resetView();
@@ -764,12 +763,7 @@ class TrimensionApp {
             this.pointsSectionArrow.textContent = this.pointsSectionCollapsed ? '\u25B6\uFE0E' : '\u25BC\uFE0E';
         };
 
-        this.pointsSectionHeader.addEventListener('click', (event) => {
-            if (event.target.closest('#clear-selection-btn')) {
-                return;
-            }
-            togglePointsSection();
-        });
+        this.pointsSectionHeader.addEventListener('click', togglePointsSection);
 
         this.pointsSectionHeader.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' || event.key === ' ') {
@@ -1210,12 +1204,6 @@ class TrimensionApp {
         }
 
         this.compositeSlots.forEach((slot, idx) => {
-            if (idx > 0) {
-                const cardSep = document.createElement('div');
-                cardSep.className = 'primitive-card-separator';
-                this.primitiveCardsListEl.appendChild(cardSep);
-            }
-
             const card = document.createElement('div');
             card.className = 'primitive-card';
             card.dataset.slotId = String(slot.id);
@@ -1294,19 +1282,12 @@ class TrimensionApp {
                 input.max = String(config.max);
                 input.step = String(config.step);
                 input.value = String(slot.params[config.key]);
-
-                const valueBadge = document.createElement('div');
-                valueBadge.className = 'slider-value-badge';
-                const valueText = document.createElement('span');
-                valueText.className = 'slider-value-text';
-                valueText.textContent = input.value;
-                valueBadge.appendChild(valueText);
+                this.updateSliderFill(input);
 
                 input.addEventListener('input', () => {
                     const newVal = Number(input.value);
                     slot.params[config.key] = newVal;
-                    valueText.textContent = input.value;
-                    this.positionSliderBadge(input, valueBadge);
+                    this.updateSliderFill(input);
 
                     // Propagate to linked params
                     this.slotLinkages.forEach((link) => {
@@ -1317,21 +1298,19 @@ class TrimensionApp {
                         const linkedRow = this.primitiveCardsListEl.querySelector(`[data-slot-id="${link.toSlotId}"] [data-param-key="${link.toParam}"]`);
                         if (linkedRow) {
                             const li = linkedRow.querySelector('.slider-input');
-                            const lb = linkedRow.querySelector('.slider-value-badge');
-                            const lt = lb?.querySelector('.slider-value-text');
-                            if (li) li.value = String(newVal);
-                            if (lt) lt.textContent = String(newVal);
-                            if (li && lb) this.positionSliderBadge(li, lb);
+                            if (li) {
+                                li.value = String(newVal);
+                                this.updateSliderFill(li);
+                            }
                         }
                     });
 
                     this.buildComposite({ fitCamera: false });
                 });
 
-                inputWrap.append(input, valueBadge);
+                inputWrap.append(input);
                 row.append(labelEl, inputWrap);
                 sliderStack.appendChild(row);
-                requestAnimationFrame(() => this.positionSliderBadge(input, valueBadge));
             });
 
             card.appendChild(sliderStack);
@@ -1398,28 +1377,18 @@ class TrimensionApp {
         });
     }
 
-    positionSliderBadge(input, badge) {
+    updateSliderFill(input) {
         const min = Number(input.min);
         const max = Number(input.max);
         const value = Number(input.value);
         const ratio = max === min ? 0 : (value - min) / (max - min);
 
         input.style.setProperty('--slider-fill', `${Math.max(0, Math.min(1, ratio)) * 100}%`);
-
-        const width = input.clientWidth || 1;
-        const thumbSize = 18;
-        const badgeHalf = (badge.offsetWidth || 24) / 2;
-        const rawX = ratio * (width - thumbSize) + (thumbSize / 2);
-        const x = Math.max(badgeHalf, Math.min(width - badgeHalf, rawX));
-        badge.style.left = `${x}px`;
     }
 
     refreshSliderBadges() {
-        this.primitiveCardsListEl.querySelectorAll('.slider-input-wrap').forEach((wrap) => {
-            const input = wrap.querySelector('.slider-input');
-            const badge = wrap.querySelector('.slider-value-badge');
-            if (!input || !badge) return;
-            this.positionSliderBadge(input, badge);
+        this.primitiveCardsListEl.querySelectorAll('.slider-input').forEach((input) => {
+            this.updateSliderFill(input);
         });
     }
 
@@ -3143,14 +3112,29 @@ class TrimensionApp {
 
     renderObjectItem(item) {
         const row = document.createElement('div');
-        row.className = 'object-item';
+        row.className = item.visible ? 'object-item' : 'object-item disabled';
+        const itemColor = item.definition?.color != null
+            ? `#${item.definition.color.toString(16).padStart(6, '0')}`
+            : null;
+        if (itemColor) {
+            row.style.borderLeftColor = itemColor;
+        }
         row.innerHTML = `
             <div class="object-name">
                 <strong>${item.name}</strong>
                 <span>${item.subtitle}</span>
             </div>
-            <button type="button" class="object-toggle ${item.visible ? '' : 'is-hidden'}" data-toggle-object-id="${item.id}" aria-label="Toggle object visibility">${item.visible ? '◐' : '◌'}</button>
-            <button type="button" class="object-delete" data-delete-object-id="${item.id}" aria-label="Delete object">×</button>
+            <div class="object-controls">
+                <button
+                    type="button"
+                    class="object-visibility-btn"
+                    data-toggle-object-id="${item.id}"
+                    aria-label="${item.visible ? 'Hide' : 'Show'} object"
+                    title="Click to ${item.visible ? 'hide' : 'show'} object"
+                    style="background-color: ${item.visible && itemColor ? itemColor : 'transparent'};"
+                ></button>
+                <button type="button" class="object-delete" data-delete-object-id="${item.id}" aria-label="Delete object" title="Delete object">×</button>
+            </div>
         `;
         return row;
     }

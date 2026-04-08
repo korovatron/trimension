@@ -17,6 +17,9 @@
     --input-bg: #3A4F6A;
     --success-color: #3BB273;
     --danger-color: #E76F51;
+    --collapsible-content-gap: 8px;
+    --objects-list-gap: 8px;
+    --objects-list-trailing-gap: 10px;
     --safe-area-top: env(safe-area-inset-top);
     --safe-area-bottom: env(safe-area-inset-bottom);
     --safe-area-left: env(safe-area-inset-left);
@@ -220,16 +223,20 @@ textarea {
     left: 0;
     top: 0;
     width: 330px;
-    height: var(--actual-vh, 100vh);
-    min-height: var(--actual-vh, 100vh);
-    padding: max(20px, calc(var(--safe-area-top) + 10px)) 20px max(20px, calc(var(--safe-area-bottom) + 10px));
+    min-width: 330px;
+    max-width: 330px;
+    box-sizing: border-box;
+    height: 100vh;
+    padding: 20px;
+    padding-top: max(20px, calc(var(--safe-area-top) + 10px));
+    padding-bottom: max(20px, calc(var(--safe-area-bottom) + 10px));
     background: var(--panel-bg);
-    backdrop-filter: blur(8px);
+    backdrop-filter: blur(5px);
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
-    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.32);
+    overflow-x: hidden;
     transition: transform 0.3s ease;
     z-index: 1000;
     scrollbar-width: none;
@@ -260,6 +267,7 @@ textarea {
     font-size: 24px;
     border-radius: 14px;
     box-shadow: none;
+    transform: none;
 }
 
 .panel-brand h2 {
@@ -275,7 +283,8 @@ textarea {
 .panel-section {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 0;
+    margin-bottom: 8px;
 }
 
 .section-heading-row {
@@ -361,14 +370,14 @@ textarea {
 .slider-stack {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 3px;
 }
 
 .slider-row {
     display: flex;
     align-items: center;
-    gap: 6px;
-    min-height: 28px;
+    gap: 5px;
+    min-height: 22px;
 }
 
 .slider-name {
@@ -385,7 +394,7 @@ textarea {
     position: relative;
     flex: 1;
     min-width: 0;
-    height: 24px;
+    height: 18px;
 }
 
 .slider-input {
@@ -412,13 +421,13 @@ textarea {
 
 .slider-input::-webkit-slider-thumb {
     appearance: none;
-    width: 18px;
-    height: 18px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
-    border: 0;
-    background: transparent;
-    margin-top: -6px;
-    box-shadow: none;
+    border: 1px solid #d7e7fb;
+    background: #4A90E2;
+    margin-top: -3px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .slider-input::-moz-range-track {
@@ -435,37 +444,12 @@ textarea {
 }
 
 .slider-input::-moz-range-thumb {
-    width: 18px;
-    height: 18px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
-    border: 0;
-    background: transparent;
-    box-shadow: none;
-}
-
-.slider-value-badge {
-    position: absolute;
-    top: calc(50% + 1px);
-    left: 0;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: #4A90E2;
     border: 1px solid #d7e7fb;
-    color: #ffffff;
-    font-size: 10px;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: none;
-    transform: translate(-50%, -50%);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
-}
-
-.slider-value-text {
-    position: relative;
-    top: -1px;
+    background: #4A90E2;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .panel-separator {
@@ -482,10 +466,11 @@ textarea {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 10px;
-    border-radius: 8px;
+    padding: 8px;
+    border-radius: 4px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
+    border-left: 3px solid #000000;
 }
 
 .primitive-card-header {
@@ -504,24 +489,33 @@ textarea {
 }
 
 .card-remove-btn {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 50%;
-    background: rgba(231, 111, 81, 0.15);
-    color: var(--text-muted);
-    font-size: 1rem;
+    border: 1px solid #555;
+    border-radius: 5px;
+    background: #2A3F5A;
+    color: var(--text-primary);
+    font-size: 12px;
     line-height: 1;
     cursor: pointer;
     flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
 }
 
 @media (hover: hover) {
     .card-remove-btn:hover {
-        background: rgba(231, 111, 81, 0.35);
-        color: var(--text-primary);
+        filter: brightness(1.15);
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
     }
+}
+
+.card-remove-btn:active {
+    background: #E74C3C;
 }
 
 .card-cycle-btn {
@@ -546,11 +540,6 @@ textarea {
     font-size: 0.78rem;
     color: var(--text-muted);
     padding: 4px 0 2px;
-}
-
-.primitive-card-separator {
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    margin: 2px 0;
 }
 
 .dropdown-item-disabled {
@@ -584,11 +573,15 @@ textarea {
 }
 
 .collapsible-section-content {
-    margin-top: 8px;
+    margin-top: var(--collapsible-content-gap);
     max-height: 1200px;
     overflow: hidden;
     transition: max-height 0.3s ease, opacity 0.2s ease, margin-top 0.3s ease;
     opacity: 1;
+}
+
+.collapsible-section-content > :first-child {
+    margin-top: 0;
 }
 
 .collapsible-section-content.collapsed {
@@ -602,13 +595,17 @@ textarea {
 .objects-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--objects-list-gap);
+}
+
+.objects-list:not(:empty) {
+    padding-bottom: var(--objects-list-trailing-gap);
 }
 
 .points-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(28px, 1fr));
+    gap: 6px;
     max-height: 250px;
     overflow-y: auto;
     padding-right: 4px;
@@ -622,48 +619,48 @@ textarea {
     justify-content: center;
     width: 100%;
     aspect-ratio: 1;
-    min-height: 38px;
-    padding: 4px;
-    border: 1px solid rgba(255, 216, 77, 0.45);
-    border-radius: 6px;
-    background: rgba(255, 216, 77, 0.24);
-    color: #000000;
+    min-height: 28px;
+    padding: 2px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background: #2A3F5A;
+    color: #e0e0e0;
     cursor: pointer;
     text-align: center;
-    transition: background 0.18s ease, border-color 0.18s ease, transform 0.12s ease;
+    transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 .point-btn.is-selected {
-    border-color: #000000;
-    background: #ffd84d;
+    border-color: var(--accent-color);
+    background: #354d6b;
+    color: #ffffff;
 }
 
 .point-btn.is-derived {
-    background: rgba(217, 249, 214, 0.35);
-    border-color: rgba(46, 125, 50, 0.5);
-    color: #143a18;
+    border-color: #555;
+    background: #2A3F5A;
+    color: #e0e0e0;
 }
 
 .point-btn.is-derived.is-selected {
-    background: #d9f9d6;
-    border-color: #000000;
-    color: #000000;
+    border-color: var(--accent-color);
+    background: #354d6b;
+    color: #ffffff;
 }
 
 @media (hover: hover) {
     .point-btn:not(.is-selected):hover {
-        transform: translateY(-1px);
-        background: rgba(255, 216, 77, 0.34);
+        background: #354d6b;
     }
 
     .point-btn.is-derived:not(.is-selected):hover {
-        background: rgba(217, 249, 214, 0.48);
+        background: #354d6b;
     }
 }
 
 .point-name {
     font-weight: 700;
-    font-size: 0.92rem;
+    font-size: 0.74rem;
     line-height: 1;
 }
 
@@ -690,10 +687,11 @@ textarea {
 .selection-pill {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 10px;
-    border-radius: 999px;
-    background: rgba(74, 144, 226, 0.18);
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text-primary);
+    font-weight: 600;
 }
 
 .selection-arrow {
@@ -702,7 +700,6 @@ textarea {
 
 .action-btn,
 .mini-btn,
-.object-toggle,
 .object-delete {
     border: 1px solid var(--border-color);
     border-radius: 8px;
@@ -735,7 +732,6 @@ textarea {
 
 .action-btn:hover,
 .mini-btn:hover,
-.object-toggle:hover,
 .object-delete:hover,
 .top-btn:hover {
     background: #354d6b;
@@ -868,20 +864,26 @@ textarea {
 }
 
 .object-item {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
+    display: flex;
+    align-items: stretch;
+    justify-content: space-between;
     gap: 8px;
-    align-items: center;
     padding: 10px;
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.06);
     border-left: 3px solid var(--accent-color);
 }
 
+.object-item.disabled {
+    opacity: 0.7;
+}
+
 .object-name {
     display: flex;
     flex-direction: column;
     gap: 2px;
+    flex: 1;
+    min-width: 0;
 }
 
 .object-name strong {
@@ -893,14 +895,56 @@ textarea {
     font-size: 0.8rem;
 }
 
-.object-toggle,
-.object-delete {
-    width: 34px;
-    height: 34px;
+.object-controls {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    min-height: 100%;
 }
 
-.object-toggle.is-hidden {
-    color: var(--text-muted);
+.object-visibility-btn {
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.object-delete {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 1px solid #555;
+    border-radius: 5px;
+    background: #2A3F5A;
+    color: var(--text-primary);
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
+}
+
+@media (hover: hover) {
+    .object-visibility-btn:hover {
+        border-color: rgba(255, 255, 255, 0.5);
+        transform: scale(1.1);
+    }
+}
+
+.object-visibility-btn:active {
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(1.1);
+}
+
+.object-delete {
+    background: #2A3F5A;
 }
 
 .canvas-container {
@@ -1020,10 +1064,6 @@ textarea {
         width: 72px;
         height: 72px;
         font-size: 34px;
-    }
-
-    .control-panel {
-        width: min(330px, calc(100vw - 34px));
     }
 
     .canvas-chip.top-left {

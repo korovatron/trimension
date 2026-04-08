@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#1A2F42">
     <meta name="description" content="Trimension is a classroom-first 3D maths visualiser for exploring primitives, internal segments, triangles, planes, and labelled constructions.">
     <title>Trimension</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
     <div id="title-screen" class="title-screen">
@@ -73,7 +73,7 @@
                 <div class="panel-section">
                     <div id="primitive-section-header" class="section-heading-row collapsible-section-header" role="button" tabindex="0" aria-expanded="true">
                         <span class="group-arrow" id="primitive-section-arrow">&#x25BC;&#xFE0E;</span>
-                        <h3>Primitive</h3>
+                           <h3>Diagram</h3>
                     </div>
                     <div id="primitive-section-content" class="collapsible-section-content">
                         <select id="primitive-select" class="panel-input primitive-selector-hidden" aria-hidden="true" tabindex="-1">
@@ -88,7 +88,7 @@
                             <option value="rectangular-pyramid">Rectangular Pyramid</option>
                         </select>
 
-                        <div id="primitive-cards-list"></div>
+                        <div id="primitive-cards-list" class="objects-list"></div>
                     </div>
                 </div>
 
@@ -98,10 +98,8 @@
                     <div id="points-section-header" class="section-heading-row collapsible-section-header" role="button" tabindex="0" aria-expanded="true">
                         <span class="group-arrow" id="points-section-arrow">&#x25BC;&#xFE0E;</span>
                         <h3>Points</h3>
-                        <button id="clear-selection-btn" class="mini-btn" type="button">Clear</button>
                     </div>
                     <div id="points-section-content" class="collapsible-section-content">
-                        <p class="section-note">Select up to four labelled points in order.</p>
                         <div id="points-list" class="points-list"></div>
                         <div id="selection-summary" class="selection-summary empty"></div>
                         <div id="actions-list" class="actions-list"></div>
