@@ -933,6 +933,14 @@ class TrimensionApp {
         this.updatePointMarkerStyles();
     }
 
+    getEdgeColor() {
+        return this.themeMode === 'dark' ? 0xffffff : 0x000000;
+    }
+
+    getLabelTextColor() {
+        return (!this.labelBadgesVisible && this.themeMode === 'dark') ? '#ffffff' : '#000000';
+    }
+
     toggleThemeMode() {
         this.themeMode = this.themeMode === 'light' ? 'dark' : 'light';
         this.applyThemeMode();
@@ -944,6 +952,14 @@ class TrimensionApp {
             this.scene.background.set(this.themeMode === 'dark' ? 0x606060 : 0xffffff);
         }
         this.updateThemeToggleUI();
+        const edgeColor = this.getEdgeColor();
+        this.primitiveGroup?.traverse((obj) => {
+            if (obj.material instanceof THREE.LineBasicMaterial) {
+                obj.material.color.setHex(edgeColor);
+                obj.material.needsUpdate = true;
+            }
+        });
+        this.buildPointMarkers();
     }
 
     updateThemeToggleUI() {
@@ -2743,7 +2759,7 @@ class TrimensionApp {
             : new THREE.EdgesGeometry(geometry);
         const edges = new THREE.LineSegments(
             edgeGeometry,
-            new THREE.LineBasicMaterial({ color: 0x000000, transparent: false, opacity: 1 })
+            new THREE.LineBasicMaterial({ color: this.getEdgeColor(), transparent: false, opacity: 1 })
         );
         edges.renderOrder = 6;
         group.add(mesh, edges);
@@ -2798,7 +2814,8 @@ class TrimensionApp {
                     armPoint1,
                     armPoint2,
                     sharedMarkerSizeByVertex.get(vertexId),
-                    true
+                    true,
+                    this.getEdgeColor()
                 );
                 if (marker) {
                     marker.userData.isIntrinsicRightAngleMarker = true;
@@ -2814,7 +2831,7 @@ class TrimensionApp {
                 const circleGeometry = new THREE.BufferGeometry().setFromPoints(circlePoints);
                 const circle = new THREE.LineLoop(
                     circleGeometry,
-                    new THREE.LineBasicMaterial({ color: 0x000000, transparent: false, opacity: 1 })
+                    new THREE.LineBasicMaterial({ color: this.getEdgeColor(), transparent: false, opacity: 1 })
                 );
                 circle.renderOrder = 7;
                 group.add(circle);
@@ -2882,7 +2899,7 @@ class TrimensionApp {
         const markerRadius = this.displaySizeMode === 'small' ? 0.075 : 0.1;
         const markerGeometry = new THREE.SphereGeometry(markerRadius, 18, 18);
         this.getAllPoints().forEach((point) => {
-            const markerColor = point.isDerived ? 0x2e7d32 : 0x000000;
+            const markerColor = point.isDerived ? 0x2e7d32 : this.getEdgeColor();
             const marker = new THREE.Mesh(markerGeometry, new THREE.MeshBasicMaterial({ color: markerColor }));
             marker.position.copy(point.position);
             this.primitiveGroup.add(marker);
@@ -2891,7 +2908,7 @@ class TrimensionApp {
             const labelBackground = point.isDerived ? '#d9f9d6' : '#ffd84d';
             const sprite = this.createTextSprite(point.label, {
                 fontSize: 52,
-                textColor: '#000000',
+                textColor: this.getLabelTextColor(),
                 background: labelBackground,
                 borderColor: '#000000'
             });
@@ -2928,7 +2945,7 @@ class TrimensionApp {
             if (!marker) return;
 
             const isSelected = this.selectedPoints.includes(point.id);
-            const baseColor = point.isDerived ? 0x2e7d32 : 0x000000;
+            const baseColor = point.isDerived ? 0x2e7d32 : this.getEdgeColor();
             marker.material.color.set(isSelected ? 0x4a90e2 : baseColor);
             marker.scale.setScalar(isSelected ? 1.45 : 1);
         });
@@ -3418,7 +3435,7 @@ class TrimensionApp {
             const midpoint = vectors[0].clone().lerp(vectors[1], 0.5).add(new THREE.Vector3(0.2, 0.2, 0.2));
             const sprite = this.createTextSprite(normalizedText, {
                 fontSize: 46,
-                textColor: '#000000',
+                textColor: this.getLabelTextColor(),
                 background: '#b9f18a',
                 borderColor: '#000000'
             });
@@ -3793,7 +3810,7 @@ class TrimensionApp {
             .add(tangent.clone().multiplyScalar(Math.sin(rawAngle / 2) * labelRadius));
         const label = this.createTextSprite(`${angleText}`, {
             fontSize: 42,
-            textColor: '#000000',
+            textColor: this.getLabelTextColor(),
             background: '#9de7ff',
             borderColor: '#000000'
         });
@@ -3982,7 +3999,7 @@ class TrimensionApp {
             if (!this.canAttachLabelToPointPair(definition.pointIds || [])) return null;
             const sprite = this.createTextSprite(definition.text, {
                 fontSize: 46,
-                textColor: '#000000',
+                textColor: this.getLabelTextColor(),
                 background: '#b9f18a',
                 borderColor: '#000000'
             });
@@ -4152,45 +4169,51 @@ class TrimensionApp {
         this.controls.update();
     }
 
-    fitCameraToObject(object3D, padding = 1.38, preferredDirection = null) {
-        if (!object3D) {
-            this.fitCameraToPrimitive(6);
-            return;
-        }
-
+    _fitCameraParams(object3D, padding = 1.38, preferredDirection = null) {
+        if (!object3D) return null;
         const bounds = new THREE.Box3().setFromObject(object3D);
-        if (bounds.isEmpty()) {
-            this.fitCameraToPrimitive(6);
-            return;
-        }
-
+        if (bounds.isEmpty()) return null;
         const center = bounds.getCenter(new THREE.Vector3());
         const sphere = bounds.getBoundingSphere(new THREE.Sphere());
         const radius = Math.max(0.001, sphere.radius);
-
         const vFov = THREE.MathUtils.degToRad(this.camera.fov);
         const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
         const fitHeightDistance = radius / Math.tan(vFov / 2);
         const fitWidthDistance = radius / Math.tan(hFov / 2);
         const distance = Math.max(6, padding * Math.max(fitHeightDistance, fitWidthDistance));
-
         const viewDir = preferredDirection
             ? preferredDirection.clone()
             : this.camera.position.clone().sub(this.controls.target);
-        if (viewDir.lengthSq() < 1e-8) {
-            viewDir.set(1, 0.72, 0.94);
-        }
+        if (viewDir.lengthSq() < 1e-8) viewDir.set(1, 0.72, 0.94);
         viewDir.normalize();
+        return { cameraPos: center.clone().add(viewDir.multiplyScalar(distance)), target: center };
+    }
 
-        this.controls.target.copy(center);
-        this.camera.position.copy(center).add(viewDir.multiplyScalar(distance));
-
-        // Keep camera near/far fixed to prevent clipping (matching Vectorama approach)
+    fitCameraToObject(object3D, padding = 1.38, preferredDirection = null) {
+        const params = this._fitCameraParams(object3D, padding, preferredDirection);
+        if (!params) {
+            this.fitCameraToPrimitive(6);
+            return;
+        }
+        this.controls.target.copy(params.target);
+        this.camera.position.copy(params.cameraPos);
         this.controls.update();
     }
 
     resetView() {
-        this.fitCameraToObject(this.compositeGroup, 1.38, new THREE.Vector3(1, 0.72, 0.94));
+        const params = this._fitCameraParams(this.compositeGroup, 1.38, new THREE.Vector3(1, 0.72, 0.94));
+        if (!params) {
+            this.fitCameraToPrimitive(6);
+            return;
+        }
+        this._cameraAnim = {
+            fromPos: this.camera.position.clone(),
+            fromTarget: this.controls.target.clone(),
+            toPos: params.cameraPos,
+            toTarget: params.target,
+            startTime: performance.now(),
+            duration: 600
+        };
     }
 
     clearComposite() {
@@ -4244,6 +4267,14 @@ class TrimensionApp {
     animate() {
         if (!this.renderer) return;
         this.animationFrameId = window.requestAnimationFrame(() => this.animate());
+        if (this._cameraAnim) {
+            const { fromPos, fromTarget, toPos, toTarget, startTime, duration } = this._cameraAnim;
+            const raw = Math.min(1, (performance.now() - startTime) / duration);
+            const t = 1 - Math.pow(1 - raw, 3); // ease-out cubic
+            this.camera.position.lerpVectors(fromPos, toPos, t);
+            this.controls.target.lerpVectors(fromTarget, toTarget, t);
+            if (raw >= 1) this._cameraAnim = null;
+        }
         this.controls.update();
         this.updateIntrinsicRightAngleMarkerVisibility();
         this.renderer.render(this.scene, this.camera);
