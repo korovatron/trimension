@@ -348,7 +348,7 @@ class TrimensionApp {
         this.ghostFaces = true;
         this.labelBadgesVisible = true;
         this.gridVisible = false;
-        this.displaySizeMode = 'large';
+        this.displaySizeMode = 'small';
         this.themeMode = 'light';
         this.nextObjectId = 1;
         this.sceneObjects = [];
@@ -2716,7 +2716,7 @@ class TrimensionApp {
         const material = new THREE.MeshPhongMaterial({
             color: 0x7db3e8,
             transparent: true,
-            opacity: this.ghostFaces ? 0.14 : 0.78,
+            opacity: this.ghostFaces ? 0.14 : 0.46,
             side: THREE.DoubleSide,
             shininess: 90,
             specular: 0x315579,
@@ -2813,7 +2813,7 @@ class TrimensionApp {
 
     updatePrimitiveMaterial() {
         this.primitiveMeshes.forEach((mesh) => {
-            mesh.material.opacity = this.ghostFaces ? 0.14 : 0.78;
+            mesh.material.opacity = this.ghostFaces ? 0.14 : 0.46;
             mesh.material.needsUpdate = true;
         });
     }
@@ -3755,7 +3755,7 @@ class TrimensionApp {
     }
 
     createAngleMarker(a, vertex, c, angleText, arcColor = 0x00d1b2) {
-        const radius = Math.min(a.distanceTo(vertex), c.distanceTo(vertex)) * 0.28;
+        const radius = Math.min(a.distanceTo(vertex), c.distanceTo(vertex)) * 0.22;
         const dir1 = a.clone().sub(vertex).normalize();
         const dir2 = c.clone().sub(vertex).normalize();
         const normal = new THREE.Vector3().crossVectors(dir1, dir2).normalize();
@@ -3774,7 +3774,7 @@ class TrimensionApp {
 
         const line = this.createThickPolyline(points, arcColor, 5);
 
-        const labelRadius = radius * 0.72;
+        const labelRadius = radius * 0.6;
         const labelPoint = vertex.clone()
             .add(dir1.clone().multiplyScalar(Math.cos(rawAngle / 2) * labelRadius))
             .add(tangent.clone().multiplyScalar(Math.sin(rawAngle / 2) * labelRadius));
@@ -3796,16 +3796,19 @@ class TrimensionApp {
         const displayScale = this.displaySizeMode === 'small' ? 0.78 : 1.14;
         const fontSize = Math.max(12, Math.round(baseFontSize * displayScale));
         const badgeVisible = options.forceBadge === true || this.labelBadgesVisible !== false;
-        const padding = badgeVisible
-            ? Math.max(10, Math.round(22 * displayScale))
-            : Math.max(2, Math.round(6 * displayScale));
+        const paddingX = badgeVisible
+            ? Math.max(8, Math.round(14 * displayScale))
+            : Math.max(2, Math.round(4 * displayScale));
+        const paddingY = badgeVisible
+            ? Math.max(5, Math.round(9 * displayScale))
+            : Math.max(2, Math.round(4 * displayScale));
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
         context.font = `700 ${fontSize}px Segoe UI`;
         const metrics = context.measureText(text);
-        const logicalWidth = Math.ceil(metrics.width + padding * 2);
-        const logicalHeight = Math.ceil(fontSize + padding * 2);
+        const logicalWidth = Math.ceil(metrics.width + paddingX * 2);
+        const logicalHeight = Math.ceil(fontSize + paddingY * 2);
         canvas.width = Math.ceil(logicalWidth * dpr);
         canvas.height = Math.ceil(logicalHeight * dpr);
 
