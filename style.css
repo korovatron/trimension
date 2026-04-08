@@ -211,7 +211,7 @@ textarea {
 }
 
 .copyright {
-    position: absolute;
+    position: fixed;
     bottom: calc(20px + var(--safe-area-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
