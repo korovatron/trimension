@@ -1454,29 +1454,103 @@ class TrimensionApp {
     }
 
     syncAttachmentSpecificVariants(guestSlot, hostSlot, hostFaceDef) {
-        if (!guestSlot || guestSlot.primitive !== 'tetrahedron') {
+        if (!guestSlot || !hostSlot || !hostFaceDef) {
             return;
         }
 
-        const isPrismTriangleHost = hostSlot?.primitive === 'right-triangle-prism'
-            && (hostFaceDef?.id === 'front-triangle' || hostFaceDef?.id === 'back-triangle');
+        const isGuestTetra = guestSlot.primitive === 'tetrahedron';
+        const isHostTetra = hostSlot.primitive === 'tetrahedron';
+        const isGuestPrism = guestSlot.primitive === 'right-triangle-prism';
+        const isHostPrism = hostSlot.primitive === 'right-triangle-prism';
 
-        const isTetraHost = hostSlot?.primitive === 'tetrahedron'
-            && hostFaceDef?.id === 'base-triangle';
+        // Prism <-> tetrahedron attachments should always drive tetra mode from prism mode,
+        // regardless of which primitive is host/guest.
+        if (isGuestTetra && isHostPrism && (hostFaceDef.id === 'front-triangle' || hostFaceDef.id === 'back-triangle')) {
+            const prismMode = normalizeTriangularPrismMode(hostSlot.params.triangleMode);
+            guestSlot.params.baseTriangleMode = prismMode === 'isosceles' ? 'isosceles' : 'right-angled';
+            guestSlot.params.baseMirror = (prismMode === 'right-above-A') !== (hostFaceDef.id === 'back-triangle');
+            return;
+        }
 
-        if (isPrismTriangleHost) {
-            const hostMode = normalizeTriangularPrismMode(hostSlot.params.triangleMode);
-            guestSlot.params.baseTriangleMode = hostMode === 'isosceles' ? 'isosceles' : 'right-angled';
-            guestSlot.params.baseMirror = (hostMode === 'right-above-A') !== (hostFaceDef.id === 'back-triangle');
-        } else if (isTetraHost) {
-            // Sync guest base triangle mode to match host
+        if (isGuestPrism && isHostTetra && hostFaceDef.id === 'base-triangle') {
+            const hostFaceNormal = this.resolveFaceNormal(hostFaceDef, hostSlot.params);
+            const prismFaceDef = this.getGuestAttachFaceDef(guestSlot, hostFaceNormal, hostFaceDef.type);
+            if (prismFaceDef && (prismFaceDef.id === 'front-triangle' || prismFaceDef.id === 'back-triangle')) {
+                const prismMode = normalizeTriangularPrismMode(guestSlot.params.triangleMode);
+                hostSlot.params.baseTriangleMode = prismMode === 'isosceles' ? 'isosceles' : 'right-angled';
+                hostSlot.params.baseMirror = (prismMode === 'right-above-A') !== (prismFaceDef.id === 'back-triangle');
+            }
+            return;
+        }
+
+        // Tetrahedron <-> tetrahedron keeps mirrored right-angle compatibility.
+        if (isGuestTetra && isHostTetra && hostFaceDef.id === 'base-triangle') {
             const hostBaseMode = normalizeTetrahedronBaseMode(hostSlot.params.baseTriangleMode);
             guestSlot.params.baseTriangleMode = hostBaseMode;
-            // Right-angled base-to-base requires the guest to be mirrored for vertices to align
             guestSlot.params.baseMirror = hostBaseMode === 'right-angled';
-        } else {
+            return;
+        }
+
+        if (isGuestTetra) {
             guestSlot.params.baseMirror = false;
         }
+    }
+
+    isTetraBaseModeLocked(slot) {
+        return !!this.getLinkedPrismForTetra(slot);
+    }
+
+    getLinkedPrismForTetra(slot) {
+        if (!slot || slot.primitive !== 'tetrahedron') {
+            return null;
+        }
+
+        if (slot.hostSlotId != null && slot.hostFaceId) {
+            const hostSlot = this.compositeSlots.find((s) => s.id === slot.hostSlotId);
+            const hostFaceDef = this.getFaceDefById(hostSlot, slot.hostFaceId);
+            if (hostSlot?.primitive === 'right-triangle-prism'
+                && (hostFaceDef?.id === 'front-triangle' || hostFaceDef?.id === 'back-triangle')) {
+                return hostSlot;
+            }
+        }
+
+        const attachedPrismGuest = this.compositeSlots.find((child) => {
+            if (child.hostSlotId !== slot.id || child.primitive !== 'right-triangle-prism' || !child.hostFaceId) {
+                return false;
+            }
+
+            const hostFaceDef = this.getFaceDefById(slot, child.hostFaceId);
+            return hostFaceDef?.id === 'base-triangle';
+        });
+
+        return attachedPrismGuest || null;
+    }
+
+    syncLinkedTetraModesForPrism(prismSlot) {
+        if (!prismSlot || prismSlot.primitive !== 'right-triangle-prism') {
+            return;
+        }
+
+        // Prism as guest attached to a tetrahedron host.
+        if (prismSlot.hostSlotId != null && prismSlot.hostFaceId) {
+            const hostSlot = this.compositeSlots.find((s) => s.id === prismSlot.hostSlotId);
+            const hostFaceDef = this.getFaceDefById(hostSlot, prismSlot.hostFaceId);
+            if (hostSlot?.primitive === 'tetrahedron' && hostFaceDef?.id === 'base-triangle') {
+                this.syncAttachmentSpecificVariants(prismSlot, hostSlot, hostFaceDef);
+            }
+        }
+
+        // Prism as host with tetrahedron guests.
+        this.compositeSlots.forEach((child) => {
+            if (child.hostSlotId !== prismSlot.id || child.primitive !== 'tetrahedron' || !child.hostFaceId) {
+                return;
+            }
+
+            const hostFaceDef = this.getFaceDefById(prismSlot, child.hostFaceId);
+            if (hostFaceDef?.id === 'front-triangle' || hostFaceDef?.id === 'back-triangle') {
+                this.syncAttachmentSpecificVariants(child, prismSlot, hostFaceDef);
+            }
+        });
     }
 
     addSlot(primitiveKey) {
@@ -1560,6 +1634,7 @@ class TrimensionApp {
         const currentIndex = options.findIndex((opt) => opt.value === current);
         const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % options.length : 0;
         slot.params.triangleMode = options[nextIndex].value;
+        this.syncLinkedTetraModesForPrism(slot);
 
         const slotIndex = this.compositeSlots.findIndex((s) => s.id === slotId);
         this.compositeSlots.slice(slotIndex + 1).forEach((laterSlot) => this.snapSlotDimensions(laterSlot));
@@ -1576,6 +1651,11 @@ class TrimensionApp {
     cycleTetrahedronTriangleMode(slotId) {
         const slot = this.compositeSlots.find((s) => s.id === slotId);
         if (!slot || slot.primitive !== 'tetrahedron') return;
+        const linkedPrism = this.getLinkedPrismForTetra(slot);
+        if (linkedPrism) {
+            this.cycleTriangularPrismMode(linkedPrism.id);
+            return;
+        }
 
         const options = this.tetrahedronTriangleModes;
         const current = normalizeTetrahedronBaseMode(slot.params.baseTriangleMode);
@@ -1765,7 +1845,12 @@ class TrimensionApp {
                 tetrahedronModeCycleBtn.type = 'button';
                 tetrahedronModeCycleBtn.className = 'card-cycle-btn';
                 tetrahedronModeCycleBtn.dataset.cycleTetrahedronModeSlotId = String(slot.id);
-                tetrahedronModeCycleBtn.textContent = `Cycle Base: ${this.getTetrahedronTriangleModeLabel(slot.params.baseTriangleMode)}`;
+                tetrahedronModeCycleBtn.textContent = this.isTetraBaseModeLocked(slot)
+                    ? `Cycle Base (linked): ${this.getTetrahedronTriangleModeLabel(slot.params.baseTriangleMode)}`
+                    : `Cycle Base: ${this.getTetrahedronTriangleModeLabel(slot.params.baseTriangleMode)}`;
+                if (this.isTetraBaseModeLocked(slot)) {
+                    tetrahedronModeCycleBtn.title = 'Linked to attached prism (click to cycle prism type)';
+                }
                 card.appendChild(tetrahedronModeCycleBtn);
 
                 const tetrahedronApexCycleBtn = document.createElement('button');
