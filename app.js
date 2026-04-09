@@ -329,6 +329,9 @@ class TrimensionApp {
         this.labelPlainIcon = document.getElementById('label-plain-icon');
         this.labelBadgeIcon = document.getElementById('label-badge-icon');
         this.labelOffIcon = document.getElementById('label-off-icon');
+        this.pointMarkerToggleBtn = document.getElementById('point-marker-toggle-btn');
+        this.pointFilledIcon = document.getElementById('point-filled-icon');
+        this.pointHollowIcon = document.getElementById('point-hollow-icon');
         this.gridToggleBtn = document.getElementById('grid-toggle-btn');
         this.gridIcon = document.getElementById('grid-icon');
         this.displaySizeToggleBtn = document.getElementById('display-size-toggle-btn');
@@ -348,8 +351,9 @@ class TrimensionApp {
 
         this.panelOpen = true;
         this.ghostFaces = true;
+        this.pointMarkersVisible = true;
         this.labelMode = 'badge';
-        this.gridVisible = false;
+        this.gridVisible = true;
         this.displaySizeMode = 'small';
         this.themeMode = 'light';
         this.nextObjectId = 1;
@@ -784,6 +788,11 @@ class TrimensionApp {
             this.updateLabelBadgeToggleUI();
         }
 
+        if (this.pointMarkerToggleBtn) {
+            this.pointMarkerToggleBtn.addEventListener('click', () => this.togglePointMarkers());
+            this.updatePointMarkerToggleUI();
+        }
+
         if (this.displaySizeToggleBtn) {
             this.displaySizeToggleBtn.addEventListener('click', () => this.toggleDisplaySizeMode());
             this.updateDisplaySizeToggleUI();
@@ -878,6 +887,25 @@ class TrimensionApp {
 
         if (this.gridIcon) {
             this.gridIcon.classList.toggle('grid-active', this.gridVisible);
+        }
+    }
+
+    togglePointMarkers() {
+        this.pointMarkersVisible = !this.pointMarkersVisible;
+        this.updatePointMarkerToggleUI();
+        this.pointMarkers.forEach((marker) => { marker.visible = this.pointMarkersVisible; });
+    }
+
+    updatePointMarkerToggleUI() {
+        if (!this.pointMarkerToggleBtn) return;
+        this.pointMarkerToggleBtn.title = this.pointMarkersVisible
+            ? 'Point markers visible (click to hide)'
+            : 'Point markers hidden (click to show)';
+        if (this.pointFilledIcon) {
+            this.pointFilledIcon.classList.toggle('point-marker-active', this.pointMarkersVisible);
+        }
+        if (this.pointHollowIcon) {
+            this.pointHollowIcon.classList.toggle('point-marker-active', !this.pointMarkersVisible);
         }
     }
 
@@ -2920,6 +2948,7 @@ class TrimensionApp {
             const markerColor = point.isDerived ? 0x2e7d32 : this.getEdgeColor();
             const marker = new THREE.Mesh(markerGeometry, new THREE.MeshBasicMaterial({ color: markerColor }));
             marker.position.copy(point.position);
+            marker.visible = this.pointMarkersVisible;
             this.primitiveGroup.add(marker);
             this.pointMarkers.set(point.id, marker);
 
@@ -2934,6 +2963,7 @@ class TrimensionApp {
             this.primitiveGroup.add(sprite);
             this.pointSprites.push(sprite);
         });
+        this.syncAllLabelVisibility();
     }
 
     renderPointsList() {

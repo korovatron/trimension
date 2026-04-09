@@ -103,7 +103,17 @@
                             </svg>
                         </div>
                     </button>
-                    <div class="top-btn-spacer" aria-hidden="true"></div>
+                    <button id="point-marker-toggle-btn" class="top-btn" type="button" title="Point markers visible (click to hide)">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <svg class="point-marker-icon point-marker-active" id="point-filled-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                <circle cx="12" cy="12" r="7"/>
+                            </svg>
+                            <span class="ghost-separator">|</span>
+                            <svg class="point-marker-icon" id="point-hollow-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                <circle cx="12" cy="12" r="7"/>
+                            </svg>
+                        </div>
+                    </button>
                 </div>
 
                 <div class="panel-major-divider"></div>

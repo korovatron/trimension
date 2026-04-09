@@ -956,6 +956,18 @@ textarea {
     line-height: 1;
 }
 
+.point-marker-icon {
+    color: #666;
+    transition: color 0.2s;
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+}
+
+.point-marker-icon.point-marker-active {
+    color: #ffffff;
+}
+
 .theme-icon {
     color: #666;
     transition: color 0.2s;
