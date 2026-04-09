@@ -1497,10 +1497,10 @@ class TrimensionApp {
     }
 
     isTetraBaseModeLocked(slot) {
-        return !!this.getLinkedPrismForTetra(slot);
+        return !!this.getLinkedTetraBaseController(slot);
     }
 
-    getLinkedPrismForTetra(slot) {
+    getLinkedTetraBaseController(slot) {
         if (!slot || slot.primitive !== 'tetrahedron') {
             return null;
         }
@@ -1510,6 +1510,10 @@ class TrimensionApp {
             const hostFaceDef = this.getFaceDefById(hostSlot, slot.hostFaceId);
             if (hostSlot?.primitive === 'right-triangle-prism'
                 && (hostFaceDef?.id === 'front-triangle' || hostFaceDef?.id === 'back-triangle')) {
+                return hostSlot;
+            }
+
+            if (hostSlot?.primitive === 'tetrahedron' && hostFaceDef?.id === 'base-triangle') {
                 return hostSlot;
             }
         }
@@ -1651,9 +1655,14 @@ class TrimensionApp {
     cycleTetrahedronTriangleMode(slotId) {
         const slot = this.compositeSlots.find((s) => s.id === slotId);
         if (!slot || slot.primitive !== 'tetrahedron') return;
-        const linkedPrism = this.getLinkedPrismForTetra(slot);
-        if (linkedPrism) {
-            this.cycleTriangularPrismMode(linkedPrism.id);
+        const linkedController = this.getLinkedTetraBaseController(slot);
+        if (linkedController?.primitive === 'right-triangle-prism') {
+            this.cycleTriangularPrismMode(linkedController.id);
+            return;
+        }
+
+        if (linkedController?.primitive === 'tetrahedron') {
+            this.cycleTetrahedronTriangleMode(linkedController.id);
             return;
         }
 
@@ -1690,6 +1699,28 @@ class TrimensionApp {
 
     getRectangularPyramidApexLabel(apexPosition) {
         return this.rectangularPyramidApexPositions.find((opt) => opt.value === apexPosition)?.label || 'Centre';
+    }
+
+    isOrientationControlVisible(slot) {
+        if (!slot) {
+            return false;
+        }
+
+        if (slot.primitive !== 'rectangular-pyramid') {
+            return true;
+        }
+
+        if (slot.hostSlotId == null) {
+            return true;
+        }
+
+        const hostSlot = this.compositeSlots.find((candidate) => candidate.id === slot.hostSlotId);
+        if (!hostSlot) {
+            return true;
+        }
+
+        // In this attachment context apex-up/down is visually equivalent, so hide inert controls.
+        return hostSlot.primitive !== 'cuboid';
     }
 
     cycleRectangularPyramidApex(slotId) {
@@ -1744,7 +1775,7 @@ class TrimensionApp {
 
             // Orientation chips (only if multiple options)
             const orientOptions = this.orientations[slot.primitive] || [];
-            if (orientOptions.length > 1) {
+            if (orientOptions.length > 1 && this.isOrientationControlVisible(slot)) {
                 const orientRow = document.createElement('div');
                 orientRow.className = 'orientation-inline-row';
                 const orientLabel = document.createElement('span');
@@ -1849,7 +1880,10 @@ class TrimensionApp {
                     ? `Cycle Base (linked): ${this.getTetrahedronTriangleModeLabel(slot.params.baseTriangleMode)}`
                     : `Cycle Base: ${this.getTetrahedronTriangleModeLabel(slot.params.baseTriangleMode)}`;
                 if (this.isTetraBaseModeLocked(slot)) {
-                    tetrahedronModeCycleBtn.title = 'Linked to attached prism (click to cycle prism type)';
+                    const linkedController = this.getLinkedTetraBaseController(slot);
+                    tetrahedronModeCycleBtn.title = linkedController?.primitive === 'tetrahedron'
+                        ? 'Linked to attached tetrahedron (click to cycle host tetra type)'
+                        : 'Linked to attached prism (click to cycle prism type)';
                 }
                 card.appendChild(tetrahedronModeCycleBtn);
 
