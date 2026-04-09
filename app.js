@@ -4009,6 +4009,7 @@ class TrimensionApp {
 
         this.sceneObjects = survivingObjects;
         this.renderObjectsList();
+        this.syncEdgeLabelVisibility();
     }
 
     createObjectFromDefinition(definition) {
@@ -4138,6 +4139,46 @@ class TrimensionApp {
         item.visible = !item.visible;
         item.object3D.visible = item.visible;
         this.renderObjectsList();
+        this.syncEdgeLabelVisibility();
+    }
+
+    isEdgePairVisible(pointIds) {
+        if (this.hasPrimitiveEdgeBetween(pointIds)) {
+            return true;
+        }
+        const normalized = this.normalizePointPairIds(pointIds);
+        if (!normalized) return false;
+        const matchesPair = (pairCandidate) => {
+            const pair = this.normalizePointPairIds(pairCandidate);
+            return !!pair && pair[0] === normalized[0] && pair[1] === normalized[1];
+        };
+        return this.sceneObjects.some((entry) => {
+            if (!entry.visible) return false;
+            const def = entry.definition;
+            if (!def || !Array.isArray(def.pointIds) || def.hidden) return false;
+            if (def.kind === 'segment' && def.pointIds.length === 2) {
+                return matchesPair(def.pointIds);
+            }
+            if (def.kind === 'triangle' && def.pointIds.length === 3) {
+                const ids = def.pointIds;
+                return matchesPair([ids[0], ids[1]]) || matchesPair([ids[1], ids[2]]) || matchesPair([ids[2], ids[0]]);
+            }
+            if (def.kind === 'plane' && def.pointIds.length === 4) {
+                const ids = def.pointIds;
+                return matchesPair([ids[0], ids[1]]) || matchesPair([ids[1], ids[2]]) || matchesPair([ids[2], ids[3]]) || matchesPair([ids[3], ids[0]]);
+            }
+            return false;
+        });
+    }
+
+    syncEdgeLabelVisibility() {
+        for (const obj of this.sceneObjects) {
+            if (obj.type !== 'label') continue;
+            const def = obj.definition;
+            if (!def || (def.kind !== 'edge-label' && def.kind !== 'length-label')) continue;
+            if (!Array.isArray(def.pointIds) || def.pointIds.length !== 2) continue;
+            obj.object3D.visible = obj.visible && this.isEdgePairVisible(def.pointIds);
+        }
     }
 
     pruneOrphanedSceneObjects() {
