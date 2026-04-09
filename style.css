@@ -1295,6 +1295,24 @@ textarea {
         left: 16px;
         max-width: calc(100vw - 86px);
     }
+
+    #label-badge-toggle-btn > div {
+        gap: 3px !important;
+    }
+
+    #label-badge-toggle-btn .label-badge-icon {
+        font-size: 11px;
+        min-width: 10px;
+    }
+
+    #label-badge-toggle-btn .label-off-option {
+        font-size: 9px;
+    }
+
+    #label-badge-toggle-btn #label-badge-icon {
+        min-width: 14px;
+        padding: 1px 3px;
+    }
 }
 
 @media (hover: none) and (pointer: coarse) {
