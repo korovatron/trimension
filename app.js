@@ -328,6 +328,7 @@ class TrimensionApp {
         this.labelBadgeToggleBtn = document.getElementById('label-badge-toggle-btn');
         this.labelPlainIcon = document.getElementById('label-plain-icon');
         this.labelBadgeIcon = document.getElementById('label-badge-icon');
+        this.labelOffIcon = document.getElementById('label-off-icon');
         this.gridToggleBtn = document.getElementById('grid-toggle-btn');
         this.gridIcon = document.getElementById('grid-icon');
         this.displaySizeToggleBtn = document.getElementById('display-size-toggle-btn');
@@ -347,7 +348,7 @@ class TrimensionApp {
 
         this.panelOpen = true;
         this.ghostFaces = true;
-        this.labelBadgesVisible = true;
+        this.labelMode = 'badge';
         this.gridVisible = false;
         this.displaySizeMode = 'small';
         this.themeMode = 'light';
@@ -899,7 +900,8 @@ class TrimensionApp {
     }
 
     toggleLabelBadgeMode() {
-        this.labelBadgesVisible = !this.labelBadgesVisible;
+        const cycle = { badge: 'off', off: 'plain', plain: 'badge' };
+        this.labelMode = cycle[this.labelMode] || 'badge';
         this.updateLabelBadgeToggleUI();
         this.refreshSceneTextSizing();
     }
@@ -909,16 +911,21 @@ class TrimensionApp {
             return;
         }
 
-        this.labelBadgeToggleBtn.title = this.labelBadgesVisible
-            ? 'Label badges enabled (click to disable)'
-            : 'Label badges disabled (click to enable)';
+        const titles = {
+            badge: 'Labels with badges (click to hide)',
+            off: 'Labels hidden (click for plain)',
+            plain: 'Plain labels (click to restore badges)'
+        };
+        this.labelBadgeToggleBtn.title = titles[this.labelMode] || '';
 
         if (this.labelPlainIcon) {
-            this.labelPlainIcon.classList.toggle('label-badge-active', !this.labelBadgesVisible);
+            this.labelPlainIcon.classList.toggle('label-badge-active', this.labelMode === 'plain');
         }
-
         if (this.labelBadgeIcon) {
-            this.labelBadgeIcon.classList.toggle('label-badge-active', this.labelBadgesVisible);
+            this.labelBadgeIcon.classList.toggle('label-badge-active', this.labelMode === 'badge');
+        }
+        if (this.labelOffIcon) {
+            this.labelOffIcon.classList.toggle('label-badge-active', this.labelMode === 'off');
         }
     }
 
@@ -941,6 +948,7 @@ class TrimensionApp {
         this.rebuildConstructions();
         this.buildPointMarkers();
         this.updatePointMarkerStyles();
+        this.syncAllLabelVisibility();
     }
 
     getEdgeColor() {
@@ -948,7 +956,7 @@ class TrimensionApp {
     }
 
     getLabelTextColor() {
-        return (!this.labelBadgesVisible && this.themeMode === 'dark') ? '#ffffff' : '#000000';
+        return (this.labelMode !== 'badge' && this.themeMode === 'dark') ? '#ffffff' : '#000000';
     }
 
     toggleThemeMode() {
@@ -3835,7 +3843,7 @@ class TrimensionApp {
         const baseFontSize = options.fontSize || 48;
         const displayScale = this.displaySizeMode === 'small' ? 0.78 : 1.14;
         const fontSize = Math.max(12, Math.round(baseFontSize * displayScale));
-        const badgeVisible = options.forceBadge === true || this.labelBadgesVisible !== false;
+        const badgeVisible = options.forceBadge === true || this.labelMode === 'badge';
         const paddingX = badgeVisible
             ? Math.max(8, Math.round(14 * displayScale))
             : Math.max(2, Math.round(4 * displayScale));
@@ -4172,12 +4180,28 @@ class TrimensionApp {
     }
 
     syncEdgeLabelVisibility() {
+        const labelsOn = this.labelMode !== 'off';
         for (const obj of this.sceneObjects) {
             if (obj.type !== 'label') continue;
             const def = obj.definition;
             if (!def || (def.kind !== 'edge-label' && def.kind !== 'length-label')) continue;
             if (!Array.isArray(def.pointIds) || def.pointIds.length !== 2) continue;
-            obj.object3D.visible = obj.visible && this.isEdgePairVisible(def.pointIds);
+            obj.object3D.visible = labelsOn && obj.visible && this.isEdgePairVisible(def.pointIds);
+        }
+    }
+
+    syncAllLabelVisibility() {
+        const labelsOn = this.labelMode !== 'off';
+        this.syncEdgeLabelVisibility();
+        for (const sprite of (this.pointSprites || [])) {
+            sprite.visible = labelsOn;
+        }
+        for (const obj of this.sceneObjects) {
+            if (obj.type !== 'angle') continue;
+            const group = obj.object3D;
+            if (group && group.children && group.children.length >= 2) {
+                group.children[1].visible = labelsOn;
+            }
         }
     }
 

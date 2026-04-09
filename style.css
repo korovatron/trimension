@@ -900,12 +900,17 @@ textarea {
     transition: color 0.2s;
     cursor: pointer;
     font-weight: 700;
-    font-size: 16px;
+    font-size: 13px;
     line-height: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 14px;
+    min-width: 12px;
+}
+
+.label-off-option {
+    font-size: 11px;
+    letter-spacing: 0.02em;
 }
 
 #label-badge-icon {
