@@ -573,7 +573,7 @@ class TrimensionApp {
                 { key: 'angle', label: 'Add Angle' }
             ],
             4: [
-                { key: 'plane', label: 'Add Plane' }
+                { key: 'plane', label: 'Add Quadrilateral' }
             ]
         };
 
@@ -2804,6 +2804,7 @@ class TrimensionApp {
         }
 
         this.buildPointMarkers();
+        this.renderObjectsList();
         this.renderPointsList();
         this.renderSelectionSummary();
         this.renderActions();
@@ -4051,8 +4052,8 @@ class TrimensionApp {
             const plane = this.createQuad(orderedVectors, color, 0.2);
             const planeObject = this.addSceneObject({
                 type: 'plane',
-                name: `Plane ${this.formatPointSequence(orderedIds)}`,
-                subtitle: 'Four-point shading',
+                name: `Quadrilateral ${this.formatPointSequence(orderedIds)}`,
+                subtitle: 'Four-point coplanar patch',
                 object3D: plane,
                 definition: {
                     kind: 'plane',
@@ -4061,7 +4062,7 @@ class TrimensionApp {
                     opacity: 0.2
                 }
             });
-            this.ensureHiddenSupportSegmentsForPairs(this.getPlaneEdgePairs(orderedIds), 'Plane support edge', planeObject?.id ?? null);
+            this.ensureHiddenSupportSegmentsForPairs(this.getPlaneEdgePairs(orderedIds), 'Quadrilateral support edge', planeObject?.id ?? null);
         }
 
         this.clearSelection();
@@ -4571,13 +4572,19 @@ class TrimensionApp {
         const itemColor = item.definition?.color != null
             ? `#${item.definition.color.toString(16).padStart(6, '0')}`
             : null;
+        const displayName = this.getSceneObjectDisplayName(item);
+        const showSubtitle = item.type === 'angle' || item.type === 'label';
+        const subtitleText = typeof item.subtitle === 'string' ? item.subtitle : '';
+        const subtitleHtml = showSubtitle && subtitleText
+            ? `<span>${subtitleText}</span>`
+            : '';
         if (itemColor) {
             row.style.borderLeftColor = itemColor;
         }
         row.innerHTML = `
             <div class="object-name">
-                <strong>${item.name}</strong>
-                <span>${item.subtitle}</span>
+                <strong>${displayName}</strong>
+                ${subtitleHtml}
             </div>
             <div class="object-controls">
                 <button
@@ -4592,6 +4599,39 @@ class TrimensionApp {
             </div>
         `;
         return row;
+    }
+
+    getSceneObjectDisplayName(item) {
+        const definition = item?.definition;
+        if (!definition || !Array.isArray(definition.pointIds) || definition.pointIds.length === 0) {
+            return item.name;
+        }
+
+        if (definition.kind === 'segment' && definition.pointIds.length === 2) {
+            return `Segment ${this.formatPointSequence(definition.pointIds)}`;
+        }
+
+        if (definition.kind === 'triangle' && definition.pointIds.length === 3) {
+            return `Triangle ${this.formatPointSequence(definition.pointIds)}`;
+        }
+
+        if (definition.kind === 'angle' && definition.pointIds.length === 3) {
+            return `Angle ${this.formatPointSequence(definition.pointIds)}`;
+        }
+
+        if (definition.kind === 'plane' && definition.pointIds.length === 4) {
+            return `Quadrilateral ${this.formatPointSequence(definition.pointIds)}`;
+        }
+
+        if ((definition.kind === 'edge-label' || definition.kind === 'length-label') && definition.pointIds.length === 2) {
+            return `Label ${this.formatPointSequence(definition.pointIds)}`;
+        }
+
+        if (definition.kind === 'point-label' && definition.pointIds.length === 1) {
+            return `Label ${this.formatPointSequence(definition.pointIds)}`;
+        }
+
+        return item.name;
     }
 
     toggleObjectVisibility(objectId) {
