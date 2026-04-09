@@ -117,6 +117,14 @@ function getTetrahedronBasePoints(params, yPos) {
     const mode = normalizeTetrahedronBaseMode(params.baseTriangleMode);
 
     if (mode === 'right-angled') {
+        if (params.baseMirror) {
+            return [
+                new THREE.Vector3(base / 3, yPos, -triangleHeight / 3),
+                new THREE.Vector3((-2 * base) / 3, yPos, -triangleHeight / 3),
+                new THREE.Vector3(base / 3, yPos, (2 * triangleHeight) / 3)
+            ];
+        }
+
         return [
             new THREE.Vector3(-base / 3, yPos, -triangleHeight / 3),
             new THREE.Vector3((2 * base) / 3, yPos, -triangleHeight / 3),
@@ -268,7 +276,12 @@ const ATTACHMENT_FACES = {
             id: 'front-triangle',
             type: 'triangle',
             normal: new THREE.Vector3(0, 0, 1),
-            uAxis: new THREE.Vector3(1, 0, 0),
+            vertexIds: ['A', 'B', 'C'],
+            uAxis: (p) => {
+                const [a, b, c] = getTriangularPrismProfilePoints(p, p.length / 2);
+                const centroid = getTriangleCentroid(a, b, c);
+                return c.clone().sub(centroid).normalize();
+            },
             center: (p) => {
                 const [a, b, c] = getTriangularPrismProfilePoints(p, p.length / 2);
                 return getTriangleCentroid(a, b, c);
@@ -280,7 +293,12 @@ const ATTACHMENT_FACES = {
             id: 'back-triangle',
             type: 'triangle',
             normal: new THREE.Vector3(0, 0, -1),
-            uAxis: new THREE.Vector3(1, 0, 0),
+            vertexIds: ['D', 'E', 'F'],
+            uAxis: (p) => {
+                const [a, b, c] = getTriangularPrismProfilePoints(p, -p.length / 2);
+                const centroid = getTriangleCentroid(a, b, c);
+                return c.clone().sub(centroid).normalize();
+            },
             center: (p) => {
                 const [a, b, c] = getTriangularPrismProfilePoints(p, -p.length / 2);
                 return getTriangleCentroid(a, b, c);
@@ -294,7 +312,12 @@ const ATTACHMENT_FACES = {
             id: 'base-triangle',
             type: 'triangle',
             normal: new THREE.Vector3(0, -1, 0),
-            uAxis: new THREE.Vector3(1, 0, 0),
+            vertexIds: ['A', 'B', 'C'],
+            uAxis: (p) => {
+                const [baseA, baseB, baseC] = getTetrahedronBasePoints(p, -p.height / 2);
+                const centroid = getTriangleCentroid(baseA, baseB, baseC);
+                return baseC.clone().sub(centroid).normalize();
+            },
             center: (p) => new THREE.Vector3(0, -p.height / 2, 0),
             dims: ['base', 'triangleHeight'],
             label: 'Base Triangle'
@@ -391,7 +414,7 @@ class TrimensionApp {
             cuboid: { width: 7, depth: 4, height: 5 },
             'rectangular-pyramid': { length: 6.5, width: 4.5, height: 6, apexPosition: 'center' },
             'right-triangle-prism': { legA: 5, legB: 4, length: 7, triangleMode: 'isosceles' },
-            tetrahedron: { base: 6, triangleHeight: 4.5, height: 6, baseTriangleMode: 'isosceles', apexPosition: 'A' },
+            tetrahedron: { base: 6, triangleHeight: 4.5, height: 6, baseTriangleMode: 'isosceles', apexPosition: 'A', baseMirror: false },
             'trapezium-prism': { baseWidth: 6, leftHeight: 4, rightHeight: 2.5, length: 7 },
             sphere: { radius: 3 },
             hemisphere: { radius: 3 },
@@ -1347,6 +1370,7 @@ class TrimensionApp {
         if (!entry) return;
 
         const { slot: hostSlot, faceDef: hostFaceDef } = entry;
+    this.syncAttachmentSpecificVariants(guestSlot, hostSlot, hostFaceDef);
         const hostFaceNormal = this.resolveFaceNormal(hostFaceDef, hostSlot.params);
         const guestFaceDef = this.getGuestAttachFaceDef(guestSlot, hostFaceNormal);
         if (!guestFaceDef) return;
@@ -1368,6 +1392,23 @@ class TrimensionApp {
                 guestSlot.params[guestDim] = hostValue;
             }
         });
+    }
+
+    syncAttachmentSpecificVariants(guestSlot, hostSlot, hostFaceDef) {
+        if (!guestSlot || guestSlot.primitive !== 'tetrahedron') {
+            return;
+        }
+
+        const isPrismTriangleHost = hostSlot?.primitive === 'right-triangle-prism'
+            && (hostFaceDef?.id === 'front-triangle' || hostFaceDef?.id === 'back-triangle');
+
+        if (isPrismTriangleHost) {
+            const hostMode = normalizeTriangularPrismMode(hostSlot.params.triangleMode);
+            guestSlot.params.baseTriangleMode = hostMode === 'isosceles' ? 'isosceles' : 'right-angled';
+            guestSlot.params.baseMirror = (hostMode === 'right-above-A') !== (hostFaceDef.id === 'back-triangle');
+        } else {
+            guestSlot.params.baseMirror = false;
+        }
     }
 
     addSlot(primitiveKey) {
@@ -1447,6 +1488,9 @@ class TrimensionApp {
         const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % options.length : 0;
         slot.params.triangleMode = options[nextIndex].value;
 
+        const slotIndex = this.compositeSlots.findIndex((s) => s.id === slotId);
+        this.compositeSlots.slice(slotIndex + 1).forEach((laterSlot) => this.snapSlotDimensions(laterSlot));
+
         this.resetSceneObjects();
         this.buildComposite();
         this.renderCompositeCards();
@@ -1465,6 +1509,7 @@ class TrimensionApp {
         const currentIndex = options.findIndex((opt) => opt.value === current);
         const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % options.length : 0;
         slot.params.baseTriangleMode = options[nextIndex].value;
+        this.snapSlotDimensions(slot);
 
         this.resetSceneObjects();
         this.buildComposite();
@@ -1765,6 +1810,7 @@ class TrimensionApp {
                         .applyQuaternion(hostOrientQ)
                         .applyQuaternion(hostGroupQ)
                         .add(hostGroupP);
+                    const hostCenterToFace = hostFaceCenter.clone().sub(hostGroupP);
                     const hostFaceNormal = this.resolveFaceNormal(entry.faceDef, entry.slot.params)
                         .clone()
                         .applyQuaternion(hostOrientQ)
@@ -1775,7 +1821,18 @@ class TrimensionApp {
                         .applyQuaternion(hostGroupQ)
                         .normalize();
 
-                    this.applySlotTransform(def.group, slot, hostFaceCenter, hostFaceNormal, hostFaceU);
+                    // Guard against inverted face metadata by forcing normals to point away from the host center.
+                    if (hostCenterToFace.lengthSq() > 1e-8 && hostFaceNormal.dot(hostCenterToFace) < 0) {
+                        hostFaceNormal.multiplyScalar(-1);
+                        hostFaceU.multiplyScalar(-1);
+                    }
+
+                    this.applySlotTransform(def.group, slot, hostFaceCenter, hostFaceNormal, hostFaceU, {
+                        hostSlot: entry.slot,
+                        hostFaceDef: entry.faceDef,
+                        hostGroupQuaternion: hostGroupQ.clone(),
+                        hostGroupPosition: hostGroupP.clone()
+                    });
 
                     const guestFaceDef = this.getGuestAttachFaceDef(slot, this.resolveFaceNormal(entry.faceDef, entry.slot.params));
                     if (guestFaceDef) {
@@ -1816,7 +1873,247 @@ class TrimensionApp {
         }
     }
 
-    applySlotTransform(slotGroup, slot, hostFaceCenter, hostFaceNormal, hostFaceUWorld = null) {
+    getPrimitiveLocalPointMap(primitiveKey, params) {
+        if (primitiveKey === 'right-triangle-prism') {
+            const zFront = params.length / 2;
+            const zBack = -params.length / 2;
+            const [posA, posB, posC] = getTriangularPrismProfilePoints(params, zFront);
+            return {
+                A: posA,
+                B: posB,
+                C: posC,
+                D: new THREE.Vector3(posA.x, posA.y, zBack),
+                E: new THREE.Vector3(posB.x, posB.y, zBack),
+                F: new THREE.Vector3(posC.x, posC.y, zBack)
+            };
+        }
+
+        if (primitiveKey === 'tetrahedron') {
+            const yBase = -params.height / 2;
+            const yApex = params.height / 2;
+            const [baseA, baseB, baseC] = getTetrahedronBasePoints(params, yBase);
+            const apexTargetKey = params.apexPosition || 'A';
+            const apexTargets = { A: baseA, B: baseB, C: baseC };
+            const apexAnchor = apexTargets[apexTargetKey] || baseA;
+            return {
+                A: baseA,
+                B: baseB,
+                C: baseC,
+                D: new THREE.Vector3(apexAnchor.x, yApex, apexAnchor.z)
+            };
+        }
+
+        return null;
+    }
+
+    getAttachmentFaceLocalVertices(slot, faceDef) {
+        if (!slot || !faceDef || !Array.isArray(faceDef.vertexIds) || faceDef.vertexIds.length !== 3) {
+            return null;
+        }
+
+        const pointMap = this.getPrimitiveLocalPointMap(slot.primitive, slot.params);
+        if (!pointMap) {
+            return null;
+        }
+
+        const vertices = faceDef.vertexIds.map((id) => pointMap[id]?.clone()).filter(Boolean);
+        return vertices.length === 3 ? vertices : null;
+    }
+
+    orientTriangleVerticesToNormal(vertices, targetNormal) {
+        if (!Array.isArray(vertices) || vertices.length !== 3) {
+            return null;
+        }
+
+        const oriented = vertices.map((vertex) => vertex.clone());
+        const currentNormal = new THREE.Vector3()
+            .crossVectors(
+                oriented[1].clone().sub(oriented[0]),
+                oriented[2].clone().sub(oriented[0])
+            )
+            .normalize();
+
+        if (currentNormal.dot(targetNormal) < 0) {
+            [oriented[1], oriented[2]] = [oriented[2], oriented[1]];
+        }
+
+        return oriented;
+    }
+
+    buildTriangleBasis(vertices) {
+        const origin = vertices[0].clone();
+        const u = vertices[1].clone().sub(vertices[0]).normalize();
+        const n = new THREE.Vector3().crossVectors(
+            vertices[1].clone().sub(vertices[0]),
+            vertices[2].clone().sub(vertices[0])
+        ).normalize();
+        const v = new THREE.Vector3().crossVectors(n, u).normalize();
+        const basis = new THREE.Matrix4().makeBasis(u, v, n);
+        return { origin, basis };
+    }
+
+    getTriangleVertexSignatures(vertices) {
+        return vertices.map((vertex, index) => {
+            const distances = vertices
+                .filter((_, otherIndex) => otherIndex !== index)
+                .map((other) => vertex.distanceToSquared(other))
+                .sort((left, right) => left - right);
+            return distances;
+        });
+    }
+
+    chooseBestTriangleVertexAlignment(guestVertices, hostVertices, targetNormal) {
+        const guestSignatures = this.getTriangleVertexSignatures(guestVertices);
+        const permutations = [
+            [0, 1, 2],
+            [0, 2, 1],
+            [1, 2, 0],
+            [1, 0, 2],
+            [2, 0, 1],
+            [2, 1, 0]
+        ];
+
+        let bestVertices = hostVertices;
+        let bestScore = Number.POSITIVE_INFINITY;
+
+        permutations.forEach((permutation) => {
+            const candidate = permutation.map((index) => hostVertices[index]);
+            const candidateNormal = new THREE.Vector3()
+                .crossVectors(
+                    candidate[1].clone().sub(candidate[0]),
+                    candidate[2].clone().sub(candidate[0])
+                )
+                .normalize();
+            if (candidateNormal.dot(targetNormal) <= 1e-8) {
+                return;
+            }
+
+            const candidateSignatures = this.getTriangleVertexSignatures(candidate);
+            const score = guestSignatures.reduce((total, signature, index) => {
+                return total
+                    + Math.abs(signature[0] - candidateSignatures[index][0])
+                    + Math.abs(signature[1] - candidateSignatures[index][1]);
+            }, 0);
+
+            if (score < bestScore) {
+                bestScore = score;
+                bestVertices = candidate;
+            }
+        });
+
+        return bestVertices.map((vertex) => vertex.clone());
+    }
+
+    computeBestTriangleAttachmentTransform(guestVertices, hostVertices, targetGuestNormal, isCandidateValid = null) {
+        const guestOrders = [
+            [0, 1, 2],
+            [0, 2, 1]
+        ];
+        const hostOrders = [
+            [0, 1, 2], [0, 2, 1],
+            [1, 0, 2], [1, 2, 0],
+            [2, 0, 1], [2, 1, 0]
+        ];
+
+        let best = null;
+
+        guestOrders.forEach((guestOrder) => {
+            const src = guestOrder.map((index) => guestVertices[index].clone());
+            const srcBasis = this.buildTriangleBasis(src);
+            const srcNormal = new THREE.Vector3()
+                .crossVectors(
+                    src[1].clone().sub(src[0]),
+                    src[2].clone().sub(src[0])
+                )
+                .normalize();
+
+            hostOrders.forEach((hostOrder) => {
+                const dst = hostOrder.map((index) => hostVertices[index].clone());
+                const dstBasis = this.buildTriangleBasis(dst);
+
+                const transformMatrix = dstBasis.basis.clone().multiply(srcBasis.basis.clone().invert());
+                const quaternion = new THREE.Quaternion().setFromRotationMatrix(transformMatrix);
+                const position = dstBasis.origin.clone().sub(srcBasis.origin.clone().applyQuaternion(quaternion));
+
+                const rotatedNormal = srcNormal.clone().applyQuaternion(quaternion).normalize();
+                if (rotatedNormal.dot(targetGuestNormal) < 0.999) {
+                    return;
+                }
+
+                if (typeof isCandidateValid === 'function' && !isCandidateValid(quaternion, position, dst)) {
+                    return;
+                }
+
+                const error = src.reduce((total, vertex, index) => {
+                    const transformed = vertex.clone().applyQuaternion(quaternion).add(position);
+                    return total + transformed.distanceToSquared(dst[index]);
+                }, 0);
+
+                if (!best || error < best.error) {
+                    best = { quaternion, position, error };
+                }
+            });
+        });
+
+        return best;
+    }
+
+    tryApplyExactTriangleFaceTransform(slotGroup, slot, hostFaceNormal, options = {}) {
+        const { hostSlot, hostFaceDef, hostGroupQuaternion, hostGroupPosition } = options;
+        if (!hostSlot || !hostFaceDef || hostFaceDef.type !== 'triangle') {
+            return false;
+        }
+
+        const guestFaceDef = this.getGuestAttachFaceDef(slot, hostFaceNormal);
+        if (!guestFaceDef || guestFaceDef.type !== 'triangle') {
+            return false;
+        }
+
+        const guestLocalVertices = this.getAttachmentFaceLocalVertices(slot, guestFaceDef);
+        const hostLocalVertices = this.getAttachmentFaceLocalVertices(hostSlot, hostFaceDef);
+        if (!guestLocalVertices || !hostLocalVertices) {
+            return false;
+        }
+
+        const guestOrientQ = this.getOrientationQuaternion(slot.primitive, slot.orientation);
+        const hostOrientQ = this.getOrientationQuaternion(hostSlot.primitive, hostSlot.orientation);
+        const targetGuestNormal = hostFaceNormal.clone().negate().normalize();
+
+        const guestOrientedVertices = guestLocalVertices.map((vertex) => vertex.applyQuaternion(guestOrientQ));
+        const hostWorldVertices = hostLocalVertices.map((vertex) => vertex.applyQuaternion(hostOrientQ).applyQuaternion(hostGroupQuaternion).add(hostGroupPosition));
+
+        const pointMap = this.getPrimitiveLocalPointMap(slot.primitive, slot.params);
+        const apexLocal = slot.primitive === 'tetrahedron' ? pointMap?.D?.clone().applyQuaternion(guestOrientQ) : null;
+
+        const bestTransform = this.computeBestTriangleAttachmentTransform(
+            guestOrientedVertices,
+            hostWorldVertices,
+            targetGuestNormal,
+            (quaternion, position, dstVertices) => {
+                if (!apexLocal) {
+                    return true;
+                }
+
+                const transformedApex = apexLocal.clone().applyQuaternion(quaternion).add(position);
+                const facePoint = dstVertices[0];
+                const signedDistance = transformedApex.clone().sub(facePoint).dot(hostFaceNormal.clone().normalize());
+                return signedDistance > 1e-5;
+            }
+        );
+        if (!bestTransform) {
+            return false;
+        }
+
+        slotGroup.quaternion.copy(bestTransform.quaternion);
+        slotGroup.position.copy(bestTransform.position);
+        return true;
+    }
+
+    applySlotTransform(slotGroup, slot, hostFaceCenter, hostFaceNormal, hostFaceUWorld = null, options = {}) {
+        if (this.tryApplyExactTriangleFaceTransform(slotGroup, slot, hostFaceNormal, options)) {
+            return;
+        }
+
         const guestFaceDef = this.getGuestAttachFaceDef(slot, hostFaceNormal);
         if (!guestFaceDef) return;
 
