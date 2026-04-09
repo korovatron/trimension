@@ -1408,10 +1408,19 @@ class TrimensionApp {
         const isPrismTriangleHost = hostSlot?.primitive === 'right-triangle-prism'
             && (hostFaceDef?.id === 'front-triangle' || hostFaceDef?.id === 'back-triangle');
 
+        const isTetraHost = hostSlot?.primitive === 'tetrahedron'
+            && hostFaceDef?.id === 'base-triangle';
+
         if (isPrismTriangleHost) {
             const hostMode = normalizeTriangularPrismMode(hostSlot.params.triangleMode);
             guestSlot.params.baseTriangleMode = hostMode === 'isosceles' ? 'isosceles' : 'right-angled';
             guestSlot.params.baseMirror = (hostMode === 'right-above-A') !== (hostFaceDef.id === 'back-triangle');
+        } else if (isTetraHost) {
+            // Sync guest base triangle mode to match host
+            const hostBaseMode = normalizeTetrahedronBaseMode(hostSlot.params.baseTriangleMode);
+            guestSlot.params.baseTriangleMode = hostBaseMode;
+            // Right-angled base-to-base requires the guest to be mirrored for vertices to align
+            guestSlot.params.baseMirror = hostBaseMode === 'right-angled';
         } else {
             guestSlot.params.baseMirror = false;
         }
