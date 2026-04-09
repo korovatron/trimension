@@ -612,14 +612,6 @@ class TrimensionApp {
         this.camera = new THREE.PerspectiveCamera(55, this.canvas.clientWidth / this.canvas.clientHeight, 0.01, 500);
         this.camera.position.set(10, 8, 11);
 
-        this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: false, logarithmicDepthBuffer: true });
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-        this.renderer.setSize(this.canvas.clientWidth, this.canvas.clientHeight, false);
-
-        this.controls = new OrbitControls(this.camera, this.canvas);
-        this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.08;
-        this.controls.target.set(0, 0, 0);
         const userAgent = navigator.userAgent || '';
         const isIPhoneOrIPod = /iPhone|iPod/.test(userAgent);
         const isAndroid = /Android/.test(userAgent);
@@ -628,6 +620,18 @@ class TrimensionApp {
         const isAndroidTablet = isAndroid && !/Mobile/.test(userAgent);
         const isTablet = isIPad || /tablet/i.test(userAgent) || isAndroidTablet;
         const isMobilePhone = (isIPhoneOrIPod || (isAndroid && /Mobile/.test(userAgent))) && !isTablet;
+
+        this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: false, logarithmicDepthBuffer: true });
+        const pixelRatio = isMobilePhone
+            ? Math.min(window.devicePixelRatio || 1, 2)
+            : (window.devicePixelRatio || 1);
+        this.renderer.setPixelRatio(pixelRatio);
+        this.renderer.setSize(this.canvas.clientWidth, this.canvas.clientHeight, false);
+
+        this.controls = new OrbitControls(this.camera, this.canvas);
+        this.controls.enableDamping = true;
+        this.controls.dampingFactor = 0.08;
+        this.controls.target.set(0, 0, 0);
         this.controls.minDistance = isMobilePhone ? 2 : 1;
         this.controls.maxDistance = 100;
         this.controls.touches = {
