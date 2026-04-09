@@ -383,6 +383,7 @@ class TrimensionApp {
         this.selectedPoints = [];
         this.pointDefinitions = [];
         this.derivedPoints = [];
+        this.baseLabelOverrides = new Map();
         this.derivedLabelOverrides = new Map();
         this.pointMarkers = new Map();
         this.pointSprites = [];
@@ -410,7 +411,7 @@ class TrimensionApp {
         this.pointsSectionCollapsed = false;
 
         this.defaultParams = {
-            cuboid: { width: 7, depth: 4, height: 5 },
+            cuboid: { width: 7, depth: 4, height: 5, includeFaceCentersMode: 'off' },
             'rectangular-pyramid': { length: 6.5, width: 4.5, height: 6, apexPosition: 'center' },
             'right-triangle-prism': { legA: 5, legB: 4, length: 7, triangleMode: 'isosceles' },
             tetrahedron: { base: 6, triangleHeight: 4.5, height: 6, baseTriangleMode: 'isosceles', apexPosition: 'A', baseMirror: false },
@@ -422,7 +423,7 @@ class TrimensionApp {
 
         // compositeSlots: array of { id, primitive, orientation, params, hostSlotId, hostFaceId }
         this.compositeSlots = [
-            { id: 0, primitive: 'cuboid', orientation: 'standard', params: { width: 7, depth: 4, height: 5 }, hostSlotId: null, hostFaceId: null }
+            { id: 0, primitive: 'cuboid', orientation: 'standard', params: { width: 7, depth: 4, height: 5, includeFaceCentersMode: 'off' }, hostSlotId: null, hostFaceId: null }
         ];
         this.nextSlotId = 1;
         this.compositeGroup = null;
@@ -729,6 +730,12 @@ class TrimensionApp {
             const triangleModeBtn = event.target.closest('[data-cycle-triangle-mode-slot-id]');
             if (triangleModeBtn) {
                 this.cycleTriangularPrismMode(Number(triangleModeBtn.dataset.cycleTriangleModeSlotId));
+                return;
+            }
+
+            const cuboidFaceCentersBtn = event.target.closest('[data-toggle-cuboid-face-centers-slot-id]');
+            if (cuboidFaceCentersBtn) {
+                this.toggleCuboidFaceCenters(Number(cuboidFaceCentersBtn.dataset.toggleCuboidFaceCentersSlotId));
                 return;
             }
 
@@ -1734,6 +1741,41 @@ class TrimensionApp {
         this.renderCompositeCards();
     }
 
+    toggleCuboidFaceCenters(slotId) {
+        const slot = this.compositeSlots.find((s) => s.id === slotId);
+        if (!slot || slot.primitive !== 'cuboid') return;
+
+        const modes = ['off', 'top-bottom', 'left-right', 'front-back', 'all'];
+        const current = this.getCuboidFaceCentersMode(slot.params);
+        const currentIndex = modes.indexOf(current);
+        const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % modes.length : 0;
+        slot.params.includeFaceCentersMode = modes[nextIndex];
+        this.resetSceneObjects();
+        this.buildComposite();
+        this.renderCompositeCards();
+    }
+
+    getCuboidFaceCentersMode(params = {}) {
+        const mode = params.includeFaceCentersMode;
+        if (mode === 'off' || mode === 'top-bottom' || mode === 'left-right' || mode === 'front-back' || mode === 'all') {
+            return mode;
+        }
+
+        // Backward compatibility with legacy boolean flag.
+        return params.includeFaceCenters === true ? 'all' : 'off';
+    }
+
+    getCuboidFaceCentersModeLabel(mode) {
+        const labels = {
+            off: 'Off',
+            'top-bottom': 'Top/Bottom',
+            'left-right': 'Left/Right',
+            'front-back': 'Front/Back',
+            all: 'All'
+        };
+        return labels[mode] || 'Off';
+    }
+
     getTetrahedronTriangleModeLabel(mode) {
         return this.tetrahedronTriangleModes.find((opt) => opt.value === normalizeTetrahedronBaseMode(mode))?.label || 'Isosceles';
     }
@@ -1948,6 +1990,16 @@ class TrimensionApp {
             });
 
             card.appendChild(sliderStack);
+
+            if (slot.primitive === 'cuboid') {
+                const cuboidFaceCentersBtn = document.createElement('button');
+                cuboidFaceCentersBtn.type = 'button';
+                cuboidFaceCentersBtn.className = 'card-cycle-btn';
+                cuboidFaceCentersBtn.dataset.toggleCuboidFaceCentersSlotId = String(slot.id);
+                const centersMode = this.getCuboidFaceCentersMode(slot.params);
+                cuboidFaceCentersBtn.textContent = `Face Centres: ${this.getCuboidFaceCentersModeLabel(centersMode)}`;
+                card.appendChild(cuboidFaceCentersBtn);
+            }
 
             if (slot.primitive === 'right-triangle-prism') {
                 const triangleModeCycleBtn = document.createElement('button');
@@ -2497,8 +2549,9 @@ class TrimensionApp {
                 existing.sourceIds.push(point.id);
                 return;
             }
-            
-            const label = this.getUniqueDisplayLabel(point.label, usedLabels);
+
+            const preferredLabel = this.baseLabelOverrides.get(point.id) || point.label;
+            const label = this.getUniqueDisplayLabel(preferredLabel, usedLabels);
             merged.push({
                 id: `p${mergedIndex}`,
                 label,
@@ -3034,6 +3087,11 @@ class TrimensionApp {
             }
         } else {
             point.label = nextLabel;
+            if (Array.isArray(point.sourceIds) && point.sourceIds.length > 0) {
+                point.sourceIds.forEach((sourceId) => {
+                    this.baseLabelOverrides.set(sourceId, nextLabel);
+                });
+            }
             this.refreshDerivedPoints();
         }
 
@@ -3089,6 +3147,27 @@ class TrimensionApp {
                 ['E', 'F'], ['F', 'G'], ['G', 'H'], ['H', 'E'],
                 ['A', 'E'], ['B', 'F'], ['C', 'G'], ['D', 'H']
             ];
+
+            const centersMode = this.getCuboidFaceCentersMode(params);
+            if (centersMode === 'front-back' || centersMode === 'all') {
+                points.push(
+                    { id: 'I', label: 'I', description: 'front centre', position: new THREE.Vector3(0, 0, depth / 2) },
+                    { id: 'J', label: 'J', description: 'back centre', position: new THREE.Vector3(0, 0, -depth / 2) }
+                );
+            }
+            if (centersMode === 'left-right' || centersMode === 'all') {
+                points.push(
+                    { id: 'K', label: 'K', description: 'left centre', position: new THREE.Vector3(-width / 2, 0, 0) },
+                    { id: 'L', label: 'L', description: 'right centre', position: new THREE.Vector3(width / 2, 0, 0) }
+                );
+            }
+            if (centersMode === 'top-bottom' || centersMode === 'all') {
+                points.push(
+                    { id: 'M', label: 'M', description: 'top centre', position: new THREE.Vector3(0, height / 2, 0) },
+                    { id: 'N', label: 'N', description: 'bottom centre', position: new THREE.Vector3(0, -height / 2, 0) }
+                );
+            }
+
             boundsRadius = Math.max(width, depth, height) * 1.15;
         } else if (primitiveKey === 'right-triangle-prism') {
             const { legA, legB, length, triangleMode } = params;
@@ -4812,12 +4891,16 @@ class TrimensionApp {
             return !!pair && pair[0] === normalized[0] && pair[1] === normalized[1];
         };
         return this.sceneObjects.some((entry) => {
-            if (!entry.visible) return false;
             const def = entry.definition;
-            if (!def || !Array.isArray(def.pointIds) || def.hidden) return false;
+            if (!def || !Array.isArray(def.pointIds)) return false;
             if (def.kind === 'segment' && def.pointIds.length === 2) {
+                if (def.hidden === true) {
+                    return matchesPair(def.pointIds);
+                }
+                if (!entry.visible) return false;
                 return matchesPair(def.pointIds);
             }
+            if (!entry.visible || def.hidden) return false;
             if (def.kind === 'triangle' && def.pointIds.length === 3) {
                 const ids = def.pointIds;
                 return matchesPair([ids[0], ids[1]]) || matchesPair([ids[1], ids[2]]) || matchesPair([ids[2], ids[0]]);
