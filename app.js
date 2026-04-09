@@ -4317,7 +4317,31 @@ class TrimensionApp {
         }
         this.controls.update();
         this.updateIntrinsicRightAngleMarkerVisibility();
+        this.updateEdgeLabelRotations();
         this.renderer.render(this.scene, this.camera);
+    }
+
+    updateEdgeLabelRotations() {
+        const aspect = this.canvas.clientWidth / this.canvas.clientHeight;
+        const projA = new THREE.Vector3();
+        const projB = new THREE.Vector3();
+        for (const obj of this.sceneObjects) {
+            const def = obj.definition;
+            if (!def || (def.kind !== 'edge-label' && def.kind !== 'length-label')) continue;
+            const sprite = obj.object3D;
+            if (!(sprite instanceof THREE.Sprite)) continue;
+            const vectors = this.getVectorsByPointIds(def.pointIds || []);
+            if (!vectors || vectors.length !== 2) continue;
+            projA.copy(vectors[0]).project(this.camera);
+            projB.copy(vectors[1]).project(this.camera);
+            const dx = (projB.x - projA.x) * aspect;
+            const dy = projB.y - projA.y;
+            if (dx * dx + dy * dy < 1e-6) continue;
+            let angle = Math.atan2(dy, dx);
+            if (angle > Math.PI / 2) angle -= Math.PI;
+            if (angle < -Math.PI / 2) angle += Math.PI;
+            sprite.material.rotation = angle;
+        }
     }
 
     cleanup() {
