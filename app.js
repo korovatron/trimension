@@ -1179,11 +1179,6 @@ class TrimensionApp {
     getCompatiblePrimitives() {
         if (this.compositeSlots.length >= 3) return [];
 
-        const existingFaceTypes = new Set();
-        this.compositeSlots.forEach((slot) => {
-            (ATTACHMENT_FACES[slot.primitive] || []).forEach((f) => existingFaceTypes.add(f.type));
-        });
-
         const existingPrimitives = new Set(this.compositeSlots.map((s) => s.primitive));
         const disallowedSelfAdds = new Set(['cuboid', 'cylinder', 'hemisphere']);
 
@@ -1191,7 +1186,14 @@ class TrimensionApp {
             if (existingPrimitives.has(primKey) && disallowedSelfAdds.has(primKey)) return false;
             const guestFaces = ATTACHMENT_FACES[primKey] || [];
             if (guestFaces.length === 0) return false;
-            return guestFaces.some((gf) => existingFaceTypes.has(gf.type));
+
+            const draftSlot = {
+                primitive: primKey,
+                orientation: this.orientations[primKey]?.[0]?.value || 'standard',
+                params: { ...this.defaultParams[primKey] }
+            };
+
+            return this.getValidHostFaceEntries(draftSlot, this.compositeSlots, { excludeOccupied: true }).length > 0;
         });
     }
 
@@ -1309,7 +1311,13 @@ class TrimensionApp {
         }
 
         const availableEntries = allEntries.filter((entry) => !occupiedByOthers.has(this.getHostFaceKey(entry.slotId, entry.faceId)));
-        const picked = availableEntries[0] || currentEntry || allEntries[0];
+        const picked = availableEntries[0] || null;
+        if (!picked) {
+            slot.hostSlotId = null;
+            slot.hostFaceId = null;
+            return null;
+        }
+
         slot.hostSlotId = picked.slotId;
         slot.hostFaceId = picked.faceId;
         return picked;
@@ -1450,6 +1458,11 @@ class TrimensionApp {
                 hostSlotId: null,
                 hostFaceId: null,
             };
+
+            const prevSlots = this.compositeSlots.slice();
+            const availableEntries = this.getValidHostFaceEntries(slot, prevSlots, { excludeOccupied: true });
+            if (availableEntries.length === 0) return;
+
             this.compositeSlots.push(slot);
             this.snapSlotDimensions(slot);
         }
