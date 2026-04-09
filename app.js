@@ -1255,7 +1255,7 @@ class TrimensionApp {
             if (!hostFaceDef) return;
 
             const hostFaceNormal = this.resolveFaceNormal(hostFaceDef, hostSlot.params);
-            const guestFaceDef = this.getGuestAttachFaceDef(slot, hostFaceNormal);
+            const guestFaceDef = this.getGuestAttachFaceDef(slot, hostFaceNormal, hostFaceDef.type);
             if (guestFaceDef) {
                 occupied.add(this.getHostFaceKey(slot.id, guestFaceDef.id));
             }
@@ -1315,51 +1315,57 @@ class TrimensionApp {
         return picked;
     }
 
-    getGuestAttachFaceDef(guestSlot, hostFaceNormal) {
+    getGuestAttachFaceDef(guestSlot, hostFaceNormal, hostFaceType = null) {
         const faces = ATTACHMENT_FACES[guestSlot.primitive] || [];
         if (faces.length === 0) return null;
 
         const targetNormal = hostFaceNormal.clone().negate();
         const ABS_DOT_EPSILON = 1e-6;
         const DOT_EPSILON = 1e-6;
-        let best = null;
-        let bestIndex = Infinity;
-        let bestAbsDot = -Infinity;
-        let bestDot = -Infinity;
 
-        faces.forEach((face, index) => {
-            const faceNormal = this.resolveFaceNormal(face, guestSlot.params);
-            const dot = faceNormal.dot(targetNormal);
-            const absDot = Math.abs(dot);
+        const pickBest = (candidates) => {
+            let best = null;
+            let bestIndex = Infinity;
+            let bestAbsDot = -Infinity;
+            let bestDot = -Infinity;
 
-            if (best === null) {
-                best = face;
-                bestIndex = index;
-                bestAbsDot = absDot;
-                bestDot = dot;
-                return;
-            }
+            candidates.forEach(({ face, index }) => {
+                const faceNormal = this.resolveFaceNormal(face, guestSlot.params);
+                const dot = faceNormal.dot(targetNormal);
+                const absDot = Math.abs(dot);
 
-            const absDelta = absDot - bestAbsDot;
-            if (absDelta > ABS_DOT_EPSILON) {
-                best = face;
-                bestIndex = index;
-                bestAbsDot = absDot;
-                bestDot = dot;
-                return;
-            }
-
-            if (Math.abs(absDelta) <= ABS_DOT_EPSILON) {
-                const dotDelta = dot - bestDot;
-                if (dotDelta > DOT_EPSILON || (Math.abs(dotDelta) <= DOT_EPSILON && index < bestIndex)) {
-                    best = face;
-                    bestIndex = index;
-                    bestAbsDot = absDot;
-                    bestDot = dot;
+                if (best === null) {
+                    best = face; bestIndex = index; bestAbsDot = absDot; bestDot = dot;
+                    return;
                 }
+
+                const absDelta = absDot - bestAbsDot;
+                if (absDelta > ABS_DOT_EPSILON) {
+                    best = face; bestIndex = index; bestAbsDot = absDot; bestDot = dot;
+                    return;
+                }
+
+                if (Math.abs(absDelta) <= ABS_DOT_EPSILON) {
+                    const dotDelta = dot - bestDot;
+                    if (dotDelta > DOT_EPSILON || (Math.abs(dotDelta) <= DOT_EPSILON && index < bestIndex)) {
+                        best = face; bestIndex = index; bestAbsDot = absDot; bestDot = dot;
+                    }
+                }
+            });
+            return best;
+        };
+
+        const indexed = faces.map((face, index) => ({ face, index }));
+
+        // Prefer matching face type so (e.g.) a rectangle host never picks a triangle guest face
+        if (hostFaceType) {
+            const sameType = indexed.filter(({ face }) => face.type === hostFaceType);
+            if (sameType.length > 0) {
+                return pickBest(sameType);
             }
-        });
-        return best;
+        }
+
+        return pickBest(indexed);
     }
 
     snapSlotDimensions(guestSlot) {
@@ -1372,7 +1378,7 @@ class TrimensionApp {
         const { slot: hostSlot, faceDef: hostFaceDef } = entry;
     this.syncAttachmentSpecificVariants(guestSlot, hostSlot, hostFaceDef);
         const hostFaceNormal = this.resolveFaceNormal(hostFaceDef, hostSlot.params);
-        const guestFaceDef = this.getGuestAttachFaceDef(guestSlot, hostFaceNormal);
+        const guestFaceDef = this.getGuestAttachFaceDef(guestSlot, hostFaceNormal, hostFaceDef.type);
         if (!guestFaceDef) return;
 
         const hostDims = this.resolveFaceDims(hostFaceDef, hostSlot.params);
@@ -1834,7 +1840,7 @@ class TrimensionApp {
                         hostGroupPosition: hostGroupP.clone()
                     });
 
-                    const guestFaceDef = this.getGuestAttachFaceDef(slot, this.resolveFaceNormal(entry.faceDef, entry.slot.params));
+                    const guestFaceDef = this.getGuestAttachFaceDef(slot, this.resolveFaceNormal(entry.faceDef, entry.slot.params), entry.faceDef.type);
                     if (guestFaceDef) {
                         this.addLinkages(
                             { slotId: entry.slotId, dims: this.resolveFaceDims(entry.faceDef, entry.slot.params) },
@@ -2064,7 +2070,7 @@ class TrimensionApp {
             return false;
         }
 
-        const guestFaceDef = this.getGuestAttachFaceDef(slot, hostFaceNormal);
+        const guestFaceDef = this.getGuestAttachFaceDef(slot, hostFaceNormal, hostFaceDef.type);
         if (!guestFaceDef || guestFaceDef.type !== 'triangle') {
             return false;
         }
@@ -2114,7 +2120,8 @@ class TrimensionApp {
             return;
         }
 
-        const guestFaceDef = this.getGuestAttachFaceDef(slot, hostFaceNormal);
+        const { hostFaceDef: _hostFaceDef } = options;
+        const guestFaceDef = this.getGuestAttachFaceDef(slot, hostFaceNormal, _hostFaceDef?.type ?? null);
         if (!guestFaceDef) return;
 
         const targetGuestNormal = hostFaceNormal.clone().negate();
