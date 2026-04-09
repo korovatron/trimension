@@ -503,26 +503,26 @@ class TrimensionApp {
             'right-triangle-prism': {
                 label: 'Triangle Prism',
                 params: [
-                    { key: 'legA', label: 'Triangle Leg A', min: 2, max: 10, step: 0.5 },
-                    { key: 'legB', label: 'Triangle Leg B', min: 2, max: 10, step: 0.5 },
-                    { key: 'length', label: 'Prism Length', min: 2, max: 12, step: 0.5 }
+                    { key: 'legA', label: 'Width', min: 2, max: 10, step: 0.5 },
+                    { key: 'legB', label: 'Height', min: 2, max: 10, step: 0.5 },
+                    { key: 'length', label: 'Length', min: 2, max: 12, step: 0.5 }
                 ]
             },
             tetrahedron: {
                 label: 'Tetrahedron',
                 params: [
-                    { key: 'base', label: 'Triangle Base', min: 2, max: 10, step: 0.5 },
-                    { key: 'triangleHeight', label: 'Triangle Height', min: 2, max: 10, step: 0.5 },
-                    { key: 'height', label: 'Apex Height', min: 2, max: 10, step: 0.5 }
+                    { key: 'base', label: 'BASE', min: 2, max: 10, step: 0.5 },
+                    { key: 'triangleHeight', label: 'HEIGHT', min: 2, max: 10, step: 0.5 },
+                    { key: 'height', label: 'APEX', min: 2, max: 10, step: 0.5 }
                 ]
             },
             'trapezium-prism': {
                 label: 'Trapezium Prism',
                 params: [
-                    { key: 'baseWidth', label: 'Base Width', min: 2, max: 12, step: 0.5 },
-                    { key: 'leftHeight', label: 'Left Height', min: 0, max: 10, step: 0.5 },
-                    { key: 'rightHeight', label: 'Right Height', min: 0, max: 10, step: 0.5 },
-                    { key: 'length', label: 'Prism Length', min: 2, max: 12, step: 0.5 }
+                    { key: 'baseWidth', label: 'WIDTH', min: 2, max: 12, step: 0.5 },
+                    { key: 'leftHeight', label: 'L HEIGHT', min: 0, max: 10, step: 0.5 },
+                    { key: 'rightHeight', label: 'R HEIGHT', min: 0, max: 10, step: 0.5 },
+                    { key: 'length', label: 'LENGTH', min: 2, max: 12, step: 0.5 }
                 ]
             },
             sphere: {
@@ -904,18 +904,32 @@ class TrimensionApp {
         this.panelToggleBtn.classList.remove('active');
     }
 
-    showPromptModal(message, defaultValue = '') {
+    showPromptModal(message, defaultValue = '', options = {}) {
         return new Promise((resolve) => {
             const overlay = document.getElementById('custom-modal-overlay');
             const msgEl   = document.getElementById('custom-modal-message');
             const input   = document.getElementById('custom-modal-input');
+            const symbols = document.getElementById('custom-modal-symbols');
             const errorEl = document.getElementById('custom-modal-error');
             const confirm = document.getElementById('custom-modal-confirm');
             const cancel  = document.getElementById('custom-modal-cancel');
+            const symbolByKey = {
+                alpha: '\u03B1',
+                beta: '\u03B2',
+                gamma: '\u03B3',
+                delta: '\u03B4',
+                theta: '\u03B8',
+                phi: '\u03C6',
+                degree: '\u00B0'
+            };
+            const allowQuickSymbols = options.quickSymbols === true;
 
             msgEl.textContent = message;
             input.value = defaultValue;
             errorEl.textContent = '';
+            if (symbols) {
+                symbols.hidden = !allowQuickSymbols;
+            }
             overlay.classList.add('show');
             overlay.setAttribute('aria-hidden', 'false');
 
@@ -928,12 +942,32 @@ class TrimensionApp {
                 cancel.removeEventListener('click', onCancel);
                 overlay.removeEventListener('click', onBackdrop);
                 input.removeEventListener('keydown', onKey);
+                if (symbols) {
+                    symbols.removeEventListener('click', onSymbolClick);
+                    symbols.hidden = true;
+                }
                 resolve(value);
             };
 
             const onConfirm = () => close(input.value);
             const onCancel  = () => close(null);
             const onBackdrop = (e) => { if (e.target === overlay) close(null); };
+            const onSymbolClick = (e) => {
+                const btn = e.target.closest('button[data-symbol-key]');
+                if (!btn) {
+                    return;
+                }
+
+                const symbol = symbolByKey[btn.dataset.symbolKey];
+                if (!symbol) {
+                    return;
+                }
+
+                const start = typeof input.selectionStart === 'number' ? input.selectionStart : input.value.length;
+                const end = typeof input.selectionEnd === 'number' ? input.selectionEnd : input.value.length;
+                input.focus();
+                input.setRangeText(symbol, start, end, 'end');
+            };
             const onKey = (e) => {
                 if (e.key === 'Enter') { e.preventDefault(); close(input.value); }
                 if (e.key === 'Escape') { e.preventDefault(); close(null); }
@@ -943,6 +977,9 @@ class TrimensionApp {
             cancel.addEventListener('click', onCancel);
             overlay.addEventListener('click', onBackdrop);
             input.addEventListener('keydown', onKey);
+            if (symbols && allowQuickSymbols) {
+                symbols.addEventListener('click', onSymbolClick);
+            }
         });
     }
 
@@ -951,12 +988,16 @@ class TrimensionApp {
             const overlay = document.getElementById('custom-modal-overlay');
             const msgEl   = document.getElementById('custom-modal-message');
             const input   = document.getElementById('custom-modal-input');
+            const symbols = document.getElementById('custom-modal-symbols');
             const errorEl = document.getElementById('custom-modal-error');
             const confirm = document.getElementById('custom-modal-confirm');
             const cancel  = document.getElementById('custom-modal-cancel');
 
             msgEl.textContent = message;
             input.style.display = 'none';
+            if (symbols) {
+                symbols.hidden = true;
+            }
             errorEl.textContent = '';
             cancel.style.display = 'none';
             overlay.classList.add('show');
@@ -2512,7 +2553,7 @@ class TrimensionApp {
     }
 
     canAttachLabelToPointPair(pointIds) {
-        return this.hasPrimitiveEdgeBetween(pointIds) || this.hasPrimitiveFaceBetween(pointIds) || this.hasSceneSegmentBetween(pointIds);
+        return this.hasSegmentLikeConnection(pointIds);
     }
 
     canAttachMidpointToPointPair(pointIds) {
@@ -2805,9 +2846,7 @@ class TrimensionApp {
 
         this.buildPointMarkers();
         this.renderObjectsList();
-        this.renderPointsList();
-        this.renderSelectionSummary();
-        this.renderActions();
+        this.clearSelection();
     }
 
     updatePanelCopy() {
@@ -3499,14 +3538,19 @@ class TrimensionApp {
         }
 
         if (this.selectedPoints.length === 2) {
+            const hasExistingConnection = this.hasSegmentLikeConnection(this.selectedPoints);
+            const filteredActions = baseActions.filter((action) => action.key !== 'segment' || !hasExistingConnection);
+
             if (this.canAttachLabelToPointPair(this.selectedPoints)) {
                 const hasExistingLabel = !!this.findEdgeLabelObject(this.selectedPoints);
-                baseActions.push({ key: 'edge-label', label: hasExistingLabel ? 'Change Label' : 'Add Label' });
+                filteredActions.push({ key: 'edge-label', label: hasExistingLabel ? 'Change Label' : 'Add Label' });
             }
 
             if (this.canAttachMidpointToPointPair(this.selectedPoints) && !this.hasMidpointForPair(this.selectedPoints)) {
-                baseActions.push({ key: 'add-midpoint', label: 'Add Midpoint' });
+                filteredActions.push({ key: 'add-midpoint', label: 'Add Midpoint' });
             }
+
+            return filteredActions;
         }
 
         if (this.selectedPoints.length === 3) {
@@ -3873,6 +3917,12 @@ class TrimensionApp {
 
         if (actionKey === 'segment') {
             const ids = [...this.selectedPoints];
+            if (this.hasSegmentLikeConnection(ids)) {
+                this.clearSelection();
+                this.closePanelOnMobile();
+                return;
+            }
+
             const color = this.nextConstructionColor();
             const segment = this.createSegment(vectors[0], vectors[1], color);
             this.addSceneObject({
@@ -3899,7 +3949,7 @@ class TrimensionApp {
             const promptText = existingLabel
                 ? `Change label for ${this.formatPointSequence(ids)}`
                 : `Label for ${this.formatPointSequence(ids)}`;
-            const nextText = await this.showPromptModal(promptText, currentText);
+            const nextText = await this.showPromptModal(promptText, currentText, { quickSymbols: true });
             if (nextText == null || !nextText.trim()) {
                 return;
             }
@@ -4012,7 +4062,7 @@ class TrimensionApp {
             const defaultAngleLabel = this.formatPointSequence(ids);
             let angleLabelInput = defaultAngleLabel;
             while (true) {
-                const nextLabel = await this.showPromptModal(`Label for angle at ${selectedLabels[1]}`, angleLabelInput);
+                const nextLabel = await this.showPromptModal(`Label for angle at ${selectedLabels[1]}`, angleLabelInput, { quickSymbols: true });
                 if (nextLabel == null) {
                     return;
                 }
