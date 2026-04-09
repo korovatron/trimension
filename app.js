@@ -636,6 +636,17 @@ class TrimensionApp {
 
         this.canvas.addEventListener('pointerdown', this.handleCanvasPointerDown, { passive: true });
 
+        this._keysHeld = new Set();
+        this._handleKeyDown = (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+            const nav = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+            if (nav.includes(e.key)) e.preventDefault();
+            this._keysHeld.add(e.code);
+        };
+        this._handleKeyUp = (e) => { this._keysHeld.delete(e.code); };
+        window.addEventListener('keydown', this._handleKeyDown);
+        window.addEventListener('keyup', this._handleKeyUp);
+
         this.addBtn.addEventListener('click', (event) => {
             event.stopPropagation();
             // Populate dropdown dynamically based on current composite state
@@ -4412,8 +4423,34 @@ class TrimensionApp {
         }
         this.controls.update();
         this.updateIntrinsicRightAngleMarkerVisibility();
+        this.applyKeyboardCameraInput();
         this.updateEdgeLabelRotations();
         this.renderer.render(this.scene, this.camera);
+    }
+
+    applyKeyboardCameraInput() {
+        if (!this._keysHeld || this._keysHeld.size === 0) return;
+
+        const rotateSpeed = 0.022;
+        const zoomSpeed = 0.04;
+        const offset = new THREE.Vector3().subVectors(this.camera.position, this.controls.target);
+        const spherical = new THREE.Spherical().setFromVector3(offset);
+
+        if (this._keysHeld.has('ArrowLeft'))  spherical.theta -= rotateSpeed;
+        if (this._keysHeld.has('ArrowRight')) spherical.theta += rotateSpeed;
+        if (this._keysHeld.has('ArrowUp'))    spherical.phi   = Math.max(0.05, spherical.phi - rotateSpeed);
+        if (this._keysHeld.has('ArrowDown'))  spherical.phi   = Math.min(Math.PI - 0.05, spherical.phi + rotateSpeed);
+
+        if (this._keysHeld.has('Equal') || this._keysHeld.has('NumpadAdd')) {
+            spherical.radius = Math.max(this.controls.minDistance, spherical.radius * (1 - zoomSpeed));
+        }
+        if (this._keysHeld.has('Minus') || this._keysHeld.has('NumpadSubtract')) {
+            spherical.radius = Math.min(this.controls.maxDistance, spherical.radius * (1 + zoomSpeed));
+        }
+
+        offset.setFromSpherical(spherical);
+        this.camera.position.copy(this.controls.target).add(offset);
+        this.controls.update();
     }
 
     updateEdgeLabelRotations() {
@@ -4441,6 +4478,8 @@ class TrimensionApp {
 
     cleanup() {
         window.removeEventListener('resize', this.handleWindowResize);
+        window.removeEventListener('keydown', this._handleKeyDown);
+        window.removeEventListener('keyup', this._handleKeyUp);
         this.canvas.removeEventListener('pointerdown', this.handleCanvasPointerDown);
         this.clearObjects();
         this.clearPrimitive();

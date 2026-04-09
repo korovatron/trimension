@@ -39,6 +39,8 @@ body {
     background: var(--bg-primary);
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
 }
 
 body {
@@ -49,6 +51,8 @@ body {
     overscroll-behavior: none;
     touch-action: none;
     user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
 }
 
 button,
@@ -812,11 +816,13 @@ textarea {
     display: none;
 }
 
-.action-btn:hover,
-.mini-btn:hover,
-.object-delete:hover,
-.top-btn:hover {
-    background: #354d6b;
+@media (hover: hover) {
+    .action-btn:hover,
+    .mini-btn:hover,
+    .object-delete:hover,
+    .top-btn:hover {
+        background: #354d6b;
+    }
 }
 
 .mini-btn {
@@ -1182,6 +1188,9 @@ textarea {
     height: 100%;
     display: block;
     touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .canvas-chip {
