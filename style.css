@@ -41,6 +41,7 @@ body {
     text-size-adjust: 100%;
     -webkit-touch-callout: none;
     -webkit-user-select: none;
+    user-select: none;
 }
 
 body {
@@ -710,13 +711,20 @@ textarea {
 }
 
 .points-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(28px, 1fr));
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 6px;
     max-height: 250px;
     overflow-y: auto;
     padding-right: 4px;
     align-content: start;
+}
+
+.points-list .point-btn {
+    flex: 0 0 28px;
+    width: 28px;
 }
 
 .point-btn {
