@@ -322,8 +322,7 @@ const ATTACHMENT_FACES = {
             dims: ['base', 'triangleHeight'],
             label: 'Base Triangle'
         },
-    ],
-    'trapezium-prism': [],
+    ]
 };
 
 class TrimensionApp {
@@ -415,7 +414,6 @@ class TrimensionApp {
             'rectangular-pyramid': { length: 6.5, width: 4.5, height: 6, apexPosition: 'center' },
             'right-triangle-prism': { legA: 5, legB: 4, length: 7, triangleMode: 'isosceles' },
             tetrahedron: { base: 6, triangleHeight: 4.5, height: 6, baseTriangleMode: 'isosceles', apexPosition: 'A', baseMirror: false },
-            'trapezium-prism': { baseWidth: 6, leftHeight: 4, rightHeight: 2.5, length: 7 },
             sphere: { radius: 3 },
             hemisphere: { radius: 3 },
             cylinder: { radius: 2.5, height: 6 },
@@ -440,9 +438,6 @@ class TrimensionApp {
                 { value: 'standard', label: 'Standard' }
             ],
             tetrahedron: [
-                { value: 'standard', label: 'Standard' }
-            ],
-            'trapezium-prism': [
                 { value: 'standard', label: 'Standard' }
             ],
             sphere: [
@@ -514,15 +509,6 @@ class TrimensionApp {
                     { key: 'base', label: 'BASE', min: 2, max: 10, step: 0.5 },
                     { key: 'triangleHeight', label: 'HEIGHT', min: 2, max: 10, step: 0.5 },
                     { key: 'height', label: 'APEX', min: 2, max: 10, step: 0.5 }
-                ]
-            },
-            'trapezium-prism': {
-                label: 'Trapezium Prism',
-                params: [
-                    { key: 'baseWidth', label: 'WIDTH', min: 2, max: 12, step: 0.5 },
-                    { key: 'leftHeight', label: 'L HEIGHT', min: 0, max: 10, step: 0.5 },
-                    { key: 'rightHeight', label: 'R HEIGHT', min: 0, max: 10, step: 0.5 },
-                    { key: 'length', label: 'LENGTH', min: 2, max: 12, step: 0.5 }
                 ]
             },
             sphere: {
@@ -1225,7 +1211,7 @@ class TrimensionApp {
         if (this.compositeSlots.length >= 3) return [];
 
         const existingPrimitives = new Set(this.compositeSlots.map((s) => s.primitive));
-        const disallowedSelfAdds = new Set(['cuboid', 'cylinder', 'hemisphere']);
+        const disallowedSelfAdds = new Set(['cuboid', 'cylinder']);
 
         return Object.keys(this.defaultParams).filter((primKey) => {
             if (existingPrimitives.has(primKey) && disallowedSelfAdds.has(primKey)) return false;
@@ -1581,6 +1567,78 @@ class TrimensionApp {
         this.snapSlotDimensions(pyramidSlot);
     }
 
+    normalizeCuboidPrismHostOrder() {
+        if (this.compositeSlots.length !== 2) {
+            return;
+        }
+
+        const cuboidSlot = this.compositeSlots.find((slot) => slot.primitive === 'cuboid');
+        const prismSlot = this.compositeSlots.find((slot) => slot.primitive === 'right-triangle-prism');
+        if (!cuboidSlot || !prismSlot) {
+            return;
+        }
+
+        // Already in preferred directed attachment: cuboid host -> prism guest.
+        if (cuboidSlot.hostSlotId == null && prismSlot.hostSlotId === cuboidSlot.id) {
+            return;
+        }
+
+        this.compositeSlots = [cuboidSlot, prismSlot];
+        cuboidSlot.hostSlotId = null;
+        cuboidSlot.hostFaceId = null;
+        prismSlot.hostSlotId = null;
+        prismSlot.hostFaceId = null;
+        this.snapSlotDimensions(prismSlot);
+    }
+
+    normalizeCylinderConeHostOrder() {
+        if (this.compositeSlots.length !== 2) {
+            return;
+        }
+
+        const cylinderSlot = this.compositeSlots.find((slot) => slot.primitive === 'cylinder');
+        const coneSlot = this.compositeSlots.find((slot) => slot.primitive === 'cone');
+        if (!cylinderSlot || !coneSlot) {
+            return;
+        }
+
+        // Already in preferred directed attachment: cylinder host -> cone guest.
+        if (cylinderSlot.hostSlotId == null && coneSlot.hostSlotId === cylinderSlot.id) {
+            return;
+        }
+
+        this.compositeSlots = [cylinderSlot, coneSlot];
+        cylinderSlot.hostSlotId = null;
+        cylinderSlot.hostFaceId = null;
+        coneSlot.hostSlotId = null;
+        coneSlot.hostFaceId = null;
+        this.snapSlotDimensions(coneSlot);
+    }
+
+    normalizeCylinderHemisphereHostOrder() {
+        if (this.compositeSlots.length !== 2) {
+            return;
+        }
+
+        const cylinderSlot = this.compositeSlots.find((slot) => slot.primitive === 'cylinder');
+        const hemisphereSlot = this.compositeSlots.find((slot) => slot.primitive === 'hemisphere');
+        if (!cylinderSlot || !hemisphereSlot) {
+            return;
+        }
+
+        // Already in preferred directed attachment: cylinder host -> hemisphere guest.
+        if (cylinderSlot.hostSlotId == null && hemisphereSlot.hostSlotId === cylinderSlot.id) {
+            return;
+        }
+
+        this.compositeSlots = [cylinderSlot, hemisphereSlot];
+        cylinderSlot.hostSlotId = null;
+        cylinderSlot.hostFaceId = null;
+        hemisphereSlot.hostSlotId = null;
+        hemisphereSlot.hostFaceId = null;
+        this.snapSlotDimensions(hemisphereSlot);
+    }
+
     addSlot(primitiveKey) {
         if (!this.primitiveMeta[primitiveKey]) return;
 
@@ -1613,6 +1671,9 @@ class TrimensionApp {
             this.compositeSlots.push(slot);
             this.snapSlotDimensions(slot);
             this.normalizeCuboidPyramidHostOrder();
+            this.normalizeCuboidPrismHostOrder();
+            this.normalizeCylinderConeHostOrder();
+            this.normalizeCylinderHemisphereHostOrder();
         }
 
         this.resetSceneObjects();
@@ -1731,21 +1792,22 @@ class TrimensionApp {
             return false;
         }
 
-        if (slot.primitive !== 'rectangular-pyramid') {
-            return true;
+        if (slot.hostSlotId != null) {
+            const hostSlot = this.compositeSlots.find((candidate) => candidate.id === slot.hostSlotId);
+            const hostFaceDef = this.getFaceDefById(hostSlot, slot.hostFaceId);
+
+            if (slot.primitive === 'rectangular-pyramid' && hostSlot?.primitive === 'cuboid') {
+                // In this attachment context apex-up/down is visually equivalent, so hide inert controls.
+                return false;
+            }
+
+            if ((slot.primitive === 'cone' || slot.primitive === 'cylinder') && hostFaceDef?.type === 'circle') {
+                // Circular joins are rotationally symmetric; these controls are redundant when attached.
+                return false;
+            }
         }
 
-        if (slot.hostSlotId == null) {
-            return true;
-        }
-
-        const hostSlot = this.compositeSlots.find((candidate) => candidate.id === slot.hostSlotId);
-        if (!hostSlot) {
-            return true;
-        }
-
-        // In this attachment context apex-up/down is visually equivalent, so hide inert controls.
-        return hostSlot.primitive !== 'cuboid';
+        return true;
     }
 
     cycleRectangularPyramidApex(slotId) {
@@ -2480,11 +2542,6 @@ class TrimensionApp {
                 ['A', 'B'], ['B', 'C'], ['C', 'A'],
                 ['A', 'D'], ['B', 'D'], ['C', 'D']
             ],
-            'trapezium-prism': [
-                ['A', 'B'], ['B', 'C'], ['C', 'D'], ['D', 'A'],
-                ['E', 'F'], ['F', 'G'], ['G', 'H'], ['H', 'E'],
-                ['A', 'E'], ['B', 'F'], ['C', 'G'], ['D', 'H']
-            ],
             sphere: [
                 ['A', 'C'], ['A', 'D'], ['A', 'E'], ['A', 'F'],
                 ['B', 'C'], ['B', 'D'], ['B', 'E'], ['B', 'F'],
@@ -2538,14 +2595,6 @@ class TrimensionApp {
                 ['A', 'B', 'D'],
                 ['B', 'C', 'D'],
                 ['C', 'A', 'D']
-            ],
-            'trapezium-prism': [
-                ['A', 'B', 'C', 'D'],
-                ['E', 'F', 'G', 'H'],
-                ['A', 'B', 'F', 'E'],
-                ['B', 'C', 'G', 'F'],
-                ['C', 'D', 'H', 'G'],
-                ['D', 'A', 'E', 'H']
             ],
             'rectangular-pyramid': [
                 ['A', 'B', 'C', 'D'],
@@ -3138,92 +3187,6 @@ class TrimensionApp {
             ];
 
             boundsRadius = Math.max(params.base, params.triangleHeight, height) * 1.2;
-        } else if (primitiveKey === 'trapezium-prism') {
-            const { baseWidth, leftHeight, rightHeight, length } = params;
-            const zFront = length / 2;
-            const zBack = -length / 2;
-            const xLeft = -baseWidth / 2;
-            const xRight = baseWidth / 2;
-            const maxHeight = Math.max(leftHeight, rightHeight, 0.001);
-            const yBase = -maxHeight / 2;
-
-            const vertices = [
-                // Front trapezium: A B C D
-                xLeft, yBase, zFront,                  // A
-                xRight, yBase, zFront,                 // B
-                xRight, yBase + rightHeight, zFront,   // C
-                xLeft, yBase + leftHeight, zFront,     // D
-                // Back trapezium: E F G H
-                xLeft, yBase, zBack,                   // E
-                xRight, yBase, zBack,                  // F
-                xRight, yBase + rightHeight, zBack,    // G
-                xLeft, yBase + leftHeight, zBack       // H
-            ];
-
-            const indices = [
-                // Front and back faces
-                0, 1, 2,
-                0, 2, 3,
-                4, 7, 6,
-                4, 6, 5,
-                // Side faces
-                0, 1, 5,
-                0, 5, 4,
-                1, 2, 6,
-                1, 6, 5,
-                2, 3, 7,
-                2, 7, 6,
-                3, 0, 4,
-                3, 4, 7
-            ];
-
-            geometry = new THREE.BufferGeometry();
-            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-            geometry.setIndex(indices);
-            geometry.computeVertexNormals();
-
-            points = [
-                { id: 'A', label: 'A', description: 'front bottom left', position: new THREE.Vector3(xLeft, yBase, zFront) },
-                { id: 'B', label: 'B', description: 'front bottom right', position: new THREE.Vector3(xRight, yBase, zFront) },
-                { id: 'C', label: 'C', description: 'front top right', position: new THREE.Vector3(xRight, yBase + rightHeight, zFront) },
-                { id: 'D', label: 'D', description: 'front top left', position: new THREE.Vector3(xLeft, yBase + leftHeight, zFront) },
-                { id: 'E', label: 'E', description: 'back bottom left', position: new THREE.Vector3(xLeft, yBase, zBack) },
-                { id: 'F', label: 'F', description: 'back bottom right', position: new THREE.Vector3(xRight, yBase, zBack) },
-                { id: 'G', label: 'G', description: 'back top right', position: new THREE.Vector3(xRight, yBase + rightHeight, zBack) },
-                { id: 'H', label: 'H', description: 'back top left', position: new THREE.Vector3(xLeft, yBase + leftHeight, zBack) }
-            ];
-
-            intrinsicRightAngleEdgePairs = [
-                ['A', 'B'], ['B', 'C'], ['C', 'D'], ['D', 'A'],
-                ['E', 'F'], ['F', 'G'], ['G', 'H'], ['H', 'E'],
-                ['A', 'E'], ['B', 'F'], ['C', 'G'], ['D', 'H']
-            ];
-
-            const heightDelta = leftHeight - rightHeight;
-            const shorterHeight = Math.min(leftHeight, rightHeight);
-            if (Math.abs(heightDelta) > 1e-6 && shorterHeight > 1e-6) {
-                const isLeftTaller = heightDelta > 0;
-                const helperX = isLeftTaller ? xLeft : xRight;
-                const helperY = yBase + shorterHeight;
-                const helperSideDescription = isLeftTaller ? 'left' : 'right';
-
-                points.push(
-                    {
-                        id: 'I',
-                        label: 'I',
-                        description: `front ${helperSideDescription} helper point`,
-                        position: new THREE.Vector3(helperX, helperY, zFront)
-                    },
-                    {
-                        id: 'J',
-                        label: 'J',
-                        description: `back ${helperSideDescription} helper point`,
-                        position: new THREE.Vector3(helperX, helperY, zBack)
-                    }
-                );
-            }
-
-            boundsRadius = Math.max(baseWidth, leftHeight, rightHeight, length) * 1.2;
         } else if (primitiveKey === 'sphere') {
             const { radius } = params;
             geometry = new THREE.SphereGeometry(radius, 48, 32);
