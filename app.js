@@ -877,6 +877,89 @@ class TrimensionApp {
         this.panelToggleBtn.classList.remove('active');
     }
 
+    showPromptModal(message, defaultValue = '') {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById('custom-modal-overlay');
+            const msgEl   = document.getElementById('custom-modal-message');
+            const input   = document.getElementById('custom-modal-input');
+            const errorEl = document.getElementById('custom-modal-error');
+            const confirm = document.getElementById('custom-modal-confirm');
+            const cancel  = document.getElementById('custom-modal-cancel');
+
+            msgEl.textContent = message;
+            input.value = defaultValue;
+            errorEl.textContent = '';
+            overlay.classList.add('show');
+            overlay.setAttribute('aria-hidden', 'false');
+
+            setTimeout(() => { input.focus(); input.select(); }, 50);
+
+            const close = (value) => {
+                overlay.classList.remove('show');
+                overlay.setAttribute('aria-hidden', 'true');
+                confirm.removeEventListener('click', onConfirm);
+                cancel.removeEventListener('click', onCancel);
+                overlay.removeEventListener('click', onBackdrop);
+                input.removeEventListener('keydown', onKey);
+                resolve(value);
+            };
+
+            const onConfirm = () => close(input.value);
+            const onCancel  = () => close(null);
+            const onBackdrop = (e) => { if (e.target === overlay) close(null); };
+            const onKey = (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); close(input.value); }
+                if (e.key === 'Escape') { e.preventDefault(); close(null); }
+            };
+
+            confirm.addEventListener('click', onConfirm);
+            cancel.addEventListener('click', onCancel);
+            overlay.addEventListener('click', onBackdrop);
+            input.addEventListener('keydown', onKey);
+        });
+    }
+
+    showAlertModal(message) {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById('custom-modal-overlay');
+            const msgEl   = document.getElementById('custom-modal-message');
+            const input   = document.getElementById('custom-modal-input');
+            const errorEl = document.getElementById('custom-modal-error');
+            const confirm = document.getElementById('custom-modal-confirm');
+            const cancel  = document.getElementById('custom-modal-cancel');
+
+            msgEl.textContent = message;
+            input.style.display = 'none';
+            errorEl.textContent = '';
+            cancel.style.display = 'none';
+            overlay.classList.add('show');
+            overlay.setAttribute('aria-hidden', 'false');
+
+            const close = () => {
+                overlay.classList.remove('show');
+                overlay.setAttribute('aria-hidden', 'true');
+                input.style.display = '';
+                cancel.style.display = '';
+                confirm.removeEventListener('click', close);
+                overlay.removeEventListener('keydown', onKey);
+                overlay.removeEventListener('click', onBackdrop);
+                resolve();
+            };
+
+            const onKey = (e) => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); close(); } };
+            const onBackdrop = (e) => { if (e.target === overlay) close(); };
+
+            // Defer focus and listeners past the current key-event cycle so that
+            // an Enter keyup from the prompt modal cannot immediately dismiss this alert.
+            setTimeout(() => {
+                confirm.focus();
+                confirm.addEventListener('click', close);
+                overlay.addEventListener('keydown', onKey);
+                overlay.addEventListener('click', onBackdrop);
+            }, 150);
+        });
+    }
+
     toggleGrid() {
         this.gridVisible = !this.gridVisible;
         if (this.grid) {
@@ -2357,26 +2440,26 @@ class TrimensionApp {
         return normalized ? `midpoint|${normalized[0]}|${normalized[1]}` : null;
     }
 
-    changeSelectedPointLabel() {
+    async changeSelectedPointLabel() {
         const pointId = this.selectedPoints[0];
         const point = this.getPointById(pointId);
         if (!point) {
             return;
         }
 
-        const nextLabelRaw = window.prompt(`Change label for point ${point.label}`, point.label);
+        const nextLabelRaw = await this.showPromptModal(`Change label for point ${point.label}`, point.label);
         if (nextLabelRaw == null) {
             return;
         }
 
         const nextLabel = this.normalizePointLabelInput(nextLabelRaw);
         if (!nextLabel) {
-            window.alert('Use label format A or A1 (single letter, optional single digit).');
+            await this.showAlertModal('Use label format A or A1 (single letter, optional single digit).');
             return;
         }
 
         if (!this.isPointLabelAvailable(nextLabel, point.id)) {
-            window.alert(`Label ${nextLabel} is already in use.`);
+            await this.showAlertModal(`Label ${nextLabel} is already in use.`);
             return;
         }
 
@@ -3427,7 +3510,7 @@ class TrimensionApp {
         return color;
     }
 
-    runAction(actionKey) {
+    async runAction(actionKey) {
         const vectors = this.getSelectedVectors();
         if (vectors.some((value) => !value)) {
             return;
@@ -3436,7 +3519,7 @@ class TrimensionApp {
         const selectedLabels = this.selectedPoints.map((pointId) => this.getPointById(pointId)?.label || pointId);
 
         if (actionKey === 'change-point-label') {
-            this.changeSelectedPointLabel();
+            await this.changeSelectedPointLabel();
             this.closePanelOnMobile();
             return;
         }
@@ -3485,7 +3568,7 @@ class TrimensionApp {
             const promptText = existingLabel
                 ? `Change label for ${this.formatPointSequence(ids)}`
                 : `Label for ${this.formatPointSequence(ids)}`;
-            const nextText = window.prompt(promptText, currentText);
+            const nextText = await this.showPromptModal(promptText, currentText);
             if (nextText == null || !nextText.trim()) {
                 return;
             }
@@ -3598,7 +3681,7 @@ class TrimensionApp {
             const defaultAngleLabel = this.formatPointSequence(ids);
             let angleLabelInput = defaultAngleLabel;
             while (true) {
-                const nextLabel = window.prompt(`Label for angle at ${selectedLabels[1]}`, angleLabelInput);
+                const nextLabel = await this.showPromptModal(`Label for angle at ${selectedLabels[1]}`, angleLabelInput);
                 if (nextLabel == null) {
                     return;
                 }
@@ -3608,7 +3691,7 @@ class TrimensionApp {
                     break;
                 }
 
-                window.alert('Angle label cannot be blank.');
+                await this.showAlertModal('Angle label cannot be blank.');
             }
 
             const color = this.nextConstructionColor();
