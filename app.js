@@ -1557,6 +1557,30 @@ class TrimensionApp {
         });
     }
 
+    normalizeCuboidPyramidHostOrder() {
+        if (this.compositeSlots.length !== 2) {
+            return;
+        }
+
+        const cuboidSlot = this.compositeSlots.find((slot) => slot.primitive === 'cuboid');
+        const pyramidSlot = this.compositeSlots.find((slot) => slot.primitive === 'rectangular-pyramid');
+        if (!cuboidSlot || !pyramidSlot) {
+            return;
+        }
+
+        // Already in preferred directed attachment: cuboid host -> pyramid guest.
+        if (cuboidSlot.hostSlotId == null && pyramidSlot.hostSlotId === cuboidSlot.id) {
+            return;
+        }
+
+        this.compositeSlots = [cuboidSlot, pyramidSlot];
+        cuboidSlot.hostSlotId = null;
+        cuboidSlot.hostFaceId = null;
+        pyramidSlot.hostSlotId = null;
+        pyramidSlot.hostFaceId = null;
+        this.snapSlotDimensions(pyramidSlot);
+    }
+
     addSlot(primitiveKey) {
         if (!this.primitiveMeta[primitiveKey]) return;
 
@@ -1588,6 +1612,7 @@ class TrimensionApp {
 
             this.compositeSlots.push(slot);
             this.snapSlotDimensions(slot);
+            this.normalizeCuboidPyramidHostOrder();
         }
 
         this.resetSceneObjects();
