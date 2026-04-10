@@ -421,9 +421,9 @@ class TrimensionApp {
             cone: { radius: 2.5, height: 6 }
         };
 
-        // compositeSlots: array of { id, primitive, orientation, params, hostSlotId, hostFaceId }
+        // compositeSlots: array of { id, primitive, orientation, params, hostSlotId, hostFaceId, attachFaceId, attachRotationQuarterTurns }
         this.compositeSlots = [
-            { id: 0, primitive: 'cuboid', orientation: 'standard', params: { width: 7, depth: 4, height: 5, includeFaceCentersMode: 'off' }, hostSlotId: null, hostFaceId: null }
+            { id: 0, primitive: 'cuboid', orientation: 'standard', params: { width: 7, depth: 4, height: 5, includeFaceCentersMode: 'off' }, hostSlotId: null, hostFaceId: null, attachFaceId: null, attachRotationQuarterTurns: 0 }
         ];
         this.nextSlotId = 1;
         this.compositeGroup = null;
@@ -724,6 +724,18 @@ class TrimensionApp {
             const cycleBtn = event.target.closest('[data-cycle-slot-id]');
             if (cycleBtn) {
                 this.cycleSlotFace(Number(cycleBtn.dataset.cycleSlotId));
+                return;
+            }
+
+            const prismAttachFaceBtn = event.target.closest('[data-cycle-prism-attach-face-slot-id]');
+            if (prismAttachFaceBtn) {
+                this.cyclePrismAttachFace(Number(prismAttachFaceBtn.dataset.cyclePrismAttachFaceSlotId));
+                return;
+            }
+
+            const prismAttachRotationBtn = event.target.closest('[data-cycle-prism-attach-rotation-slot-id]');
+            if (prismAttachRotationBtn) {
+                this.cyclePrismAttachRotation(Number(prismAttachRotationBtn.dataset.cyclePrismAttachRotationSlotId));
                 return;
             }
 
@@ -1365,6 +1377,13 @@ class TrimensionApp {
         const faces = ATTACHMENT_FACES[guestSlot.primitive] || [];
         if (faces.length === 0) return null;
 
+        if (guestSlot?.attachFaceId) {
+            const explicitFace = faces.find((face) => face.id === guestSlot.attachFaceId);
+            if (explicitFace && (!hostFaceType || explicitFace.type === hostFaceType)) {
+                return explicitFace;
+            }
+        }
+
         const targetNormal = hostFaceNormal.clone().negate();
         const ABS_DOT_EPSILON = 1e-6;
         const DOT_EPSILON = 1e-6;
@@ -1414,6 +1433,27 @@ class TrimensionApp {
         return pickBest(indexed);
     }
 
+    getAttachmentQuarterTurns(slot, guestFaceDef = null, hostFaceDef = null) {
+        if (!slot || slot.primitive !== 'right-triangle-prism') {
+            return 0;
+        }
+
+        if (guestFaceDef?.type !== 'rectangle' || hostFaceDef?.type !== 'rectangle') {
+            return 0;
+        }
+
+        return ((slot.attachRotationQuarterTurns || 0) % 4 + 4) % 4;
+    }
+
+    getAttachmentDimsForHost(slot, guestFaceDef, hostFaceDef = null) {
+        const guestDims = this.resolveFaceDims(guestFaceDef, slot.params).slice();
+        const turns = this.getAttachmentQuarterTurns(slot, guestFaceDef, hostFaceDef);
+        if (guestDims.length >= 2 && turns % 2 === 1) {
+            [guestDims[0], guestDims[1]] = [guestDims[1], guestDims[0]];
+        }
+        return guestDims;
+    }
+
     snapSlotDimensions(guestSlot) {
         const guestSlotIndex = this.compositeSlots.findIndex((s) => s.id === guestSlot.id);
         if (guestSlotIndex <= 0) return;
@@ -1428,7 +1468,7 @@ class TrimensionApp {
         if (!guestFaceDef) return;
 
         const hostDims = this.resolveFaceDims(hostFaceDef, hostSlot.params);
-        const guestDims = this.resolveFaceDims(guestFaceDef, guestSlot.params);
+        const guestDims = this.getAttachmentDimsForHost(guestSlot, guestFaceDef, hostFaceDef);
         hostDims.forEach((dim, i) => {
             const guestDim = guestDims[i];
             const hostValue = this.getFaceDimValue(hostSlot, hostFaceDef, dim);
@@ -1658,6 +1698,8 @@ class TrimensionApp {
                 params: { ...this.defaultParams[primitiveKey] },
                 hostSlotId: null,
                 hostFaceId: null,
+                attachFaceId: null,
+                attachRotationQuarterTurns: 0,
             };
             this.compositeSlots.push(slot);
         } else {
@@ -1669,6 +1711,8 @@ class TrimensionApp {
                 params: { ...this.defaultParams[primitiveKey] },
                 hostSlotId: null,
                 hostFaceId: null,
+                attachFaceId: null,
+                attachRotationQuarterTurns: 0,
             };
 
             const prevSlots = this.compositeSlots.slice();
@@ -1711,6 +1755,77 @@ class TrimensionApp {
         const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % entries.length : 0;
         slot.hostSlotId = entries[nextIndex].slotId;
         slot.hostFaceId = entries[nextIndex].faceId;
+        this.snapSlotDimensions(slot);
+        this.resetSceneObjects();
+        this.buildComposite();
+        this.renderCompositeCards();
+    }
+
+    getCurrentHostEntryForSlot(slot) {
+        if (!slot || slot.hostSlotId == null || !slot.hostFaceId) {
+            return null;
+        }
+
+        const hostSlot = this.compositeSlots.find((candidate) => candidate.id === slot.hostSlotId);
+        const hostFaceDef = this.getFaceDefById(hostSlot, slot.hostFaceId);
+        if (!hostSlot || !hostFaceDef) {
+            return null;
+        }
+
+        return { slot: hostSlot, faceDef: hostFaceDef };
+    }
+
+    getPrismAttachFaceCandidates(slot, hostFaceType = 'rectangle') {
+        if (!slot || slot.primitive !== 'right-triangle-prism') {
+            return [];
+        }
+
+        return (ATTACHMENT_FACES[slot.primitive] || []).filter((faceDef) => faceDef.type === hostFaceType);
+    }
+
+    getPrismAttachFaceLabel(faceId) {
+        return (ATTACHMENT_FACES['right-triangle-prism'] || []).find((faceDef) => faceDef.id === faceId)?.label || 'Rectangle';
+    }
+
+    isPrismRectAttachmentConfigurable(slot) {
+        if (!slot || slot.primitive !== 'right-triangle-prism' || slot.hostSlotId == null || !slot.hostFaceId) {
+            return false;
+        }
+
+        const hostEntry = this.getCurrentHostEntryForSlot(slot);
+        return hostEntry?.faceDef?.type === 'rectangle';
+    }
+
+    cyclePrismAttachFace(slotId) {
+        const slot = this.compositeSlots.find((candidate) => candidate.id === slotId);
+        if (!this.isPrismRectAttachmentConfigurable(slot)) return;
+
+        const hostEntry = this.getCurrentHostEntryForSlot(slot);
+        const candidates = this.getPrismAttachFaceCandidates(slot, hostEntry.faceDef.type);
+        if (candidates.length <= 1) return;
+
+        const hostFaceNormal = this.resolveFaceNormal(hostEntry.faceDef, hostEntry.slot.params);
+        const currentFace = this.getGuestAttachFaceDef(slot, hostFaceNormal, hostEntry.faceDef.type);
+        const currentIndex = candidates.findIndex((candidate) => candidate.id === currentFace?.id);
+        const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % candidates.length : 0;
+
+        slot.attachFaceId = candidates[nextIndex].id;
+        this.snapSlotDimensions(slot);
+        this.resetSceneObjects();
+        this.buildComposite();
+        this.renderCompositeCards();
+    }
+
+    getPrismAttachRotationLabel(quarterTurns) {
+        const normalized = ((quarterTurns || 0) % 4 + 4) % 4;
+        return `${normalized * 90}\u00b0`;
+    }
+
+    cyclePrismAttachRotation(slotId) {
+        const slot = this.compositeSlots.find((candidate) => candidate.id === slotId);
+        if (!this.isPrismRectAttachmentConfigurable(slot)) return;
+
+        slot.attachRotationQuarterTurns = (((slot.attachRotationQuarterTurns || 0) + 1) % 4 + 4) % 4;
         this.snapSlotDimensions(slot);
         this.resetSceneObjects();
         this.buildComposite();
@@ -2008,6 +2123,26 @@ class TrimensionApp {
                 triangleModeCycleBtn.dataset.cycleTriangleModeSlotId = String(slot.id);
                 triangleModeCycleBtn.textContent = `Cycle: ${this.getTriangularPrismModeLabel(slot.params.triangleMode)}`;
                 card.appendChild(triangleModeCycleBtn);
+
+                if (this.isPrismRectAttachmentConfigurable(slot)) {
+                    const hostEntry = this.getCurrentHostEntryForSlot(slot);
+                    const hostFaceNormal = this.resolveFaceNormal(hostEntry.faceDef, hostEntry.slot.params);
+                    const currentFace = this.getGuestAttachFaceDef(slot, hostFaceNormal, hostEntry.faceDef.type);
+
+                    const attachFaceCycleBtn = document.createElement('button');
+                    attachFaceCycleBtn.type = 'button';
+                    attachFaceCycleBtn.className = 'card-cycle-btn';
+                    attachFaceCycleBtn.dataset.cyclePrismAttachFaceSlotId = String(slot.id);
+                    attachFaceCycleBtn.textContent = `Flush Face: ${this.getPrismAttachFaceLabel(currentFace?.id)}`;
+                    card.appendChild(attachFaceCycleBtn);
+
+                    const attachRotationCycleBtn = document.createElement('button');
+                    attachRotationCycleBtn.type = 'button';
+                    attachRotationCycleBtn.className = 'card-cycle-btn';
+                    attachRotationCycleBtn.dataset.cyclePrismAttachRotationSlotId = String(slot.id);
+                    attachRotationCycleBtn.textContent = `Rotate: ${this.getPrismAttachRotationLabel(slot.attachRotationQuarterTurns)}`;
+                    card.appendChild(attachRotationCycleBtn);
+                }
             }
 
             if (slot.primitive === 'tetrahedron') {
@@ -2169,7 +2304,7 @@ class TrimensionApp {
                     if (guestFaceDef) {
                         this.addLinkages(
                             { slotId: entry.slotId, dims: this.resolveFaceDims(entry.faceDef, entry.slot.params) },
-                            { slotId: slot.id, dims: this.resolveFaceDims(guestFaceDef, slot.params) }
+                            { slotId: slot.id, dims: this.getAttachmentDimsForHost(slot, guestFaceDef, entry.faceDef) }
                         );
                     }
                 }
@@ -2487,6 +2622,12 @@ class TrimensionApp {
                 const twist = new THREE.Quaternion().setFromAxisAngle(targetGuestNormal, twistAngle);
                 Q.premultiply(twist);
             }
+        }
+
+        const quarterTurns = this.getAttachmentQuarterTurns(slot, guestFaceDef, _hostFaceDef);
+        if (quarterTurns !== 0) {
+            const extraTwist = new THREE.Quaternion().setFromAxisAngle(targetGuestNormal, quarterTurns * (Math.PI / 2));
+            Q.premultiply(extraTwist);
         }
 
         slotGroup.quaternion.copy(Q);
