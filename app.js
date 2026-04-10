@@ -434,7 +434,7 @@ class TrimensionApp {
 
         this.defaultParams = {
             cuboid: { width: 7, depth: 4, height: 5, includeFaceCentersMode: 'off' },
-            'rectangular-pyramid': { length: 6.5, width: 4.5, height: 6, apexPosition: 'center' },
+
             'right-triangle-prism': { legA: 5, legB: 4, length: 7, triangleMode: 'isosceles' },
             tetrahedron: { base: 6, triangleHeight: 4.5, height: 6, baseTriangleMode: 'isosceles', apexPosition: 'A', baseMirror: false },
             sphere: { radius: 3 },
@@ -1191,14 +1191,19 @@ class TrimensionApp {
         this.buildComposite({ fitCamera: false });
         this.renderCompositeCards();
 
-        const LABEL_LAST_ORDER = { segment: 0, triangle: 1, angle: 2, plane: 3, label: 4 };
-        const savedObjects = (Array.isArray(snapshot.objects?.items) ? snapshot.objects.items : [])
-            .slice()
-            .sort((a, b) => (LABEL_LAST_ORDER[a?.type] ?? 3) - (LABEL_LAST_ORDER[b?.type] ?? 3));
+        // Two-pass restore: non-labels first so derived points (midpoints) exist
+        // before labels try to resolve their point IDs and attachment checks.
+        const NON_LABEL_ORDER = { segment: 0, triangle: 1, angle: 2, plane: 3 };
+        const allSavedObjects = Array.isArray(snapshot.objects?.items) ? snapshot.objects.items : [];
+        const nonLabelObjects = allSavedObjects
+            .filter((s) => s?.type !== 'label')
+            .sort((a, b) => (NON_LABEL_ORDER[a?.type] ?? 3) - (NON_LABEL_ORDER[b?.type] ?? 3));
+        const labelObjects = allSavedObjects.filter((s) => s?.type === 'label');
+
         this.sceneObjects = [];
         let maxObjectId = 0;
 
-        savedObjects.forEach((saved) => {
+        const restoreOne = (saved) => {
             if (!saved || !saved.definition) return;
             const definition = JSON.parse(JSON.stringify(saved.definition));
             const object3D = this.createObjectFromDefinition(definition);
@@ -1215,7 +1220,16 @@ class TrimensionApp {
             this.scene.add(object3D);
             this.sceneObjects.push({ id, type, name, subtitle, object3D, definition, visible });
             maxObjectId = Math.max(maxObjectId, id);
-        });
+        };
+
+        // Pass 1: segments, triangles, angles, planes, midpoint objects
+        nonLabelObjects.forEach(restoreOne);
+
+        // Materialise derived points (midpoints) so labels referencing them can resolve
+        this.refreshDerivedPoints();
+
+        // Pass 2: edge labels, point labels (now have backing geometry + derived points)
+        labelObjects.forEach(restoreOne);
 
         const nextObjectId = Number(snapshot.objects?.nextObjectId);
         this.nextObjectId = Number.isFinite(nextObjectId) ? Math.max(nextObjectId, maxObjectId + 1) : (maxObjectId + 1);
