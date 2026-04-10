@@ -334,12 +334,16 @@ class TrimensionApp {
         this.selectionSummaryEl = document.getElementById('selection-summary');
         this.actionsListEl = document.getElementById('actions-list');
         this.objectSections = {
-            triangles: { header: document.getElementById('triangles-section-header'), content: document.getElementById('triangles-section-content'), arrow: document.getElementById('triangles-section-arrow'), list: document.getElementById('triangles-list'), count: document.getElementById('triangles-count') },
-            segments:  { header: document.getElementById('segments-section-header'),  content: document.getElementById('segments-section-content'),  arrow: document.getElementById('segments-section-arrow'),  list: document.getElementById('segments-list'),  count: document.getElementById('segments-count')  },
-            angles:    { header: document.getElementById('angles-section-header'),    content: document.getElementById('angles-section-content'),    arrow: document.getElementById('angles-section-arrow'),    list: document.getElementById('angles-list'),    count: document.getElementById('angles-count')    },
-            planes:    { header: document.getElementById('planes-section-header'),    content: document.getElementById('planes-section-content'),    arrow: document.getElementById('planes-section-arrow'),    list: document.getElementById('planes-list'),    count: document.getElementById('planes-count')    },
-            labels:    { header: document.getElementById('labels-section-header'),    content: document.getElementById('labels-section-content'),    arrow: document.getElementById('labels-section-arrow'),    list: document.getElementById('labels-list'),    count: document.getElementById('labels-count')    },
+            triangles: { header: document.getElementById('triangles-section-header'), content: document.getElementById('triangles-section-content'), arrow: document.getElementById('triangles-section-arrow'), list: document.getElementById('triangles-list') },
+            segments:  { header: document.getElementById('segments-section-header'),  content: document.getElementById('segments-section-content'),  arrow: document.getElementById('segments-section-arrow'),  list: document.getElementById('segments-list')  },
+            angles:    { header: document.getElementById('angles-section-header'),    content: document.getElementById('angles-section-content'),    arrow: document.getElementById('angles-section-arrow'),    list: document.getElementById('angles-list')    },
+            planes:    { header: document.getElementById('planes-section-header'),    content: document.getElementById('planes-section-content'),    arrow: document.getElementById('planes-section-arrow'),    list: document.getElementById('planes-list')    },
+            labels:    { header: document.getElementById('labels-section-header'),    content: document.getElementById('labels-section-content'),    arrow: document.getElementById('labels-section-arrow'),    list: document.getElementById('labels-list')    },
         };
+        Object.values(this.objectSections).forEach((section) => {
+            section.title = section.header?.querySelector('h3') || null;
+            section.baseTitle = section.title?.textContent || '';
+        });
         this.primitiveSelect = document.getElementById('primitive-select');
         this.primitiveCardsListEl = document.getElementById('primitive-cards-list');
         this.primitiveChip = document.getElementById('primitive-chip');
@@ -4945,7 +4949,11 @@ class TrimensionApp {
             });
             sec.list.innerHTML = '';
             items.forEach((item) => sec.list.appendChild(this.renderObjectItem(item)));
-            sec.count.textContent = items.length > 0 ? `(${items.length})` : '';
+            if (sec.title) {
+                sec.title.textContent = items.length > 0
+                    ? `${sec.baseTitle} (${items.length})`
+                    : sec.baseTitle;
+            }
         }
     }
 
@@ -4957,12 +4965,16 @@ class TrimensionApp {
         const itemColor = item.definition?.color != null
             ? `#${item.definition.color.toString(16).padStart(6, '0')}`
             : null;
+        const visibilityColor = item.type === 'label' ? '#b9f18a' : itemColor;
         const displayName = this.getSceneObjectDisplayName(item);
         const showSubtitle = item.type === 'angle' || item.type === 'label';
         const subtitleText = typeof item.subtitle === 'string' ? item.subtitle : '';
         const subtitleHtml = showSubtitle && subtitleText
             ? `<span>${subtitleText}</span>`
             : '';
+        if (item.type === 'label') {
+            row.style.borderLeftColor = '#b9f18a';
+        }
         if (itemColor) {
             row.style.borderLeftColor = itemColor;
         }
@@ -4978,7 +4990,7 @@ class TrimensionApp {
                     data-toggle-object-id="${item.id}"
                     aria-label="${item.visible ? 'Hide' : 'Show'} object"
                     title="Click to ${item.visible ? 'hide' : 'show'} object"
-                    style="background-color: ${item.visible && itemColor ? itemColor : 'transparent'};"
+                    style="background-color: ${item.visible && visibilityColor ? visibilityColor : 'transparent'};"
                 ></button>
                 <button type="button" class="object-delete" data-delete-object-id="${item.id}" aria-label="Delete object" title="Delete object">X</button>
             </div>
