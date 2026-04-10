@@ -1210,10 +1210,10 @@ class TrimensionApp {
         let maxObjectId = 0;
 
         const restoreOne = (saved) => {
-            if (!saved || !saved.definition) return;
+            if (!saved || !saved.definition) return false;
             const definition = JSON.parse(JSON.stringify(saved.definition));
             const object3D = this.createObjectFromDefinition(definition);
-            if (!object3D) return;
+            if (!object3D) return false;
 
             const id = Number.isFinite(saved.id) ? Number(saved.id) : (maxObjectId + 1);
             const visible = saved.visible !== false;
@@ -1226,22 +1226,49 @@ class TrimensionApp {
             this.scene.add(object3D);
             this.sceneObjects.push({ id, type, name, subtitle, object3D, definition, visible });
             maxObjectId = Math.max(maxObjectId, id);
+            return true;
+        };
+
+        const restorePendingObjects = (items, options = {}) => {
+            let pending = items.slice();
+            const maxPasses = 8;
+
+            for (let pass = 0; pass < maxPasses && pending.length > 0; pass += 1) {
+                let restoredThisPass = 0;
+                const remaining = [];
+
+                pending.forEach((saved) => {
+                    if (restoreOne(saved)) {
+                        restoredThisPass += 1;
+                        return;
+                    }
+                    remaining.push(saved);
+                });
+
+                pending = remaining;
+                if (restoredThisPass === 0) {
+                    break;
+                }
+
+                if (options.refreshDerived !== false) {
+                    this.refreshDerivedPoints();
+                }
+            }
+
+            return pending;
         };
 
         // Pass 1: midpoint helpers first so derived midpoint IDs can materialise.
-        midpointHelperObjects.forEach(restoreOne);
-
-        // Materialise derived points before restoring geometry that may reference them.
-        this.refreshDerivedPoints();
+        restorePendingObjects(midpointHelperObjects);
 
         // Pass 2: geometry and other non-label objects.
-        otherNonLabelObjects.forEach(restoreOne);
+        restorePendingObjects(otherNonLabelObjects);
 
         // Materialise derived points again after all geometry is restored.
         this.refreshDerivedPoints();
 
         // Pass 3: edge labels, point labels (now have backing geometry + derived points)
-        labelObjects.forEach(restoreOne);
+        restorePendingObjects(labelObjects, { refreshDerived: false });
 
         const nextObjectId = Number(snapshot.objects?.nextObjectId);
         this.nextObjectId = Number.isFinite(nextObjectId) ? Math.max(nextObjectId, maxObjectId + 1) : (maxObjectId + 1);
