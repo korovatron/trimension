@@ -27,6 +27,13 @@ function startApp() {
     }
 }
 
+function hasSharedStateInUrl() {
+    const hash = window.location.hash || '';
+    if (!hash.startsWith('#')) return false;
+    const params = new URLSearchParams(hash.slice(1));
+    return !!params.get(SHARE_HASH_KEY);
+}
+
 function returnToTitleScreen() {
     titleScreen.classList.remove('hidden');
     mainApp.style.display = 'none';
@@ -66,6 +73,12 @@ document.addEventListener('keydown', (event) => {
         if (appInitialized) {
             returnToTitleScreen();
         }
+    }
+});
+
+window.addEventListener('load', () => {
+    if (!appInitialized && hasSharedStateInUrl()) {
+        startApp();
     }
 });
 
@@ -138,6 +151,10 @@ function getTetrahedronBasePoints(params, yPos) {
         new THREE.Vector3(0, yPos, (2 * triangleHeight) / 3)
     ];
 }
+
+const SHARE_STATE_VERSION = 1;
+const SHARE_HASH_KEY = 'state';
+const MAX_SHARE_URL_LENGTH = 7000;
 
 const ATTACHMENT_FACES = {
     cuboid: [
@@ -366,6 +383,7 @@ class TrimensionApp {
         this.themeToggleBtn = document.getElementById('theme-toggle');
         this.lightIcon = document.getElementById('light-icon');
         this.darkIcon = document.getElementById('dark-icon');
+        this.shareBtn = document.getElementById('share-button');
         this.addBtn = document.getElementById('add-btn');
         this.addDropdown = document.getElementById('add-dropdown');
         this.primitiveSectionHeader = document.getElementById('primitive-section-header');
@@ -591,7 +609,25 @@ class TrimensionApp {
         this.bindEvents();
         this.buildComposite();
         this.renderCompositeCards();
+        this.restoreStateFromUrlIfPresent();
         this.animate();
+    }
+
+    async restoreStateFromUrlIfPresent() {
+        const payload = this.getSharePayloadFromHash();
+        if (!payload) return;
+
+        try {
+            const snapshot = await this.decodeShareState(payload);
+            if (!snapshot || snapshot.version !== SHARE_STATE_VERSION || !this.applySharedStateSnapshot(snapshot)) {
+                throw new Error('Unsupported or invalid shared state');
+            }
+            this.applySharedUrlDefaultSectionState();
+            this.showToast('Loaded shared diagram.');
+        } catch (error) {
+            console.error('Failed to restore shared state:', error);
+            this.showAlertModal('Unable to load the shared diagram state from this URL.');
+        }
     }
 
     initThree() {
@@ -855,6 +891,12 @@ class TrimensionApp {
             this.updateGridToggleUI();
         }
 
+        if (this.shareBtn) {
+            this.shareBtn.addEventListener('click', () => {
+                this.handleShareButtonClick();
+            });
+        }
+
         const togglePrimitiveSection = () => {
             this.primitiveSectionCollapsed = !this.primitiveSectionCollapsed;
             this.primitiveSectionContent.classList.toggle('collapsed', this.primitiveSectionCollapsed);
@@ -919,6 +961,332 @@ class TrimensionApp {
         this.panelOpen = false;
         this.controlPanel.classList.add('closed');
         this.panelToggleBtn.classList.remove('active');
+    }
+
+    base64UrlEncode(bytes) {
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += 1) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+
+        return btoa(binary)
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/g, '');
+    }
+
+    base64UrlDecode(input) {
+        const normalized = input
+            .replace(/-/g, '+')
+            .replace(/_/g, '/');
+        const padding = normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4));
+        const binary = atob(normalized + padding);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes;
+    }
+
+    async streamToUint8Array(stream) {
+        const response = new Response(stream);
+        const buffer = await response.arrayBuffer();
+        return new Uint8Array(buffer);
+    }
+
+    async encodeShareState(snapshot) {
+        const json = JSON.stringify(snapshot);
+        const rawBytes = new TextEncoder().encode(json);
+
+        if (typeof CompressionStream === 'function') {
+            try {
+                const compressed = await this.streamToUint8Array(
+                    new Blob([rawBytes]).stream().pipeThrough(new CompressionStream('gzip'))
+                );
+                if (compressed.length < rawBytes.length) {
+                    return `g.${this.base64UrlEncode(compressed)}`;
+                }
+            } catch {
+                // Fallback to raw payload.
+            }
+        }
+
+        return `r.${this.base64UrlEncode(rawBytes)}`;
+    }
+
+    async decodeShareState(payload) {
+        if (typeof payload !== 'string' || !payload.includes('.')) {
+            throw new Error('Invalid payload format');
+        }
+
+        const [encoding, data] = payload.split('.', 2);
+        const bytes = this.base64UrlDecode(data);
+
+        if (encoding === 'g') {
+            if (typeof DecompressionStream !== 'function') {
+                throw new Error('Compressed payload unsupported in this browser');
+            }
+
+            const decompressed = await this.streamToUint8Array(
+                new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))
+            );
+            return JSON.parse(new TextDecoder().decode(decompressed));
+        }
+
+        if (encoding === 'r') {
+            return JSON.parse(new TextDecoder().decode(bytes));
+        }
+
+        throw new Error('Unknown payload encoding');
+    }
+
+    getSharePayloadFromHash() {
+        const hash = window.location.hash || '';
+        if (!hash.startsWith('#')) return null;
+        const hashBody = hash.slice(1);
+        const params = new URLSearchParams(hashBody);
+        return params.get(SHARE_HASH_KEY);
+    }
+
+    applySectionCollapseStateToUI() {
+        this.primitiveSectionContent.classList.toggle('collapsed', this.primitiveSectionCollapsed);
+        this.primitiveSectionHeader.setAttribute('aria-expanded', this.primitiveSectionCollapsed ? 'false' : 'true');
+        this.primitiveSectionArrow.textContent = this.primitiveSectionCollapsed ? '\u25B6\uFE0E' : '\u25BC\uFE0E';
+
+        this.pointsSectionContent.classList.toggle('collapsed', this.pointsSectionCollapsed);
+        this.pointsSectionHeader.setAttribute('aria-expanded', this.pointsSectionCollapsed ? 'false' : 'true');
+        this.pointsSectionArrow.textContent = this.pointsSectionCollapsed ? '\u25B6\uFE0E' : '\u25BC\uFE0E';
+
+        Object.entries(this.objectSections).forEach(([key, sec]) => {
+            const collapsed = !!this.objectGroupCollapsed[key];
+            sec.content.classList.toggle('collapsed', collapsed);
+            sec.header.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            sec.arrow.textContent = collapsed ? '\u25B6\uFE0E' : '\u25BC\uFE0E';
+        });
+    }
+
+    normalizeSlotForRestore(slot) {
+        if (!slot || typeof slot !== 'object') return null;
+        if (typeof slot.primitive !== 'string' || !this.defaultParams[slot.primitive]) return null;
+
+        const orientationOptions = this.orientations[slot.primitive] || [{ value: 'standard' }];
+        const fallbackOrientation = orientationOptions[0]?.value || 'standard';
+        const orientation = orientationOptions.some((opt) => opt.value === slot.orientation)
+            ? slot.orientation
+            : fallbackOrientation;
+
+        const defaultParams = this.defaultParams[slot.primitive] || {};
+        const params = { ...defaultParams, ...(slot.params || {}) };
+
+        return {
+            id: Number.isFinite(slot.id) ? Number(slot.id) : null,
+            primitive: slot.primitive,
+            orientation,
+            params,
+            hostSlotId: Number.isFinite(slot.hostSlotId) ? Number(slot.hostSlotId) : null,
+            hostFaceId: typeof slot.hostFaceId === 'string' ? slot.hostFaceId : null,
+            attachFaceId: typeof slot.attachFaceId === 'string' ? slot.attachFaceId : null,
+            attachRotationQuarterTurns: Number.isFinite(slot.attachRotationQuarterTurns) ? Number(slot.attachRotationQuarterTurns) : 0
+        };
+    }
+
+    applySharedUrlDefaultSectionState() {
+        this.panelOpen = true;
+        this.primitiveSectionCollapsed = false;
+        this.pointsSectionCollapsed = true;
+        this.objectGroupCollapsed = {
+            triangles: true,
+            segments: true,
+            angles: true,
+            planes: true,
+            labels: true
+        };
+
+        this.panelToggleBtn.classList.add('active');
+        this.controlPanel.classList.remove('closed');
+        this.applySectionCollapseStateToUI();
+    }
+
+    getShareableStateSnapshot() {
+        return {
+            version: SHARE_STATE_VERSION,
+            ui: {
+                ghostFaces: this.ghostFaces,
+                pointMarkersVisible: this.pointMarkersVisible,
+                labelMode: this.labelMode,
+                gridVisible: this.gridVisible,
+                displaySizeMode: this.displaySizeMode,
+                themeMode: this.themeMode,
+                panelOpen: this.panelOpen
+            },
+            camera: {
+                position: [this.camera.position.x, this.camera.position.y, this.camera.position.z],
+                target: [this.controls.target.x, this.controls.target.y, this.controls.target.z]
+            },
+            labels: {
+                base: Array.from(this.baseLabelOverrides.entries()),
+                derived: Array.from(this.derivedLabelOverrides.entries())
+            },
+            composite: {
+                nextSlotId: this.nextSlotId,
+                slots: this.compositeSlots.map((slot) => ({
+                    id: slot.id,
+                    primitive: slot.primitive,
+                    orientation: slot.orientation,
+                    params: { ...slot.params },
+                    hostSlotId: slot.hostSlotId,
+                    hostFaceId: slot.hostFaceId,
+                    attachFaceId: slot.attachFaceId ?? null,
+                    attachRotationQuarterTurns: slot.attachRotationQuarterTurns ?? 0
+                }))
+            },
+            objects: {
+                nextObjectId: this.nextObjectId,
+                constructionColorIndex: this.constructionColorIndex,
+                items: this.sceneObjects.map((item) => ({
+                    id: item.id,
+                    type: item.type,
+                    name: item.name,
+                    subtitle: item.subtitle,
+                    visible: item.visible,
+                    definition: item.definition ? JSON.parse(JSON.stringify(item.definition)) : null
+                }))
+            }
+        };
+    }
+
+    applySharedStateSnapshot(snapshot) {
+        if (!snapshot || typeof snapshot !== 'object') {
+            return false;
+        }
+
+        const ui = snapshot.ui || {};
+        this.ghostFaces = ui.ghostFaces !== false;
+        this.pointMarkersVisible = ui.pointMarkersVisible !== false;
+        this.labelMode = ['badge', 'plain', 'off'].includes(ui.labelMode) ? ui.labelMode : this.labelMode;
+        this.gridVisible = ui.gridVisible !== false;
+        this.displaySizeMode = ui.displaySizeMode === 'large' ? 'large' : 'small';
+        this.themeMode = ui.themeMode === 'dark' ? 'dark' : 'light';
+        this.panelOpen = ui.panelOpen !== false;
+
+        this.panelToggleBtn.classList.toggle('active', this.panelOpen);
+        this.controlPanel.classList.toggle('closed', !this.panelOpen);
+
+        this.baseLabelOverrides = new Map(Array.isArray(snapshot.labels?.base) ? snapshot.labels.base : []);
+        this.derivedLabelOverrides = new Map(Array.isArray(snapshot.labels?.derived) ? snapshot.labels.derived : []);
+
+        const rawSlots = Array.isArray(snapshot.composite?.slots) ? snapshot.composite.slots : [];
+        const normalizedSlots = rawSlots
+            .map((slot) => this.normalizeSlotForRestore(slot))
+            .filter(Boolean)
+            .slice(0, 3);
+
+        if (normalizedSlots.length > 0) {
+            const usedIds = new Set();
+            let nextFallbackId = 0;
+            normalizedSlots.forEach((slot) => {
+                if (slot.id == null || usedIds.has(slot.id)) {
+                    while (usedIds.has(nextFallbackId)) nextFallbackId += 1;
+                    slot.id = nextFallbackId;
+                }
+                usedIds.add(slot.id);
+                nextFallbackId = Math.max(nextFallbackId, slot.id + 1);
+            });
+            this.compositeSlots = normalizedSlots;
+            const candidateNextSlotId = Number(snapshot.composite?.nextSlotId);
+            this.nextSlotId = Number.isFinite(candidateNextSlotId)
+                ? Math.max(candidateNextSlotId, ...normalizedSlots.map((slot) => slot.id + 1))
+                : Math.max(...normalizedSlots.map((slot) => slot.id + 1));
+        }
+
+        this.resetSceneObjects();
+        this.buildComposite({ fitCamera: false });
+        this.renderCompositeCards();
+
+        const savedObjects = Array.isArray(snapshot.objects?.items) ? snapshot.objects.items : [];
+        this.sceneObjects = [];
+        let maxObjectId = 0;
+
+        savedObjects.forEach((saved) => {
+            if (!saved || !saved.definition) return;
+            const definition = JSON.parse(JSON.stringify(saved.definition));
+            const object3D = this.createObjectFromDefinition(definition);
+            if (!object3D) return;
+
+            const id = Number.isFinite(saved.id) ? Number(saved.id) : (maxObjectId + 1);
+            const visible = saved.visible !== false;
+            const type = typeof saved.type === 'string' ? saved.type : 'segment';
+            const name = typeof saved.name === 'string' ? saved.name : this.getSceneObjectDisplayName({ definition, name: type });
+            const subtitle = typeof saved.subtitle === 'string' ? saved.subtitle : '';
+
+            object3D.userData.sceneObjectId = id;
+            object3D.visible = visible;
+            this.scene.add(object3D);
+            this.sceneObjects.push({ id, type, name, subtitle, object3D, definition, visible });
+            maxObjectId = Math.max(maxObjectId, id);
+        });
+
+        const nextObjectId = Number(snapshot.objects?.nextObjectId);
+        this.nextObjectId = Number.isFinite(nextObjectId) ? Math.max(nextObjectId, maxObjectId + 1) : (maxObjectId + 1);
+        const constructionColorIndex = Number(snapshot.objects?.constructionColorIndex);
+        if (Number.isFinite(constructionColorIndex)) {
+            this.constructionColorIndex = Math.max(0, constructionColorIndex);
+        }
+
+        this.pruneOrphanedSceneObjects();
+        this.refreshDerivedPoints();
+        this.buildPointMarkers();
+        this.renderObjectsList();
+        this.renderPointsList();
+        this.renderSelectionSummary();
+        this.renderActions();
+        this.updatePrimitiveMaterial();
+        this.updateGhostToggleUI();
+        this.updatePointMarkerToggleUI();
+        this.updateLabelBadgeToggleUI();
+        this.updateDisplaySizeToggleUI();
+        this.applyThemeMode();
+        if (this.grid) {
+            this.grid.visible = this.gridVisible;
+        }
+        this.updateGridToggleUI();
+
+        const cameraPos = Array.isArray(snapshot.camera?.position) ? snapshot.camera.position : null;
+        const cameraTarget = Array.isArray(snapshot.camera?.target) ? snapshot.camera.target : null;
+        if (cameraPos?.length === 3 && cameraTarget?.length === 3
+            && cameraPos.every(Number.isFinite) && cameraTarget.every(Number.isFinite)) {
+            this.camera.position.set(cameraPos[0], cameraPos[1], cameraPos[2]);
+            this.controls.target.set(cameraTarget[0], cameraTarget[1], cameraTarget[2]);
+            this.controls.update();
+        } else {
+            this.fitCameraToObject(this.compositeGroup, 1.38, new THREE.Vector3(1, 0.72, 0.94));
+        }
+
+        return true;
+    }
+
+    async handleShareButtonClick() {
+        try {
+            const snapshot = this.getShareableStateSnapshot();
+            const payload = await this.encodeShareState(snapshot);
+            const shareUrl = `${window.location.origin}${window.location.pathname}${window.location.search}#${SHARE_HASH_KEY}=${payload}`;
+
+            if (shareUrl.length > MAX_SHARE_URL_LENGTH) {
+                await this.showAlertModal('This diagram is too large to share as a URL.');
+                return;
+            }
+
+            if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+                await navigator.clipboard.writeText(shareUrl);
+                await this.showAlertModal('Share link copied to clipboard.');
+                return;
+            }
+
+            await this.showPromptModal('Copy this share URL', shareUrl);
+        } catch (error) {
+            console.error('Failed to create share URL:', error);
+            await this.showAlertModal('Unable to generate share URL.');
+        }
     }
 
     showPromptModal(message, defaultValue = '', options = {}) {
@@ -1043,6 +1411,34 @@ class TrimensionApp {
                 overlay.addEventListener('click', onBackdrop);
             }, 150);
         });
+    }
+
+    showToast(message, durationMs = 2200) {
+        if (!message) return;
+
+        if (this.toastHideTimer) {
+            clearTimeout(this.toastHideTimer);
+            this.toastHideTimer = null;
+        }
+
+        if (!this.toastEl) {
+            const toast = document.createElement('div');
+            toast.className = 'app-toast';
+            toast.setAttribute('role', 'status');
+            toast.setAttribute('aria-live', 'polite');
+            document.body.appendChild(toast);
+            this.toastEl = toast;
+        }
+
+        this.toastEl.textContent = message;
+        this.toastEl.classList.add('show');
+
+        this.toastHideTimer = setTimeout(() => {
+            if (this.toastEl) {
+                this.toastEl.classList.remove('show');
+            }
+            this.toastHideTimer = null;
+        }, Math.max(800, durationMs));
     }
 
     toggleGrid() {

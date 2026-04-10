@@ -918,6 +918,17 @@ textarea {
     min-width: 0;
 }
 
+.share-controls-row {
+    grid-template-columns: minmax(0, 1fr);
+    margin-bottom: 0;
+}
+
+.share-link-btn {
+    letter-spacing: 0.08em;
+    font-size: 11px;
+    font-weight: 700;
+}
+
 .top-btn-spacer {
     min-height: 40px;
 }
@@ -1311,6 +1322,10 @@ textarea {
     gap: 8px;
 }
 
+.custom-modal-symbols[hidden] {
+    display: none !important;
+}
+
 .custom-modal-symbol-btn {
     min-width: 34px;
     height: 30px;
@@ -1462,4 +1477,29 @@ textarea {
     .canvas-chip.bottom-right {
         display: block;
     }
+}
+
+.app-toast {
+    position: fixed;
+    left: 50%;
+    bottom: max(18px, calc(var(--safe-area-bottom) + 18px));
+    transform: translate(-50%, 14px);
+    z-index: 3200;
+    padding: 10px 14px;
+    border: 1px solid rgba(0, 0, 0, 0.28);
+    border-radius: 10px;
+    background: rgba(185, 241, 138, 0.97);
+    color: #11233a;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.26);
+}
+
+.app-toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
 }
