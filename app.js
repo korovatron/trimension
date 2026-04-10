@@ -1202,6 +1202,8 @@ class TrimensionApp {
         const nonLabelObjects = allSavedObjects
             .filter((s) => !isDeferredVisualLabel(s))
             .sort((a, b) => (NON_LABEL_ORDER[a?.type] ?? 3) - (NON_LABEL_ORDER[b?.type] ?? 3));
+        const midpointHelperObjects = nonLabelObjects.filter((s) => s?.definition?.kind === 'midpoint-point');
+        const otherNonLabelObjects = nonLabelObjects.filter((s) => s?.definition?.kind !== 'midpoint-point');
         const labelObjects = allSavedObjects.filter((s) => isDeferredVisualLabel(s));
 
         this.sceneObjects = [];
@@ -1226,13 +1228,19 @@ class TrimensionApp {
             maxObjectId = Math.max(maxObjectId, id);
         };
 
-        // Pass 1: geometry + helper objects (including midpoint-point holders)
-        nonLabelObjects.forEach(restoreOne);
+        // Pass 1: midpoint helpers first so derived midpoint IDs can materialise.
+        midpointHelperObjects.forEach(restoreOne);
 
-        // Materialise derived points (midpoints) so labels referencing them can resolve
+        // Materialise derived points before restoring geometry that may reference them.
         this.refreshDerivedPoints();
 
-        // Pass 2: edge labels, point labels (now have backing geometry + derived points)
+        // Pass 2: geometry and other non-label objects.
+        otherNonLabelObjects.forEach(restoreOne);
+
+        // Materialise derived points again after all geometry is restored.
+        this.refreshDerivedPoints();
+
+        // Pass 3: edge labels, point labels (now have backing geometry + derived points)
         labelObjects.forEach(restoreOne);
 
         const nextObjectId = Number(snapshot.objects?.nextObjectId);
