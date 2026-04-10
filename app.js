@@ -1195,10 +1195,14 @@ class TrimensionApp {
         // before labels try to resolve their point IDs and attachment checks.
         const NON_LABEL_ORDER = { segment: 0, triangle: 1, angle: 2, plane: 3 };
         const allSavedObjects = Array.isArray(snapshot.objects?.items) ? snapshot.objects.items : [];
+        const isDeferredVisualLabel = (saved) => {
+            const kind = saved?.definition?.kind;
+            return kind === 'edge-label' || kind === 'length-label' || kind === 'point-label';
+        };
         const nonLabelObjects = allSavedObjects
-            .filter((s) => s?.type !== 'label')
+            .filter((s) => !isDeferredVisualLabel(s))
             .sort((a, b) => (NON_LABEL_ORDER[a?.type] ?? 3) - (NON_LABEL_ORDER[b?.type] ?? 3));
-        const labelObjects = allSavedObjects.filter((s) => s?.type === 'label');
+        const labelObjects = allSavedObjects.filter((s) => isDeferredVisualLabel(s));
 
         this.sceneObjects = [];
         let maxObjectId = 0;
@@ -1222,7 +1226,7 @@ class TrimensionApp {
             maxObjectId = Math.max(maxObjectId, id);
         };
 
-        // Pass 1: segments, triangles, angles, planes, midpoint objects
+        // Pass 1: geometry + helper objects (including midpoint-point holders)
         nonLabelObjects.forEach(restoreOne);
 
         // Materialise derived points (midpoints) so labels referencing them can resolve
