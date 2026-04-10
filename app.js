@@ -1111,12 +1111,6 @@ class TrimensionApp {
         return {
             version: SHARE_STATE_VERSION,
             ui: {
-                ghostFaces: this.ghostFaces,
-                pointMarkersVisible: this.pointMarkersVisible,
-                labelMode: this.labelMode,
-                gridVisible: this.gridVisible,
-                displaySizeMode: this.displaySizeMode,
-                themeMode: this.themeMode,
                 panelOpen: this.panelOpen
             },
             camera: {
@@ -1161,12 +1155,6 @@ class TrimensionApp {
         }
 
         const ui = snapshot.ui || {};
-        this.ghostFaces = ui.ghostFaces !== false;
-        this.pointMarkersVisible = ui.pointMarkersVisible !== false;
-        this.labelMode = ['badge', 'plain', 'off'].includes(ui.labelMode) ? ui.labelMode : this.labelMode;
-        this.gridVisible = ui.gridVisible !== false;
-        this.displaySizeMode = ui.displaySizeMode === 'large' ? 'large' : 'small';
-        this.themeMode = ui.themeMode === 'dark' ? 'dark' : 'light';
         this.panelOpen = ui.panelOpen !== false;
 
         this.panelToggleBtn.classList.toggle('active', this.panelOpen);
