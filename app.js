@@ -3391,12 +3391,35 @@ class TrimensionApp {
         });
     }
 
+    hasExplicitSceneSegmentBetween(pointIds) {
+        const normalized = this.normalizePointPairIds(pointIds);
+        if (!normalized) {
+            return false;
+        }
+
+        const matchesPair = (pairCandidate) => {
+            const pair = this.normalizePointPairIds(pairCandidate);
+            return !!pair && pair[0] === normalized[0] && pair[1] === normalized[1];
+        };
+
+        return this.sceneObjects.some((entry) => {
+            const definition = entry.definition;
+            return !!definition
+                && definition.kind === 'segment'
+                && definition.hidden !== true
+                && Array.isArray(definition.pointIds)
+                && definition.pointIds.length === 2
+                && matchesPair(definition.pointIds);
+        });
+    }
+
     canAttachLabelToPointPair(pointIds) {
-        return this.hasSegmentLikeConnection(pointIds);
+        // Labels should only attach to edges that actually exist as scene objects.
+        return this.hasSceneSegmentBetween(pointIds);
     }
 
     canAttachMidpointToPointPair(pointIds) {
-        return this.hasSegmentLikeConnection(pointIds);
+        return this.hasSceneSegmentBetween(pointIds);
     }
 
     hasSegmentLikeConnection(pointIds) {
@@ -4317,8 +4340,8 @@ class TrimensionApp {
         }
 
         if (this.selectedPoints.length === 2) {
-            const hasExistingConnection = this.hasSegmentLikeConnection(this.selectedPoints);
-            const filteredActions = baseActions.filter((action) => action.key !== 'segment' || !hasExistingConnection);
+            const hasExistingSegment = this.hasExplicitSceneSegmentBetween(this.selectedPoints);
+            const filteredActions = baseActions.filter((action) => action.key !== 'segment' || !hasExistingSegment);
 
             if (this.canAttachLabelToPointPair(this.selectedPoints)) {
                 const hasExistingLabel = !!this.findEdgeLabelObject(this.selectedPoints);
@@ -4696,7 +4719,7 @@ class TrimensionApp {
 
         if (actionKey === 'segment') {
             const ids = [...this.selectedPoints];
-            if (this.hasSegmentLikeConnection(ids)) {
+            if (this.hasExplicitSceneSegmentBetween(ids)) {
                 this.clearSelection();
                 this.closePanelOnMobile();
                 return;
