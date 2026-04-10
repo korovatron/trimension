@@ -440,7 +440,8 @@ class TrimensionApp {
             sphere: { radius: 3 },
             hemisphere: { radius: 3 },
             cylinder: { radius: 2.5, height: 6 },
-            cone: { radius: 2.5, height: 6 }
+            cone: { radius: 2.5, height: 6 },
+            'rectangular-pyramid': { length: 7, width: 5, height: 6, apexPosition: 'center' }
         };
 
         // compositeSlots: array of { id, primitive, orientation, params, hostSlotId, hostFaceId, attachFaceId, attachRotationQuarterTurns }
