@@ -376,7 +376,7 @@ class TrimensionApp {
         this.pointMarkersVisible = true;
         this.labelMode = 'badge';
         this.gridVisible = true;
-        this.displaySizeMode = 'small';
+        this.displaySizeMode = this.getInitialDisplaySizeMode();
         this.themeMode = 'light';
         this.nextObjectId = 1;
         this.sceneObjects = [];
@@ -897,6 +897,14 @@ class TrimensionApp {
         const isIPadPortrait = isIPad && window.innerHeight > window.innerWidth;
 
         return isPhoneNarrow || isIPadPortrait;
+    }
+
+    getInitialDisplaySizeMode() {
+        const userAgent = navigator.userAgent || '';
+        const isMobileUA = /iPhone|iPod|Android.*Mobile|Windows Phone|webOS|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+        const isNarrowViewport = window.innerWidth < 768;
+
+        return (isNarrowViewport || isMobileUA) ? 'large' : 'small';
     }
 
     closePanelOnMobile() {
