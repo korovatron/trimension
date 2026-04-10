@@ -1093,7 +1093,7 @@ class TrimensionApp {
     applySharedUrlDefaultSectionState() {
         this.panelOpen = true;
         this.primitiveSectionCollapsed = false;
-        this.pointsSectionCollapsed = true;
+        this.pointsSectionCollapsed = false;
         this.objectGroupCollapsed = {
             triangles: true,
             segments: true,
