@@ -1191,7 +1191,10 @@ class TrimensionApp {
         this.buildComposite({ fitCamera: false });
         this.renderCompositeCards();
 
-        const savedObjects = Array.isArray(snapshot.objects?.items) ? snapshot.objects.items : [];
+        const LABEL_LAST_ORDER = { segment: 0, triangle: 1, angle: 2, plane: 3, label: 4 };
+        const savedObjects = (Array.isArray(snapshot.objects?.items) ? snapshot.objects.items : [])
+            .slice()
+            .sort((a, b) => (LABEL_LAST_ORDER[a?.type] ?? 3) - (LABEL_LAST_ORDER[b?.type] ?? 3));
         this.sceneObjects = [];
         let maxObjectId = 0;
 
