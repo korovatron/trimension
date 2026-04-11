@@ -5250,7 +5250,9 @@ class TrimensionApp {
     }
 
     createSegment(start, end, color) {
-        return this.createThickPolyline([start, end], color, 5);
+        const segment = this.createThickPolyline([start, end], color, 5);
+        segment.renderOrder = 21;
+        return segment;
     }
 
     createThickPolyline(points, color, width = 5) {
@@ -5261,7 +5263,9 @@ class TrimensionApp {
             color,
             linewidth: width,
             worldUnits: false,
-            transparent: false
+            transparent: false,
+            depthTest: false,
+            depthWrite: false
         });
         material.resolution.set(this.canvas.clientWidth, this.canvas.clientHeight);
         this.constructionLineMaterials.add(material);
