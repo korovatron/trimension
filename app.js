@@ -65,6 +65,11 @@ document.addEventListener('keydown', (event) => {
         event.preventDefault();
         startApp();
     } else if (event.code === 'Escape') {
+        if (trimensionApp?.isTriangleExtractionOpen?.()) {
+            trimensionApp.closeTriangleExtraction();
+            return;
+        }
+
         if (helpOverlay.classList.contains('show')) {
             helpOverlay.classList.remove('show');
             return;
@@ -392,6 +397,28 @@ class TrimensionApp {
         this.pointsSectionHeader = document.getElementById('points-section-header');
         this.pointsSectionContent = document.getElementById('points-section-content');
         this.pointsSectionArrow = document.getElementById('points-section-arrow');
+        this.triangleExtractOverlay = document.getElementById('triangle-extract-overlay');
+        this.triangleExtractModal = document.getElementById('triangle-extract-modal');
+        this.triangleExtractTitle = document.getElementById('triangle-extract-title');
+        this.triangleExtractSubtitle = document.getElementById('triangle-extract-subtitle');
+        this.triangleExtractFlightSvg = document.getElementById('triangle-extract-flight-svg');
+        this.triangleExtractFlightPolygon = document.getElementById('triangle-extract-flight-polygon');
+        this.triangleExtractFlightOutline = document.getElementById('triangle-extract-flight-outline');
+        this.triangleExtractSvg = document.getElementById('triangle-extract-svg');
+        this.triangleExtractPolygon = document.getElementById('triangle-extract-polygon');
+        this.triangleExtractOutline = document.getElementById('triangle-extract-outline');
+        this.triangleExtractRightAngle = document.getElementById('triangle-extract-right-angle');
+        this.triangleExtractCloseBtn = document.getElementById('triangle-extract-close');
+        this.triangleExtractLabelEls = {
+            A: document.getElementById('triangle-extract-label-a'),
+            B: document.getElementById('triangle-extract-label-b'),
+            C: document.getElementById('triangle-extract-label-c')
+        };
+        this.triangleExtractSideEls = {
+            AB: document.getElementById('triangle-extract-side-ab'),
+            BC: document.getElementById('triangle-extract-side-bc'),
+            CA: document.getElementById('triangle-extract-side-ca')
+        };
 
         this.panelOpen = true;
         this.ghostFaces = true;
@@ -432,6 +459,10 @@ class TrimensionApp {
         };
         this.primitiveSectionCollapsed = false;
         this.pointsSectionCollapsed = false;
+        this.activeTriangleExtraction = null;
+        this.lastFocusedElementBeforeTriangleExtract = null;
+        this.triangleExtractSettleTimer = null;
+        this.triangleExtractAnimationFrame = null;
 
         this.defaultParams = {
             cuboid: { width: 7, depth: 4, height: 5, includeFaceCentersMode: 'off' },
@@ -702,6 +733,18 @@ class TrimensionApp {
         window.addEventListener('keydown', this._handleKeyDown);
         window.addEventListener('keyup', this._handleKeyUp);
 
+        if (this.triangleExtractCloseBtn) {
+            this.triangleExtractCloseBtn.addEventListener('click', () => this.closeTriangleExtraction());
+        }
+
+        if (this.triangleExtractOverlay) {
+            this.triangleExtractOverlay.addEventListener('click', (event) => {
+                if (event.target === this.triangleExtractOverlay) {
+                    this.closeTriangleExtraction();
+                }
+            });
+        }
+
         this.addBtn.addEventListener('click', (event) => {
             event.stopPropagation();
             // Populate dropdown dynamically based on current composite state
@@ -834,8 +877,13 @@ class TrimensionApp {
         ['triangles', 'segments', 'angles', 'planes', 'labels'].forEach((key) => {
             const sec = this.objectSections[key];
             sec.list.addEventListener('click', (event) => {
+                const extractButton = event.target.closest('[data-extract-object-id]');
                 const toggleButton = event.target.closest('[data-toggle-object-id]');
                 const deleteButton = event.target.closest('[data-delete-object-id]');
+                if (extractButton) {
+                    this.openTriangleExtraction(Number(extractButton.dataset.extractObjectId));
+                    return;
+                }
                 if (toggleButton) this.toggleObjectVisibility(Number(toggleButton.dataset.toggleObjectId));
                 if (deleteButton) this.deleteObject(Number(deleteButton.dataset.deleteObjectId));
             });
@@ -1579,6 +1627,397 @@ class TrimensionApp {
         }, Math.max(800, durationMs));
     }
 
+    isTriangleExtractionOpen() {
+        return !!this.activeTriangleExtraction;
+    }
+
+    openTriangleExtraction(objectId) {
+        if (this.isTriangleExtractionOpen()) {
+            this.closeTriangleExtraction();
+        }
+
+        const item = this.sceneObjects.find((entry) => entry.id === objectId && entry.type === 'triangle');
+        if (!item || !item.definition || !Array.isArray(item.definition.pointIds) || item.definition.pointIds.length !== 3) {
+            return;
+        }
+
+        const points = item.definition.pointIds.map((pointId) => this.getPointById(pointId));
+        if (points.some((point) => !point)) {
+            return;
+        }
+
+        const worldPoints = points.map((point) => point.position.clone());
+        const labels = points.map((point) => point.label || point.id);
+        const layout = this.buildTriangleExtractionLayout(worldPoints);
+        if (!layout || !this.triangleExtractOverlay || !this.triangleExtractModal || !this.triangleExtractFlightSvg) {
+            return;
+        }
+        const flightColor = this.getTriangleExtractionColor(item.definition?.color);
+
+        this.activeTriangleExtraction = {
+            objectId: item.id,
+            pointIds: [...item.definition.pointIds]
+        };
+        this.lastFocusedElementBeforeTriangleExtract = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        this.controls.enabled = false;
+        this.populateTriangleExtractionModal(layout, labels, item, flightColor);
+
+        this.triangleExtractOverlay.classList.add('show', 'pre-open');
+        this.triangleExtractOverlay.classList.remove('settled');
+        this.triangleExtractOverlay.setAttribute('aria-hidden', 'false');
+
+        const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+        const animationDurationMs = reducedMotion ? 0 : 1450;
+        const sourcePoints = worldPoints.map((point) => this.projectWorldPointToViewport(point));
+
+        requestAnimationFrame(() => {
+            if (!this.activeTriangleExtraction) {
+                return;
+            }
+
+            this.triangleExtractOverlay.classList.remove('pre-open');
+            const destinationPoints = this.getTriangleExtractionDestinationPoints(layout);
+            this.updateTriangleExtractFlightStyle(flightColor);
+
+            if (!destinationPoints) {
+                this.finalizeTriangleExtractionReveal();
+                return;
+            }
+
+            if (animationDurationMs === 0) {
+                this.renderTriangleExtractFlight(destinationPoints);
+                this.finalizeTriangleExtractionReveal();
+                return;
+            }
+
+            const startTime = performance.now();
+            const step = (now) => {
+                if (!this.activeTriangleExtraction) {
+                    this.triangleExtractAnimationFrame = null;
+                    return;
+                }
+
+                const rawProgress = Math.min(1, (now - startTime) / animationDurationMs);
+                const eased = 1 - Math.pow(1 - rawProgress, 3);
+                const currentPoints = sourcePoints.map((point, index) => ({
+                    x: THREE.MathUtils.lerp(point.x, destinationPoints[index].x, eased),
+                    y: THREE.MathUtils.lerp(point.y, destinationPoints[index].y, eased)
+                }));
+                this.renderTriangleExtractFlight(currentPoints);
+
+                if (rawProgress >= 1) {
+                    this.triangleExtractAnimationFrame = null;
+                    this.finalizeTriangleExtractionReveal();
+                    return;
+                }
+
+                this.triangleExtractAnimationFrame = window.requestAnimationFrame(step);
+            };
+
+            this.renderTriangleExtractFlight(sourcePoints);
+            this.triangleExtractAnimationFrame = window.requestAnimationFrame(step);
+        });
+    }
+
+    closeTriangleExtraction() {
+        if (!this.activeTriangleExtraction || !this.triangleExtractOverlay || !this.triangleExtractModal) {
+            return;
+        }
+
+        if (this.triangleExtractSettleTimer) {
+            window.clearTimeout(this.triangleExtractSettleTimer);
+            this.triangleExtractSettleTimer = null;
+        }
+        if (this.triangleExtractAnimationFrame) {
+            window.cancelAnimationFrame(this.triangleExtractAnimationFrame);
+            this.triangleExtractAnimationFrame = null;
+        }
+
+        this.activeTriangleExtraction = null;
+        this.triangleExtractOverlay.classList.remove('show', 'pre-open', 'settled');
+        this.triangleExtractOverlay.setAttribute('aria-hidden', 'true');
+        this.controls.enabled = true;
+        this.clearTriangleExtractFlight();
+
+        if (this.lastFocusedElementBeforeTriangleExtract?.focus) {
+            this.lastFocusedElementBeforeTriangleExtract.focus();
+        }
+        this.lastFocusedElementBeforeTriangleExtract = null;
+    }
+
+    projectWorldPointToViewport(worldPoint) {
+        const rect = this.canvas.getBoundingClientRect();
+        const projected = worldPoint.clone().project(this.camera);
+        return {
+            x: rect.left + ((projected.x + 1) / 2) * rect.width,
+            y: rect.top + ((1 - projected.y) / 2) * rect.height
+        };
+    }
+
+    getTriangleExtractionDestinationPoints(layout) {
+        if (!this.triangleExtractSvg) {
+            return null;
+        }
+
+        const rect = this.triangleExtractSvg.getBoundingClientRect();
+        if (!rect.width || !rect.height) {
+            return null;
+        }
+
+        return layout.points2D.map((point) => ({
+            x: rect.left + (point.x / layout.stageWidth) * rect.width,
+            y: rect.top + (point.y / layout.stageHeight) * rect.height
+        }));
+    }
+
+    getTriangleExtractionColor(colorValue) {
+        const numericColor = Number.isFinite(colorValue) ? colorValue : 0xff595e;
+        const hex = `#${numericColor.toString(16).padStart(6, '0')}`;
+        return {
+            stroke: hex,
+            fill: `${hex}55`
+        };
+    }
+
+    updateTriangleExtractFlightStyle(color) {
+        if (this.triangleExtractFlightPolygon) {
+            this.triangleExtractFlightPolygon.style.fill = color.fill;
+        }
+        if (this.triangleExtractFlightOutline) {
+            this.triangleExtractFlightOutline.style.stroke = color.stroke;
+        }
+    }
+
+    renderTriangleExtractFlight(points) {
+        if (!this.triangleExtractFlightSvg || !this.triangleExtractFlightPolygon || !this.triangleExtractFlightOutline || points.length !== 3) {
+            return;
+        }
+
+        const overlayRect = this.triangleExtractOverlay.getBoundingClientRect();
+        this.triangleExtractFlightSvg.setAttribute('viewBox', `0 0 ${Math.max(1, overlayRect.width)} ${Math.max(1, overlayRect.height)}`);
+        const localPoints = points.map((point) => ({
+            x: point.x - overlayRect.left,
+            y: point.y - overlayRect.top
+        }));
+        const pointsString = localPoints.map((point) => `${point.x},${point.y}`).join(' ');
+        this.triangleExtractFlightPolygon.setAttribute('points', pointsString);
+        this.triangleExtractFlightOutline.setAttribute('points', `${pointsString} ${localPoints[0].x},${localPoints[0].y}`);
+    }
+
+    clearTriangleExtractFlight() {
+        this.triangleExtractFlightPolygon?.setAttribute('points', '');
+        this.triangleExtractFlightOutline?.setAttribute('points', '');
+    }
+
+    finalizeTriangleExtractionReveal() {
+        this.triangleExtractSettleTimer = window.setTimeout(() => {
+            if (!this.activeTriangleExtraction || !this.triangleExtractOverlay) {
+                return;
+            }
+
+            this.clearTriangleExtractFlight();
+            this.triangleExtractOverlay.classList.add('settled');
+            this.triangleExtractCloseBtn?.focus();
+            this.triangleExtractSettleTimer = null;
+        }, 30);
+    }
+
+    buildTriangleExtractionLayout(worldPoints) {
+        const sideAB = worldPoints[0].distanceTo(worldPoints[1]);
+        const sideBC = worldPoints[1].distanceTo(worldPoints[2]);
+        const sideCA = worldPoints[2].distanceTo(worldPoints[0]);
+        const baseLength = sideAB;
+
+        if (baseLength <= 1e-6) {
+            return null;
+        }
+
+        const cX = (sideCA * sideCA - sideBC * sideBC + baseLength * baseLength) / (2 * baseLength);
+        const cY = Math.sqrt(Math.max(0, sideCA * sideCA - cX * cX));
+        if (cY <= 1e-6) {
+            return null;
+        }
+
+        const rawPoints = [
+            { x: 0, y: 0 },
+            { x: baseLength, y: 0 },
+            { x: cX, y: cY }
+        ];
+        const minX = Math.min(...rawPoints.map((point) => point.x));
+        const maxX = Math.max(...rawPoints.map((point) => point.x));
+        const minY = Math.min(...rawPoints.map((point) => point.y));
+        const maxY = Math.max(...rawPoints.map((point) => point.y));
+        const width = Math.max(maxX - minX, 1e-6);
+        const height = Math.max(maxY - minY, 1e-6);
+        const stageWidth = 1000;
+        const stageHeight = 760;
+        const paddingX = 140;
+        const paddingY = 110;
+        const scale = Math.min((stageWidth - paddingX * 2) / width, (stageHeight - paddingY * 2) / height);
+        const offsetX = (stageWidth - width * scale) / 2 - minX * scale;
+        const offsetY = (stageHeight - height * scale) / 2 + maxY * scale;
+
+        const points2D = rawPoints.map((point) => ({
+            x: offsetX + point.x * scale,
+            y: offsetY - point.y * scale
+        }));
+        const centroid = {
+            x: (points2D[0].x + points2D[1].x + points2D[2].x) / 3,
+            y: (points2D[0].y + points2D[1].y + points2D[2].y) / 3
+        };
+        const labelPositions = points2D.map((point) => {
+            const dx = point.x - centroid.x;
+            const dy = point.y - centroid.y;
+            const length = Math.hypot(dx, dy) || 1;
+            const offset = 52;
+            return {
+                x: point.x + (dx / length) * offset,
+                y: point.y + (dy / length) * offset
+            };
+        });
+        const sideLabelPositions = [
+            this.getOffsetMidpoint(points2D[0], points2D[1], centroid, 34),
+            this.getOffsetMidpoint(points2D[1], points2D[2], centroid, 34),
+            this.getOffsetMidpoint(points2D[2], points2D[0], centroid, 34)
+        ];
+
+        return {
+            points2D,
+            labelPositions,
+            sideLabelPositions,
+            sideLengths: [sideAB, sideBC, sideCA],
+            rightAnglePath: this.buildTriangleRightAnglePath(points2D),
+            stageWidth,
+            stageHeight
+        };
+    }
+
+    getOffsetMidpoint(a, b, centroid, offsetDistance) {
+        const midpoint = {
+            x: (a.x + b.x) / 2,
+            y: (a.y + b.y) / 2
+        };
+        const dx = midpoint.x - centroid.x;
+        const dy = midpoint.y - centroid.y;
+        const length = Math.hypot(dx, dy) || 1;
+        return {
+            x: midpoint.x + (dx / length) * offsetDistance,
+            y: midpoint.y + (dy / length) * offsetDistance
+        };
+    }
+
+    buildTriangleRightAnglePath(points2D) {
+        const rightAngleIndex = this.getRightAngleVertexIndex(points2D, 0.03);
+        if (rightAngleIndex < 0) {
+            return '';
+        }
+
+        const vertex = points2D[rightAngleIndex];
+        const previous = points2D[(rightAngleIndex + 2) % 3];
+        const next = points2D[(rightAngleIndex + 1) % 3];
+        const armLength = 34;
+        const prevDir = { x: previous.x - vertex.x, y: previous.y - vertex.y };
+        const nextDir = { x: next.x - vertex.x, y: next.y - vertex.y };
+        const prevMag = Math.hypot(prevDir.x, prevDir.y) || 1;
+        const nextMag = Math.hypot(nextDir.x, nextDir.y) || 1;
+        const prevUnit = { x: prevDir.x / prevMag, y: prevDir.y / prevMag };
+        const nextUnit = { x: nextDir.x / nextMag, y: nextDir.y / nextMag };
+        const p1 = { x: vertex.x + prevUnit.x * armLength, y: vertex.y + prevUnit.y * armLength };
+        const p2 = { x: p1.x + nextUnit.x * armLength, y: p1.y + nextUnit.y * armLength };
+        const p3 = { x: vertex.x + nextUnit.x * armLength, y: vertex.y + nextUnit.y * armLength };
+        return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y}`;
+    }
+
+    getRightAngleVertexIndex(points2D, tolerance = 0.03) {
+        for (let index = 0; index < points2D.length; index += 1) {
+            const vertex = points2D[index];
+            const previous = points2D[(index + 2) % 3];
+            const next = points2D[(index + 1) % 3];
+            const v1x = previous.x - vertex.x;
+            const v1y = previous.y - vertex.y;
+            const v2x = next.x - vertex.x;
+            const v2y = next.y - vertex.y;
+            const mag1 = Math.hypot(v1x, v1y);
+            const mag2 = Math.hypot(v2x, v2y);
+            if (mag1 <= 1e-6 || mag2 <= 1e-6) {
+                continue;
+            }
+            const cosTheta = (v1x * v2x + v1y * v2y) / (mag1 * mag2);
+            if (Math.abs(cosTheta) <= tolerance) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    populateTriangleExtractionModal(layout, labels, item, color) {
+        const pointSequence = this.formatPointSequence(item.definition.pointIds);
+        const polygonPoints = layout.points2D.map((point) => `${point.x},${point.y}`).join(' ');
+        const sideKeys = ['AB', 'BC', 'CA'];
+        const pointKeys = ['A', 'B', 'C'];
+
+        if (this.triangleExtractTitle) {
+            this.triangleExtractTitle.textContent = `Triangle ${pointSequence}`;
+        }
+        if (this.triangleExtractSubtitle) {
+            const rightAngleIndex = this.getRightAngleVertexIndex(layout.points2D);
+            const rightAngleText = rightAngleIndex >= 0 ? ` Right angle at ${labels[rightAngleIndex]}.` : '';
+            this.triangleExtractSubtitle.textContent = `${labels.join(' -> ')} flattened into a 2D teaching view.${rightAngleText}`;
+        }
+        if (this.triangleExtractSvg) {
+            this.triangleExtractSvg.setAttribute('viewBox', `0 0 ${layout.stageWidth} ${layout.stageHeight}`);
+        }
+        if (this.triangleExtractPolygon) {
+            this.triangleExtractPolygon.setAttribute('points', polygonPoints);
+            if (color) this.triangleExtractPolygon.style.fill = color.fill;
+        }
+        if (this.triangleExtractOutline) {
+            this.triangleExtractOutline.setAttribute('points', `${polygonPoints} ${layout.points2D[0].x},${layout.points2D[0].y}`);
+            if (color) this.triangleExtractOutline.style.stroke = color.stroke;
+        }
+        if (this.triangleExtractRightAngle) {
+            const hasRightAngle = layout.rightAnglePath.length > 0;
+            this.triangleExtractRightAngle.hidden = !hasRightAngle;
+            this.triangleExtractRightAngle.setAttribute('d', layout.rightAnglePath);
+        }
+
+        pointKeys.forEach((key, index) => {
+            const labelEl = this.triangleExtractLabelEls[key];
+            if (!labelEl) return;
+            labelEl.textContent = labels[index];
+            labelEl.setAttribute('x', `${layout.labelPositions[index].x}`);
+            labelEl.setAttribute('y', `${layout.labelPositions[index].y}`);
+        });
+
+        // Side labels: show the edge-label text from the diagram if one exists for that side, otherwise hide
+        const trianglePointIds = item.definition.pointIds;
+        const sidePairs = [
+            [trianglePointIds[0], trianglePointIds[1]],
+            [trianglePointIds[1], trianglePointIds[2]],
+            [trianglePointIds[2], trianglePointIds[0]]
+        ];
+        sideKeys.forEach((key, index) => {
+            const sideEl = this.triangleExtractSideEls[key];
+            if (!sideEl) return;
+            const edgeLabelObj = this.findEdgeLabelObject(sidePairs[index]);
+            const labelText = edgeLabelObj?.definition?.text ?? '';
+            if (labelText) {
+                sideEl.textContent = labelText;
+                sideEl.setAttribute('x', `${layout.sideLabelPositions[index].x}`);
+                sideEl.setAttribute('y', `${layout.sideLabelPositions[index].y}`);
+                sideEl.removeAttribute('visibility');
+            } else {
+                sideEl.textContent = '';
+                sideEl.setAttribute('visibility', 'hidden');
+            }
+        });
+    }
+
+    formatTriangleSideLength(lengthValue) {
+        const rounded = Math.round(lengthValue * 100) / 100;
+        return Number.isInteger(rounded) ? `${rounded}` : rounded.toFixed(2).replace(/0$/, '').replace(/\.$/, '');
+    }
+
     parsePositiveInteger(value) {
         const text = `${value ?? ''}`.trim();
         if (!/^[1-9]\d*$/.test(text)) {
@@ -1775,6 +2214,9 @@ class TrimensionApp {
         this.renderer.setSize(width, height, false);
         this.updateConstructionLineMaterialResolutions();
         this.refreshSliderBadges();
+        if (this.isTriangleExtractionOpen() && this.triangleExtractModal) {
+            this.triangleExtractModal.style.transform = 'translate(0px, 0px) scale(1)';
+        }
     }
 
     updateConstructionLineMaterialResolutions() {
@@ -5771,6 +6213,9 @@ class TrimensionApp {
         const subtitleHtml = showSubtitle && subtitleText
             ? `<span>${subtitleText}</span>`
             : '';
+        const extractButtonHtml = item.type === 'triangle' && item.definition?.pointIds?.length === 3
+            ? `<button type="button" class="object-extract" data-extract-object-id="${item.id}" aria-label="Extract triangle as 2D view" title="Extract as 2D view">2D</button>`
+            : '';
         if (item.type === 'label') {
             row.style.borderLeftColor = '#b9f18a';
         }
@@ -5783,6 +6228,7 @@ class TrimensionApp {
                 ${subtitleHtml}
             </div>
             <div class="object-controls">
+                ${extractButtonHtml}
                 <button
                     type="button"
                     class="object-visibility-btn"
@@ -5929,6 +6375,9 @@ class TrimensionApp {
         if (index === -1) return;
 
         const [item] = this.sceneObjects.splice(index, 1);
+        if (this.activeTriangleExtraction?.objectId === objectId) {
+            this.closeTriangleExtraction();
+        }
         if (item.definition?.kind === 'segment' && Array.isArray(item.definition.pointIds) && item.definition.pointIds.length === 2) {
             this.removeEdgeLabelsForPointPair(item.definition.pointIds, { onlyIfDisconnected: true });
             this.removeMidpointPointsForPair(item.definition.pointIds, { onlyIfDisconnected: true });
@@ -5947,6 +6396,9 @@ class TrimensionApp {
     }
 
     clearObjects() {
+        if (this.isTriangleExtractionOpen()) {
+            this.closeTriangleExtraction();
+        }
         this.sceneObjects.forEach((item) => {
             this.scene.remove(item.object3D);
             this.disposeObject3D(item.object3D);
@@ -6138,6 +6590,7 @@ class TrimensionApp {
         window.removeEventListener('keydown', this._handleKeyDown);
         window.removeEventListener('keyup', this._handleKeyUp);
         this.canvas.removeEventListener('pointerdown', this.handleCanvasPointerDown);
+        this.closeTriangleExtraction();
         this.clearObjects();
         this.clearPrimitive();
         window.cancelAnimationFrame(this.animationFrameId);

@@ -24,10 +24,28 @@
     --safe-area-bottom: env(safe-area-inset-bottom);
     --safe-area-left: env(safe-area-inset-left);
     --safe-area-right: env(safe-area-inset-right);
+    /* Triangle extract modal — light-theme values */
+    --extract-modal-border: rgba(0, 0, 0, 0.12);
+    --extract-stage-border: rgba(0, 0, 0, 0.08);
+    --extract-stage-bg: rgba(0, 0, 0, 0.04);
+    --extract-text: #1a2f42;
+    --extract-text-muted: rgba(26, 47, 66, 0.6);
+    --extract-label-fill: #1a2f42;
+    --extract-close-border: rgba(0, 0, 0, 0.14);
+    --extract-close-bg: rgba(0, 0, 0, 0.06);
 }
 
 html[data-theme="dark"] {
     --canvas-bg: #606060;
+    /* Triangle extract modal — dark-theme overrides */
+    --extract-modal-border: rgba(255, 255, 255, 0.16);
+    --extract-stage-border: rgba(255, 255, 255, 0.08);
+    --extract-stage-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+    --extract-text: #E8F4FD;
+    --extract-text-muted: rgba(232, 244, 253, 0.68);
+    --extract-label-fill: #ffffff;
+    --extract-close-border: rgba(255, 255, 255, 0.16);
+    --extract-close-bg: rgba(255, 255, 255, 0.06);
 }
 
 html,
@@ -1169,6 +1187,22 @@ textarea {
     align-items: center;
     flex-shrink: 0;
     min-height: 100%;
+    gap: 6px;
+}
+
+.object-extract {
+    min-width: 38px;
+    height: 22px;
+    padding: 0 8px;
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 6px;
+    background: rgba(74, 144, 226, 0.2);
+    color: var(--text-primary);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: transform 0.2s ease, filter 0.2s ease, border-color 0.2s ease;
 }
 
 .object-visibility-btn {
@@ -1202,6 +1236,12 @@ textarea {
     .object-visibility-btn:hover {
         border-color: rgba(255, 255, 255, 0.5);
         transform: scale(1.1);
+    }
+
+    .object-extract:hover {
+        filter: brightness(1.1);
+        border-color: rgba(255, 255, 255, 0.42);
+        transform: translateY(-1px);
     }
 }
 
@@ -1427,6 +1467,250 @@ textarea {
     display: flex;
 }
 
+.triangle-extract-overlay {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(18px, 4vw, 36px);
+    background: rgba(5, 12, 18, 0);
+    backdrop-filter: blur(0px);
+    z-index: 2800;
+    transition: background 0.34s ease, backdrop-filter 0.34s ease;
+}
+
+.triangle-extract-overlay.show {
+    display: flex;
+    background: rgba(5, 12, 18, 0.74);
+    backdrop-filter: blur(3px);
+}
+
+.triangle-extract-flight-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.triangle-extract-flight-polygon {
+    fill: rgba(110, 184, 255, 0.34);
+}
+
+.triangle-extract-flight-outline {
+    fill: none;
+    stroke: #9ed0ff;
+    stroke-width: 3;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.triangle-extract-modal {
+    position: relative;
+    z-index: 1;
+    width: min(880px, calc(100vw - 28px));
+    max-height: min(92vh, calc(var(--actual-vh, 100vh) - 20px));
+    border: 1px solid transparent;
+    border-radius: 22px;
+    background: transparent;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+    transform: none;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        opacity 0.24s ease,
+        background 0.24s ease,
+        border-color 0.24s ease,
+        box-shadow 0.24s ease,
+        padding 0.24s ease,
+        gap 0.24s ease;
+}
+
+.triangle-extract-overlay.pre-open .triangle-extract-modal {
+    transition: none;
+}
+
+.triangle-extract-overlay.settled .triangle-extract-modal {
+    opacity: 1;
+    pointer-events: auto;
+    border-color: var(--extract-modal-border);
+    background: var(--canvas-bg);
+    box-shadow: 0 34px 72px rgba(0, 0, 0, 0.44);
+    gap: 20px;
+    padding: clamp(18px, 2.8vw, 28px);
+}
+
+.triangle-extract-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    transform: translateY(10px);
+    transition: opacity 0.22s ease, transform 0.22s ease, max-height 0.22s ease;
+}
+
+.triangle-extract-overlay.settled .triangle-extract-header {
+    opacity: 1;
+    max-height: 140px;
+    transform: translateY(0);
+}
+
+.triangle-extract-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.triangle-extract-kicker {
+    margin: 0;
+    color: var(--accent-color);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.triangle-extract-header h2 {
+    margin: 0;
+    font-size: clamp(1.35rem, 2.6vw, 1.9rem);
+    line-height: 1.1;
+    color: var(--extract-text);
+}
+
+.triangle-extract-subtitle {
+    margin: 0;
+    color: var(--extract-text-muted);
+    line-height: 1.4;
+    font-size: 0.92rem;
+}
+
+.triangle-extract-close {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    border: 1px solid var(--extract-close-border);
+    background: var(--extract-close-bg);
+    color: var(--extract-text);
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.triangle-extract-stage {
+    min-height: min(62vh, 620px);
+    border-radius: 18px;
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 0;
+    transition: background 0.24s ease, border-color 0.24s ease, padding 0.24s ease;
+}
+
+.triangle-extract-overlay.settled .triangle-extract-stage {
+    background: var(--extract-stage-bg);
+    border-color: var(--extract-stage-border);
+    padding: clamp(12px, 2vw, 18px);
+}
+
+.triangle-extract-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    overflow: visible;
+}
+
+.triangle-extract-polygon {
+    fill: transparent; /* overridden by JS with the triangle's 3D color */
+}
+
+.triangle-extract-outline {
+    fill: none;
+    /* stroke set dynamically via JS to match the triangle's 3D color */
+    stroke-width: 8;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.triangle-extract-right-angle {
+    fill: none;
+    stroke: #ffd166;
+    stroke-width: 7;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+}
+
+.triangle-extract-overlay.settled .triangle-extract-right-angle {
+    opacity: 1;
+}
+
+.triangle-extract-label {
+    fill: var(--extract-label-fill);
+    font-size: 34px;
+    font-weight: 700;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+}
+
+.triangle-extract-side-label {
+    fill: var(--extract-label-fill);
+    font-size: 24px;
+    font-weight: 600;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+}
+
+.triangle-extract-overlay.settled .triangle-extract-label,
+.triangle-extract-overlay.settled .triangle-extract-side-label {
+    opacity: 1;
+}
+
+.triangle-extract-footer {
+    display: flex;
+    justify-content: flex-start;
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    transform: translateY(10px);
+    transition: opacity 0.22s ease, transform 0.22s ease, max-height 0.22s ease;
+}
+
+.triangle-extract-overlay.settled .triangle-extract-footer {
+    opacity: 1;
+    max-height: 80px;
+    transform: translateY(0);
+}
+
+.triangle-extract-note {
+    margin: 0;
+    color: var(--extract-text-muted);
+    font-size: 0.86rem;
+    line-height: 1.45;
+}
+
+@media (hover: hover) {
+    .triangle-extract-close:hover {
+        filter: brightness(1.12);
+    }
+}
+
 .help-content {
     width: min(520px, 100%);
     border: 1px solid var(--border-color);
@@ -1453,6 +1737,26 @@ textarea {
 }
 
 @media (max-width: 768px) {
+    .triangle-extract-modal {
+        width: min(100vw - 16px, 760px);
+        max-height: min(94vh, calc(var(--actual-vh, 100vh) - 12px));
+        border-radius: 18px;
+        padding: 18px;
+        gap: 14px;
+    }
+
+    .triangle-extract-stage {
+        min-height: min(58vh, 560px);
+    }
+
+    .triangle-extract-label {
+        font-size: 28px;
+    }
+
+    .triangle-extract-side-label {
+        font-size: 21px;
+    }
+
     .control-panel {
         width: 330px;
     }
@@ -1527,4 +1831,12 @@ textarea {
 .app-toast.show {
     opacity: 1;
     transform: translate(-50%, 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .triangle-extract-overlay,
+    .triangle-extract-modal,
+    .object-extract {
+        transition: none !important;
+    }
 }
