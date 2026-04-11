@@ -882,6 +882,7 @@ class TrimensionApp {
             sec.list.addEventListener('click', (event) => {
                 const extractButton = event.target.closest('[data-extract-object-id]');
                 const editLabelButton = event.target.closest('[data-edit-label-object-id]');
+                const editAngleButton = event.target.closest('[data-edit-angle-object-id]');
                 const toggleButton = event.target.closest('[data-toggle-object-id]');
                 const deleteButton = event.target.closest('[data-delete-object-id]');
                 if (extractButton) {
@@ -890,6 +891,10 @@ class TrimensionApp {
                 }
                 if (editLabelButton) {
                     this.editLabelFromObjectCard(Number(editLabelButton.dataset.editLabelObjectId));
+                    return;
+                }
+                if (editAngleButton) {
+                    this.editAngleFromObjectCard(Number(editAngleButton.dataset.editAngleObjectId));
                     return;
                 }
                 if (toggleButton) this.toggleObjectVisibility(Number(toggleButton.dataset.toggleObjectId));
@@ -6517,13 +6522,17 @@ class TrimensionApp {
             : null;
         const visibilityColor = item.type === 'label' ? '#b9f18a' : itemColor;
         const displayName = this.getSceneObjectDisplayName(item);
-        const showSubtitle = item.type === 'angle' || item.type === 'label';
+        const isAngle = item.type === 'angle' && item.definition?.kind === 'angle' && Array.isArray(item.definition?.pointIds) && item.definition.pointIds.length === 3;
+        const displayNameHtml = isAngle ? this.getAngleDisplayHtml(item) : displayName;
+        const showSubtitle = item.type === 'label';
         const subtitleText = typeof item.subtitle === 'string' ? item.subtitle : '';
         const isEditableLabel = item.type === 'label'
             && (item.definition?.kind === 'edge-label' || item.definition?.kind === 'length-label' || item.definition?.kind === 'point-label');
-        const subtitleHtml = isEditableLabel
-            ? `<button type="button" class="object-label-edit" data-edit-label-object-id="${item.id}" title="Change label text">Change Label</button>`
-            : (showSubtitle && subtitleText ? `<span>${subtitleText}</span>` : '');
+        const subtitleHtml = isAngle
+            ? `<button type="button" class="object-label-edit" data-edit-angle-object-id="${item.id}" title="Change angle label">Change Angle</button>`
+            : (isEditableLabel
+                ? `<button type="button" class="object-label-edit" data-edit-label-object-id="${item.id}" title="Change label text">Change Label</button>`
+                : (showSubtitle && subtitleText ? `<span>${subtitleText}</span>` : ''));
         const extractButtonHtml = item.type === 'triangle' && item.definition?.pointIds?.length === 3
             ? `<button type="button" class="object-extract" data-extract-object-id="${item.id}" aria-label="Examine triangle as a flattened 2D view" title="Flatten this triangle into a 2D teaching view, showing its true shape, edge labels, and angle markers"${item.visible ? '' : ' disabled'}>Examine</button>`
             : '';
@@ -6535,7 +6544,7 @@ class TrimensionApp {
         }
         row.innerHTML = `
             <div class="object-name">
-                <strong>${displayName}</strong>
+                <strong>${displayNameHtml}</strong>
                 ${subtitleHtml}
                 ${extractButtonHtml}
             </div>
@@ -6600,6 +6609,64 @@ class TrimensionApp {
 
         this.renderObjectsList();
         this.syncEdgeLabelVisibility();
+    }
+
+    async editAngleFromObjectCard(objectId) {
+        const item = this.sceneObjects.find((entry) => entry.id === objectId && entry.type === 'angle');
+        if (!item || !item.definition) {
+            return;
+        }
+
+        const def = item.definition;
+        if (!Array.isArray(def.pointIds) || def.pointIds.length !== 3) {
+            return;
+        }
+
+        const vertexLabel = this.getPointById(def.pointIds[1])?.label || def.pointIds[1];
+        const vectors = this.getVectorsByPointIds(def.pointIds);
+        if (!vectors || vectors.some((v) => !v)) {
+            return;
+        }
+
+        let angleLabelInput = def.text || '';
+        while (true) {
+            const nextLabel = await this.showPromptModal(`Change label for angle at ${vertexLabel}`, angleLabelInput, { quickSymbols: true });
+            if (nextLabel == null) {
+                return;
+            }
+
+            angleLabelInput = nextLabel.trim();
+            if (angleLabelInput) {
+                break;
+            }
+
+            await this.showAlertModal('Angle label cannot be blank.');
+        }
+
+        const color = def.color;
+        const angleGroup = this.createAngleMarker(vectors[0], vectors[1], vectors[2], angleLabelInput, color);
+        item.name = `Angle ${angleLabelInput}`;
+        item.subtitle = `Angle at ${vertexLabel}`;
+        item.definition = { ...def, text: angleLabelInput };
+        this.scene.remove(item.object3D);
+        this.disposeObject3D(item.object3D);
+        angleGroup.userData.sceneObjectId = item.id;
+        item.object3D = angleGroup;
+        item.object3D.visible = item.visible;
+        this.scene.add(item.object3D);
+        this.renderObjectsList();
+        this.renderSelectionSummary();
+        this.renderActions();
+    }
+
+    getAngleDisplayHtml(item) {
+        const def = item?.definition;
+        if (!def || def.kind !== 'angle' || !Array.isArray(def.pointIds) || def.pointIds.length !== 3) {
+            return item.name;
+        }
+
+        const [aLabel, bLabel, cLabel] = def.pointIds.map((id) => this.getPointById(id)?.label || id);
+        return `Angle ${aLabel}${bLabel}\u0302${cLabel}`;
     }
 
     getSceneObjectDisplayName(item) {
