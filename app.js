@@ -5745,9 +5745,13 @@ class TrimensionApp {
             sec.list.innerHTML = '';
             items.forEach((item) => sec.list.appendChild(this.renderObjectItem(item)));
             if (sec.title) {
-                sec.title.textContent = items.length > 0
-                    ? `${sec.baseTitle} (${items.length})`
-                    : sec.baseTitle;
+                sec.title.textContent = sec.baseTitle;
+                if (items.length > 0) {
+                    const countEl = document.createElement('span');
+                    countEl.className = 'section-object-count';
+                    countEl.textContent = ` (${items.length})`;
+                    sec.title.appendChild(countEl);
+                }
             }
         }
     }

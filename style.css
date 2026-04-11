@@ -661,6 +661,10 @@ textarea {
     flex: 1;
 }
 
+.section-object-count {
+    color: #ffd54a;
+}
+
 .collapsible-section-content {
     margin-top: var(--collapsible-content-gap);
     max-height: 1200px;
