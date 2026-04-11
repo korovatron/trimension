@@ -726,6 +726,7 @@ class TrimensionApp {
         this._keysHeld = new Set();
         this._handleKeyDown = (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+            if (this.triangleExtractOverlay?.classList.contains('show')) return;
             const nav = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
             if (nav.includes(e.key)) e.preventDefault();
             this._keysHeld.add(e.code);
@@ -1661,6 +1662,7 @@ class TrimensionApp {
         };
         this.lastFocusedElementBeforeTriangleExtract = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         this.controls.enabled = false;
+        this._keysHeld?.clear();
         this.populateTriangleExtractionModal(layout, labels, item, flightColor);
 
         this.triangleExtractOverlay.classList.add('show', 'pre-open');
@@ -6277,7 +6279,7 @@ class TrimensionApp {
             ? `<span>${subtitleText}</span>`
             : '';
         const extractButtonHtml = item.type === 'triangle' && item.definition?.pointIds?.length === 3
-            ? `<button type="button" class="object-extract" data-extract-object-id="${item.id}" aria-label="Extract triangle as 2D view" title="Extract as 2D view">2D</button>`
+            ? `<button type="button" class="object-extract" data-extract-object-id="${item.id}" aria-label="Examine triangle as a flattened 2D view" title="Flatten this triangle into a 2D teaching view, showing its true shape, edge labels, and angle markers"${item.visible ? '' : ' disabled'}>Examine</button>`
             : '';
         if (item.type === 'label') {
             row.style.borderLeftColor = '#b9f18a';
@@ -6289,9 +6291,9 @@ class TrimensionApp {
             <div class="object-name">
                 <strong>${displayName}</strong>
                 ${subtitleHtml}
+                ${extractButtonHtml}
             </div>
             <div class="object-controls">
-                ${extractButtonHtml}
                 <button
                     type="button"
                     class="object-visibility-btn"
@@ -6602,6 +6604,7 @@ class TrimensionApp {
 
     applyKeyboardCameraInput() {
         if (!this._keysHeld || this._keysHeld.size === 0) return;
+        if (this.triangleExtractOverlay?.classList.contains('show')) return;
 
         const rotateSpeed = 0.022;
         const zoomSpeed = 0.04;

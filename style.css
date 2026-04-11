@@ -1177,9 +1177,10 @@ textarea {
 }
 
 .object-extract {
-    min-width: 38px;
+    align-self: flex-start;
+    margin-top: 5px;
     height: 22px;
-    padding: 0 8px;
+    padding: 0 10px;
     border: 1px solid rgba(255, 255, 255, 0.24);
     border-radius: 6px;
     background: rgba(74, 144, 226, 0.2);
@@ -1189,6 +1190,12 @@ textarea {
     letter-spacing: 0.04em;
     cursor: pointer;
     transition: transform 0.2s ease, filter 0.2s ease, border-color 0.2s ease;
+}
+
+.object-extract:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
 .object-visibility-btn {
