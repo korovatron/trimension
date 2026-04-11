@@ -405,6 +405,7 @@ class TrimensionApp {
         this.selectedPoints = [];
         this.pointDefinitions = [];
         this.derivedPoints = [];
+        this.isRestoringSharedState = false;
         this.baseLabelOverrides = new Map();
         this.derivedLabelOverrides = new Map();
         this.pointMarkers = new Map();
@@ -1164,6 +1165,9 @@ class TrimensionApp {
         this.baseLabelOverrides = new Map(Array.isArray(snapshot.labels?.base) ? snapshot.labels.base : []);
         this.derivedLabelOverrides = new Map(Array.isArray(snapshot.labels?.derived) ? snapshot.labels.derived : []);
 
+        this.isRestoringSharedState = true;
+        try {
+
         const rawSlots = Array.isArray(snapshot.composite?.slots) ? snapshot.composite.slots : [];
         const normalizedSlots = rawSlots
             .map((slot) => this.normalizeSlotForRestore(slot))
@@ -1192,7 +1196,7 @@ class TrimensionApp {
         this.buildComposite({ fitCamera: false });
         this.renderCompositeCards();
 
-        // Two-pass restore: non-labels first so derived points (midpoints) exist
+        // Two-pass restore: non-labels first so derived points (midpoints, ratio points) exist
         // before labels try to resolve their point IDs and attachment checks.
         const NON_LABEL_ORDER = { segment: 0, triangle: 1, angle: 2, plane: 3 };
         const allSavedObjects = Array.isArray(snapshot.objects?.items) ? snapshot.objects.items : [];
@@ -1203,8 +1207,8 @@ class TrimensionApp {
         const nonLabelObjects = allSavedObjects
             .filter((s) => !isDeferredVisualLabel(s))
             .sort((a, b) => (NON_LABEL_ORDER[a?.type] ?? 3) - (NON_LABEL_ORDER[b?.type] ?? 3));
-        const midpointHelperObjects = nonLabelObjects.filter((s) => s?.definition?.kind === 'midpoint-point');
-        const otherNonLabelObjects = nonLabelObjects.filter((s) => s?.definition?.kind !== 'midpoint-point');
+        const derivedPointHelperObjects = nonLabelObjects.filter((s) => s?.definition?.kind === 'midpoint-point' || s?.definition?.kind === 'ratio-point');
+        const otherNonLabelObjects = nonLabelObjects.filter((s) => s?.definition?.kind !== 'midpoint-point' && s?.definition?.kind !== 'ratio-point');
         const labelObjects = allSavedObjects.filter((s) => isDeferredVisualLabel(s));
 
         this.sceneObjects = [];
@@ -1259,8 +1263,8 @@ class TrimensionApp {
             return pending;
         };
 
-        // Pass 1: midpoint helpers first so derived midpoint IDs can materialise.
-        restorePendingObjects(midpointHelperObjects);
+        // Pass 1: derived point helpers first so derived point IDs can materialise.
+        restorePendingObjects(derivedPointHelperObjects);
 
         // Pass 2: geometry and other non-label objects.
         restorePendingObjects(otherNonLabelObjects);
@@ -1308,6 +1312,9 @@ class TrimensionApp {
         }
 
         return true;
+        } finally {
+            this.isRestoringSharedState = false;
+        }
     }
 
     async handleShareButtonClick() {
@@ -1339,6 +1346,7 @@ class TrimensionApp {
             const overlay = document.getElementById('custom-modal-overlay');
             const msgEl   = document.getElementById('custom-modal-message');
             const input   = document.getElementById('custom-modal-input');
+            const ratioFields = document.getElementById('custom-modal-ratio-fields');
             const symbols = document.getElementById('custom-modal-symbols');
             const errorEl = document.getElementById('custom-modal-error');
             const confirm = document.getElementById('custom-modal-confirm');
@@ -1356,7 +1364,11 @@ class TrimensionApp {
 
             msgEl.textContent = message;
             input.value = defaultValue;
+            input.hidden = false;
             errorEl.textContent = '';
+            if (ratioFields) {
+                ratioFields.hidden = true;
+            }
             if (symbols) {
                 symbols.hidden = !allowQuickSymbols;
             }
@@ -1372,6 +1384,10 @@ class TrimensionApp {
                 cancel.removeEventListener('click', onCancel);
                 overlay.removeEventListener('click', onBackdrop);
                 input.removeEventListener('keydown', onKey);
+                input.hidden = false;
+                if (ratioFields) {
+                    ratioFields.hidden = true;
+                }
                 if (symbols) {
                     symbols.removeEventListener('click', onSymbolClick);
                     symbols.hidden = true;
@@ -1410,6 +1426,84 @@ class TrimensionApp {
             if (symbols && allowQuickSymbols) {
                 symbols.addEventListener('click', onSymbolClick);
             }
+        });
+    }
+
+    showRatioPromptModal(message, defaultLeft = 1, defaultRight = 2) {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById('custom-modal-overlay');
+            const msgEl = document.getElementById('custom-modal-message');
+            const input = document.getElementById('custom-modal-input');
+            const ratioFields = document.getElementById('custom-modal-ratio-fields');
+            const leftInput = document.getElementById('custom-modal-ratio-left');
+            const rightInput = document.getElementById('custom-modal-ratio-right');
+            const symbols = document.getElementById('custom-modal-symbols');
+            const errorEl = document.getElementById('custom-modal-error');
+            const confirm = document.getElementById('custom-modal-confirm');
+            const cancel = document.getElementById('custom-modal-cancel');
+
+            if (!overlay || !msgEl || !input || !ratioFields || !leftInput || !rightInput || !errorEl || !confirm || !cancel) {
+                resolve(null);
+                return;
+            }
+
+            msgEl.textContent = message;
+            input.hidden = true;
+            ratioFields.hidden = false;
+            leftInput.value = `${defaultLeft}`;
+            rightInput.value = `${defaultRight}`;
+            errorEl.textContent = '';
+            if (symbols) {
+                symbols.hidden = true;
+            }
+            overlay.classList.add('show');
+            overlay.setAttribute('aria-hidden', 'false');
+
+            setTimeout(() => {
+                leftInput.focus();
+                leftInput.select();
+            }, 50);
+
+            const close = (value) => {
+                overlay.classList.remove('show');
+                overlay.setAttribute('aria-hidden', 'true');
+                input.hidden = false;
+                ratioFields.hidden = true;
+                confirm.removeEventListener('click', onConfirm);
+                cancel.removeEventListener('click', onCancel);
+                overlay.removeEventListener('click', onBackdrop);
+                leftInput.removeEventListener('keydown', onKey);
+                rightInput.removeEventListener('keydown', onKey);
+                resolve(value);
+            };
+
+            const onConfirm = () => {
+                const ratio = this.reduceRatio(leftInput.value, rightInput.value);
+                if (!ratio) {
+                    errorEl.textContent = 'Enter positive whole numbers for both sides of the ratio.';
+                    return;
+                }
+
+                close(ratio);
+            };
+            const onCancel = () => close(null);
+            const onBackdrop = (e) => { if (e.target === overlay) close(null); };
+            const onKey = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    onConfirm();
+                }
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    close(null);
+                }
+            };
+
+            confirm.addEventListener('click', onConfirm);
+            cancel.addEventListener('click', onCancel);
+            overlay.addEventListener('click', onBackdrop);
+            leftInput.addEventListener('keydown', onKey);
+            rightInput.addEventListener('keydown', onKey);
         });
     }
 
@@ -1484,6 +1578,43 @@ class TrimensionApp {
             }
             this.toastHideTimer = null;
         }, Math.max(800, durationMs));
+    }
+
+    parsePositiveInteger(value) {
+        const text = `${value ?? ''}`.trim();
+        if (!/^[1-9]\d*$/.test(text)) {
+            return null;
+        }
+
+        const parsed = Number(text);
+        return Number.isSafeInteger(parsed) ? parsed : null;
+    }
+
+    greatestCommonDivisor(leftValue, rightValue) {
+        let left = Math.abs(leftValue);
+        let right = Math.abs(rightValue);
+
+        while (right !== 0) {
+            const remainder = left % right;
+            left = right;
+            right = remainder;
+        }
+
+        return left || 1;
+    }
+
+    reduceRatio(leftValue, rightValue) {
+        const left = this.parsePositiveInteger(leftValue);
+        const right = this.parsePositiveInteger(rightValue);
+        if (!left || !right) {
+            return null;
+        }
+
+        const divisor = this.greatestCommonDivisor(left, right);
+        return {
+            left: left / divisor,
+            right: right / divisor
+        };
     }
 
     toggleGrid() {
@@ -3416,7 +3547,9 @@ class TrimensionApp {
 
     canAttachLabelToPointPair(pointIds) {
         // Labels can attach to any valid edge connection, including raw primitive edges.
-        return this.hasPrimitiveEdgeBetween(pointIds) || this.hasSceneSegmentBetween(pointIds);
+        return this.hasPrimitiveEdgeBetween(pointIds)
+            || this.hasSceneSegmentBetween(pointIds)
+            || this.hasSharedDerivedEdgeParent(pointIds);
     }
 
     canAttachMidpointToPointPair(pointIds) {
@@ -3424,7 +3557,23 @@ class TrimensionApp {
     }
 
     hasSegmentLikeConnection(pointIds) {
-        return this.hasPrimitiveEdgeBetween(pointIds) || this.hasSceneSegmentBetween(pointIds);
+        return this.hasPrimitiveEdgeBetween(pointIds)
+            || this.hasSceneSegmentBetween(pointIds)
+            || this.hasSharedDerivedEdgeParent(pointIds);
+    }
+
+    hasSharedDerivedEdgeParent(pointIds) {
+        if (!Array.isArray(pointIds) || pointIds.length !== 2 || pointIds[0] === pointIds[1]) {
+            return false;
+        }
+
+        const firstPair = this.getDerivedEdgeBasePairForPointId(pointIds[0]);
+        const secondPair = this.getDerivedEdgeBasePairForPointId(pointIds[1]);
+        if (!firstPair || !secondPair) {
+            return false;
+        }
+
+        return firstPair[0] === secondPair[0] && firstPair[1] === secondPair[1];
     }
 
     canAttachAngleFromOrderedPoints(pointIds) {
@@ -3484,6 +3633,23 @@ class TrimensionApp {
         return null;
     }
 
+    getRatioSignatureForPointId(pointId) {
+        const point = this.getPointById(pointId);
+        if (!point || !point.isDerived) {
+            return null;
+        }
+
+        if (typeof point.signature === 'string' && point.signature.startsWith('ratio|')) {
+            return point.signature;
+        }
+
+        if (typeof point.id === 'string' && point.id.startsWith('derived-ratio|')) {
+            return point.id.replace('derived-', '');
+        }
+
+        return null;
+    }
+
     findMidpointObjectByPointId(pointId) {
         const signature = this.getMidpointSignatureForPointId(pointId);
         if (!signature) {
@@ -3491,6 +3657,27 @@ class TrimensionApp {
         }
 
         return this.sceneObjects.find((entry) => entry.definition?.kind === 'midpoint-point' && entry.definition.signature === signature) || null;
+    }
+
+    findRatioPointObjectByPointId(pointId) {
+        const signature = this.getRatioSignatureForPointId(pointId);
+        if (!signature) {
+            return null;
+        }
+
+        return this.sceneObjects.find((entry) => entry.definition?.kind === 'ratio-point' && entry.definition.signature === signature) || null;
+    }
+
+    findDerivedEdgePointObjectByPointId(pointId) {
+        return this.findMidpointObjectByPointId(pointId) || this.findRatioPointObjectByPointId(pointId);
+    }
+
+    hasRatioPointForSignature(signature) {
+        if (!signature) {
+            return false;
+        }
+
+        return this.sceneObjects.some((entry) => entry.definition?.kind === 'ratio-point' && entry.definition.signature === signature);
     }
 
     removeEdgeLabelsForPointPair(pointIds, options = {}) {
@@ -3542,6 +3729,38 @@ class TrimensionApp {
         const survivors = [];
         this.sceneObjects.forEach((entry) => {
             if (entry.definition?.kind !== 'midpoint-point' || entry.definition.signature !== signature) {
+                survivors.push(entry);
+                return;
+            }
+
+            this.scene.remove(entry.object3D);
+            this.disposeObject3D(entry.object3D);
+        });
+
+        this.sceneObjects = survivors;
+    }
+
+    removeRatioPointsForPair(pointIds, options = {}) {
+        const normalized = this.normalizePointPairIds(pointIds);
+        if (!normalized) {
+            return;
+        }
+
+        const onlyIfDisconnected = options.onlyIfDisconnected === true;
+        if (onlyIfDisconnected && this.canAttachMidpointToPointPair(normalized)) {
+            return;
+        }
+
+        const survivors = [];
+        this.sceneObjects.forEach((entry) => {
+            if (entry.definition?.kind !== 'ratio-point') {
+                survivors.push(entry);
+                return;
+            }
+
+            const pair = this.normalizePointPairIds(entry.definition.pointIds || []);
+            const isTargetPair = !!pair && pair[0] === normalized[0] && pair[1] === normalized[1];
+            if (!isTargetPair) {
                 survivors.push(entry);
                 return;
             }
@@ -3644,6 +3863,8 @@ class TrimensionApp {
 
         removedPairs.forEach((pair) => {
             this.removeEdgeLabelsForPointPair(pair, { onlyIfDisconnected: true });
+            this.removeMidpointPointsForPair(pair, { onlyIfDisconnected: true });
+            this.removeRatioPointsForPair(pair, { onlyIfDisconnected: true });
         });
     }
 
@@ -3677,6 +3898,51 @@ class TrimensionApp {
     makeMidpointSignature(pointIds) {
         const normalized = this.normalizePointPairIds(pointIds);
         return normalized ? `midpoint|${normalized[0]}|${normalized[1]}` : null;
+    }
+
+    makeRatioPointSignature(pointIds, leftValue, rightValue) {
+        const normalizedPair = this.normalizePointPairIds(pointIds);
+        const ratio = this.reduceRatio(leftValue, rightValue);
+        if (!normalizedPair || !ratio) {
+            return null;
+        }
+
+        const usesNormalizedOrder = normalizedPair[0] === pointIds[0] && normalizedPair[1] === pointIds[1];
+        const left = usesNormalizedOrder ? ratio.left : ratio.right;
+        const right = usesNormalizedOrder ? ratio.right : ratio.left;
+        return `ratio|${normalizedPair[0]}|${normalizedPair[1]}|${left}|${right}`;
+    }
+
+    getDerivedEdgeBasePairFromSignature(signature) {
+        if (typeof signature !== 'string') {
+            return null;
+        }
+
+        const midpointMatch = /^midpoint\|([^|]+)\|([^|]+)$/.exec(signature);
+        if (midpointMatch) {
+            return this.normalizePointPairIds([midpointMatch[1], midpointMatch[2]]);
+        }
+
+        const ratioMatch = /^ratio\|([^|]+)\|([^|]+)\|([1-9]\d*)\|([1-9]\d*)$/.exec(signature);
+        if (ratioMatch) {
+            return this.normalizePointPairIds([ratioMatch[1], ratioMatch[2]]);
+        }
+
+        return null;
+    }
+
+    getDerivedEdgeBasePairForPointId(pointId) {
+        const midpointSignature = this.getMidpointSignatureForPointId(pointId);
+        if (midpointSignature) {
+            return this.getDerivedEdgeBasePairFromSignature(midpointSignature);
+        }
+
+        const ratioSignature = this.getRatioSignatureForPointId(pointId);
+        if (ratioSignature) {
+            return this.getDerivedEdgeBasePairFromSignature(ratioSignature);
+        }
+
+        return null;
     }
 
     async changeSelectedPointLabel() {
@@ -4339,9 +4605,10 @@ class TrimensionApp {
         const baseActions = [...(this.actionsByCount[this.selectedPoints.length] || [])];
 
         if (this.selectedPoints.length === 1) {
-            const midpointObject = this.findMidpointObjectByPointId(this.selectedPoints[0]);
-            if (midpointObject) {
-                baseActions.push({ key: 'delete-midpoint', label: 'Delete Midpoint' });
+            const derivedPointObject = this.findDerivedEdgePointObjectByPointId(this.selectedPoints[0]);
+            if (derivedPointObject) {
+                const label = derivedPointObject.definition?.kind === 'ratio-point' ? 'Delete Ratio Point' : 'Delete Midpoint';
+                baseActions.push({ key: 'delete-derived-point', label });
             }
         }
 
@@ -4356,6 +4623,10 @@ class TrimensionApp {
 
             if (this.canAttachMidpointToPointPair(this.selectedPoints) && !this.hasMidpointForPair(this.selectedPoints)) {
                 filteredActions.push({ key: 'add-midpoint', label: 'Add Midpoint' });
+            }
+
+            if (this.canAttachMidpointToPointPair(this.selectedPoints)) {
+                filteredActions.push({ key: 'add-ratio-point', label: 'Add Ratio Point' });
             }
 
             return filteredActions;
@@ -4495,19 +4766,13 @@ class TrimensionApp {
 
         const derived = [];
         const activeDerivedSignatures = new Set();
-
-        const midpointDefinitions = this.sceneObjects
+        const edgeDivisionDefinitions = this.sceneObjects
             .map((entry) => entry.definition)
-            .filter((definition) => definition?.kind === 'midpoint-point' && Array.isArray(definition.pointIds) && definition.pointIds.length === 2);
-        const seenMidpointSignatures = new Set();
+            .filter((definition) => (definition?.kind === 'midpoint-point' || definition?.kind === 'ratio-point') && Array.isArray(definition.pointIds) && definition.pointIds.length === 2);
+        const seenEdgeDivisionSignatures = new Set();
 
-        midpointDefinitions.forEach((definition) => {
+        edgeDivisionDefinitions.forEach((definition) => {
             if (!this.canAttachMidpointToPointPair(definition.pointIds)) {
-                return;
-            }
-
-            const signature = definition.signature || this.makeMidpointSignature(definition.pointIds);
-            if (!signature || seenMidpointSignatures.has(signature)) {
                 return;
             }
 
@@ -4517,12 +4782,33 @@ class TrimensionApp {
                 return;
             }
 
-            const midpoint = start.clone().lerp(end, 0.5);
-            if (existingPointNear(midpoint)) {
+            let signature = null;
+            let position = null;
+            let description = 'derived point';
+
+            if (definition.kind === 'midpoint-point') {
+                signature = definition.signature || this.makeMidpointSignature(definition.pointIds);
+                position = start.clone().lerp(end, 0.5);
+                description = 'derived midpoint';
+            }
+
+            if (definition.kind === 'ratio-point') {
+                const ratio = this.reduceRatio(definition.ratioA, definition.ratioB);
+                if (!ratio || ratio.left === ratio.right) {
+                    return;
+                }
+
+                signature = definition.signature || this.makeRatioPointSignature(definition.pointIds, ratio.left, ratio.right);
+                const distanceRatio = ratio.left / (ratio.left + ratio.right);
+                position = start.clone().lerp(end, distanceRatio);
+                description = `derived point in ratio ${ratio.left}:${ratio.right}`;
+            }
+
+            if (!signature || !position || seenEdgeDivisionSignatures.has(signature) || existingPointNear(position)) {
                 return;
             }
 
-            seenMidpointSignatures.add(signature);
+            seenEdgeDivisionSignatures.add(signature);
             activeDerivedSignatures.add(signature);
 
             let label = this.derivedLabelOverrides.get(signature);
@@ -4538,13 +4824,13 @@ class TrimensionApp {
             }
 
             const id = `derived-${signature}`;
-            basePoints.set(id, midpoint.clone());
+            basePoints.set(id, position.clone());
             derived.push({
                 id,
                 label,
                 signature,
-                description: 'derived midpoint',
-                position: midpoint,
+                description,
+                position,
                 isDerived: true
             });
         });
@@ -4598,11 +4884,13 @@ class TrimensionApp {
             }
         }
 
-        Array.from(this.derivedLabelOverrides.keys()).forEach((signature) => {
-            if (!activeDerivedSignatures.has(signature)) {
-                this.derivedLabelOverrides.delete(signature);
-            }
-        });
+        if (!this.isRestoringSharedState) {
+            Array.from(this.derivedLabelOverrides.keys()).forEach((signature) => {
+                if (!activeDerivedSignatures.has(signature)) {
+                    this.derivedLabelOverrides.delete(signature);
+                }
+            });
+        }
 
         this.derivedPoints = derived;
         const validPointIds = new Set(this.getAllPoints().map((point) => point.id));
@@ -4707,17 +4995,17 @@ class TrimensionApp {
             return;
         }
 
-        if (actionKey === 'delete-midpoint') {
+        if (actionKey === 'delete-derived-point') {
             if (this.selectedPoints.length !== 1) {
                 return;
             }
 
-            const midpointObject = this.findMidpointObjectByPointId(this.selectedPoints[0]);
-            if (!midpointObject) {
+            const derivedPointObject = this.findDerivedEdgePointObjectByPointId(this.selectedPoints[0]);
+            if (!derivedPointObject) {
                 return;
             }
 
-            this.deleteObject(midpointObject.id);
+            this.deleteObject(derivedPointObject.id);
             this.clearSelection();
             this.closePanelOnMobile();
             return;
@@ -4839,6 +5127,58 @@ class TrimensionApp {
                 subtitle: 'Midpoint sub-segment',
                 object3D: new THREE.Group(),
                 definition: { kind: 'segment', pointIds: [derivedId, ids[1]], hidden: true }
+            });
+        }
+
+        if (actionKey === 'add-ratio-point') {
+            const orderedIds = [...this.selectedPoints];
+            if (orderedIds.length !== 2 || !this.canAttachMidpointToPointPair(orderedIds)) {
+                return;
+            }
+
+            const ratio = await this.showRatioPromptModal(`Split ${selectedLabels[0]} : ${selectedLabels[1]} in ratio`, 1, 2);
+            if (!ratio) {
+                return;
+            }
+
+            if (ratio.left === ratio.right) {
+                await this.showAlertModal('Use Add Midpoint for a 1:1 split.');
+                return;
+            }
+
+            const signature = this.makeRatioPointSignature(orderedIds, ratio.left, ratio.right);
+            if (!signature || this.hasRatioPointForSignature(signature)) {
+                await this.showAlertModal('That ratio point already exists on this edge.');
+                return;
+            }
+
+            this.addSceneObject({
+                type: 'label',
+                name: `Ratio Point ${this.formatPointSequence(orderedIds)}`,
+                subtitle: `Ratio ${ratio.left}:${ratio.right}`,
+                object3D: new THREE.Group(),
+                definition: {
+                    kind: 'ratio-point',
+                    pointIds: orderedIds,
+                    ratioA: ratio.left,
+                    ratioB: ratio.right,
+                    signature
+                }
+            });
+            const derivedId = `derived-${signature}`;
+            this.addSceneObject({
+                type: 'segment',
+                name: 'Ghost sub-segment A',
+                subtitle: 'Ratio-point sub-segment',
+                object3D: new THREE.Group(),
+                definition: { kind: 'segment', pointIds: [orderedIds[0], derivedId], hidden: true }
+            });
+            this.addSceneObject({
+                type: 'segment',
+                name: 'Ghost sub-segment B',
+                subtitle: 'Ratio-point sub-segment',
+                object3D: new THREE.Group(),
+                definition: { kind: 'segment', pointIds: [derivedId, orderedIds[1]], hidden: true }
             });
         }
 
@@ -5248,7 +5588,7 @@ class TrimensionApp {
             return;
         }
 
-        if (definition?.hidden || definition?.kind === 'midpoint-point') {
+        if (definition?.hidden || definition?.kind === 'midpoint-point' || definition?.kind === 'ratio-point') {
             return;
         }
 
@@ -5370,7 +5710,7 @@ class TrimensionApp {
             return sprite;
         }
 
-        if (definition.kind === 'midpoint-point') {
+        if (definition.kind === 'midpoint-point' || definition.kind === 'ratio-point') {
             const midpointHolder = new THREE.Group();
             midpointHolder.visible = false;
             return midpointHolder;
@@ -5413,7 +5753,7 @@ class TrimensionApp {
             const items = this.sceneObjects.filter((item) => {
                 if (item.type !== type) return false;
                 if (item.definition?.hidden) return false;
-                if (item.definition?.kind === 'midpoint-point') return false;
+                if (item.definition?.kind === 'midpoint-point' || item.definition?.kind === 'ratio-point') return false;
                 return true;
             });
             sec.list.innerHTML = '';
@@ -5514,6 +5854,9 @@ class TrimensionApp {
         if (this.hasPrimitiveEdgeBetween(pointIds)) {
             return true;
         }
+        if (this.hasSharedDerivedEdgeParent(pointIds)) {
+            return true;
+        }
         const normalized = this.normalizePointPairIds(pointIds);
         if (!normalized) return false;
         const matchesPair = (pairCandidate) => {
@@ -5599,6 +5942,7 @@ class TrimensionApp {
         if (item.definition?.kind === 'segment' && Array.isArray(item.definition.pointIds) && item.definition.pointIds.length === 2) {
             this.removeEdgeLabelsForPointPair(item.definition.pointIds, { onlyIfDisconnected: true });
             this.removeMidpointPointsForPair(item.definition.pointIds, { onlyIfDisconnected: true });
+            this.removeRatioPointsForPair(item.definition.pointIds, { onlyIfDisconnected: true });
         }
         this.scene.remove(item.object3D);
         this.disposeObject3D(item.object3D);

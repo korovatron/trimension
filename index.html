@@ -306,6 +306,11 @@
         <div class="custom-modal" role="dialog" aria-modal="true" aria-labelledby="custom-modal-message">
             <p id="custom-modal-message" class="custom-modal-message"></p>
             <input id="custom-modal-input" class="custom-modal-input" type="text" autocomplete="off" spellcheck="false" />
+            <div id="custom-modal-ratio-fields" class="custom-modal-ratio-fields" hidden>
+                <input id="custom-modal-ratio-left" class="custom-modal-input custom-modal-ratio-input" type="number" inputmode="numeric" min="1" step="1" autocomplete="off" spellcheck="false" />
+                <span class="custom-modal-ratio-separator">:</span>
+                <input id="custom-modal-ratio-right" class="custom-modal-input custom-modal-ratio-input" type="number" inputmode="numeric" min="1" step="1" autocomplete="off" spellcheck="false" />
+            </div>
             <div id="custom-modal-symbols" class="custom-modal-symbols" hidden>
                 <button type="button" class="custom-modal-symbol-btn" data-symbol-key="alpha">&alpha;</button>
                 <button type="button" class="custom-modal-symbol-btn" data-symbol-key="beta">&beta;</button>

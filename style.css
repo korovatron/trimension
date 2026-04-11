@@ -1303,6 +1303,28 @@ textarea {
     border-color: var(--accent-color);
 }
 
+.custom-modal-ratio-fields {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.custom-modal-ratio-fields[hidden] {
+    display: none !important;
+}
+
+.custom-modal-ratio-input {
+    width: 88px;
+    text-align: center;
+}
+
+.custom-modal-ratio-separator {
+    color: var(--text-primary);
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
 .custom-modal-symbols {
     display: flex;
     flex-wrap: wrap;
