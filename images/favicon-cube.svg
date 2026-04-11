@@ -1,0 +1,27 @@
+<svg viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="goodieLineGradient" gradientUnits="userSpaceOnUse" x1="10" y1="150" x2="150" y2="10">
+            <stop offset="0%" stop-color="#ff005d"></stop>
+            <stop offset="20%" stop-color="#ff6a00"></stop>
+            <stop offset="40%" stop-color="#ffe600"></stop>
+            <stop offset="60%" stop-color="#39ff14"></stop>
+            <stop offset="80%" stop-color="#00e5ff"></stop>
+            <stop offset="100%" stop-color="#7a00ff"></stop>
+        </linearGradient>
+    </defs>
+
+    <!-- Stage 1: horizontal line -->
+    <line x1="10" y1="150" x2="113" y2="150" stroke="url(#goodieLineGradient)" stroke-width="5" stroke-linecap="round"></line>
+
+    <!-- Stage 2: vertical edges and top -->
+    <line x1="10" y1="150" x2="10" y2="43" stroke="url(#goodieLineGradient)" stroke-width="5" stroke-linecap="round"></line>
+    <line x1="113" y1="150" x2="113" y2="43" stroke="url(#goodieLineGradient)" stroke-width="5" stroke-linecap="round"></line>
+    <line x1="10" y1="43" x2="113" y2="43" stroke="url(#goodieLineGradient)" stroke-width="5" stroke-linecap="round"></line>
+
+    <!-- Stage 3: cube back face and connectors -->
+    <rect x="47" y="10" width="103" height="107" fill="none" stroke="url(#goodieLineGradient)" stroke-width="5"></rect>
+    <line x1="10" y1="43" x2="47" y2="10" stroke="url(#goodieLineGradient)" stroke-width="5" stroke-linecap="round"></line>
+    <line x1="113" y1="43" x2="150" y2="10" stroke="url(#goodieLineGradient)" stroke-width="5" stroke-linecap="round"></line>
+    <line x1="113" y1="150" x2="150" y2="117" stroke="url(#goodieLineGradient)" stroke-width="5" stroke-linecap="round"></line>
+    <line x1="10" y1="150" x2="47" y2="117" stroke="url(#goodieLineGradient)" stroke-width="5" stroke-linecap="round"></line>
+</svg>

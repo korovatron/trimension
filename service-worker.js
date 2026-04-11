@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trimension-version-1.0.64';
+const CACHE_NAME = 'trimension-version-1.0.66';
 const LOCAL_ASSETS = [
   './',
   './index.html',
@@ -7,7 +7,7 @@ const LOCAL_ASSETS = [
   './manifest.json',
   './images/titleLogo.png',
   './images/panelLogo.png',
-  './images/favicon.png',
+  './images/favicon-cube.svg',
   './images/trimensionIcon-512.png'
 ];
 
