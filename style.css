@@ -850,6 +850,8 @@ textarea {
     .action-btn:hover,
     .mini-btn:hover,
     .object-delete:hover,
+    .object-extract:hover,
+    .object-label-edit:hover,
     .top-btn:hover {
         background: #354d6b;
     }
@@ -1179,17 +1181,16 @@ textarea {
 .object-extract {
     align-self: flex-start;
     margin-top: 5px;
-    height: 22px;
-    padding: 0 10px;
-    border: 1px solid rgba(255, 255, 255, 0.24);
-    border-radius: 6px;
-    background: rgba(74, 144, 226, 0.2);
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: #2A3F5A;
     color: var(--text-primary);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
+    font-size: 0.82rem;
+    line-height: 1;
+    white-space: nowrap;
     cursor: pointer;
-    transition: transform 0.2s ease, filter 0.2s ease, border-color 0.2s ease;
+    transition: background 0.2s ease;
 }
 
 .object-extract:disabled {
@@ -1201,17 +1202,16 @@ textarea {
 .object-label-edit {
     align-self: flex-start;
     margin-top: 4px;
-    height: 21px;
-    padding: 0 9px;
-    border: 1px solid rgba(255, 255, 255, 0.24);
-    border-radius: 6px;
-    background: rgba(74, 144, 226, 0.2);
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: #2A3F5A;
     color: var(--text-primary);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.03em;
+    font-size: 0.82rem;
+    line-height: 1;
+    white-space: nowrap;
     cursor: pointer;
-    transition: transform 0.2s ease, filter 0.2s ease, border-color 0.2s ease;
+    transition: background 0.2s ease;
 }
 
 .object-visibility-btn {
@@ -1248,16 +1248,6 @@ textarea {
     }
 
     .object-extract:hover {
-        filter: brightness(1.1);
-        border-color: rgba(255, 255, 255, 0.42);
-        transform: translateY(-1px);
-    }
-
-    .object-label-edit:hover {
-        filter: brightness(1.1);
-        border-color: rgba(255, 255, 255, 0.42);
-        transform: translateY(-1px);
-    }
 }
 
 .object-visibility-btn:active {

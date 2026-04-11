@@ -5787,6 +5787,7 @@ class TrimensionApp {
                 existingLabel.object3D = sprite;
                 existingLabel.object3D.visible = existingLabel.visible;
                 this.scene.add(existingLabel.object3D);
+                this.focusObjectSectionForType(existingLabel.type, existingLabel.definition);
                 this.renderObjectsList();
                 this.refreshDerivedPoints();
                 this.buildPointMarkers();
@@ -5958,6 +5959,7 @@ class TrimensionApp {
                 existingAngle.object3D = angleGroup;
                 existingAngle.object3D.visible = existingAngle.visible;
                 this.scene.add(existingAngle.object3D);
+                this.focusObjectSectionForType(existingAngle.type, existingAngle.definition);
                 this.renderObjectsList();
                 this.renderSelectionSummary();
                 this.renderActions();
@@ -6316,7 +6318,19 @@ class TrimensionApp {
         context.closePath();
     }
 
-    expandObjectSectionForType(type, definition = null) {
+    setObjectSectionCollapsedState(sectionKey, collapsed) {
+        const section = this.objectSections[sectionKey];
+        if (!section) {
+            return;
+        }
+
+        this.objectGroupCollapsed[sectionKey] = collapsed;
+        section.content.classList.toggle('collapsed', collapsed);
+        section.header.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        section.arrow.textContent = collapsed ? '\u25B6\uFE0E' : '\u25BC\uFE0E';
+    }
+
+    focusObjectSectionForType(type, definition = null) {
         const sectionByType = {
             triangle: 'triangles',
             segment: 'segments',
@@ -6334,15 +6348,9 @@ class TrimensionApp {
             return;
         }
 
-        if (!this.objectGroupCollapsed[sectionKey]) {
-            return;
-        }
-
-        const section = this.objectSections[sectionKey];
-        this.objectGroupCollapsed[sectionKey] = false;
-        section.content.classList.remove('collapsed');
-        section.header.setAttribute('aria-expanded', 'true');
-        section.arrow.textContent = '\u25BC\uFE0E';
+        Object.keys(this.objectSections).forEach((key) => {
+            this.setObjectSectionCollapsedState(key, key !== sectionKey);
+        });
     }
 
     addSceneObject({ type, name, subtitle, object3D, definition = null }) {
@@ -6359,7 +6367,7 @@ class TrimensionApp {
         };
         this.sceneObjects.unshift(entry);
         this.nextObjectId += 1;
-        this.expandObjectSectionForType(type, definition);
+        this.focusObjectSectionForType(type, definition);
         this.renderObjectsList();
         this.refreshDerivedPoints();
         this.buildPointMarkers();
@@ -6514,6 +6522,14 @@ class TrimensionApp {
 
 
 
+    escapeHtmlAttribute(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
     renderObjectItem(item) {
         const row = document.createElement('div');
         row.className = item.visible ? 'object-item' : 'object-item disabled';
@@ -6528,13 +6544,15 @@ class TrimensionApp {
         const subtitleText = typeof item.subtitle === 'string' ? item.subtitle : '';
         const isEditableLabel = item.type === 'label'
             && (item.definition?.kind === 'edge-label' || item.definition?.kind === 'length-label' || item.definition?.kind === 'point-label');
+        const currentLabelText = isEditableLabel ? String(item.definition?.text ?? '').trim() : '';
+        const labelButtonTooltip = currentLabelText ? `Change label: ${currentLabelText}` : 'Change label text';
         const subtitleHtml = isAngle
             ? `<button type="button" class="object-label-edit" data-edit-angle-object-id="${item.id}" title="Change angle label">Change Angle</button>`
             : (isEditableLabel
-                ? `<button type="button" class="object-label-edit" data-edit-label-object-id="${item.id}" title="Change label text">Change Label</button>`
+                ? `<button type="button" class="object-label-edit" data-edit-label-object-id="${item.id}" aria-label="${this.escapeHtmlAttribute(labelButtonTooltip)}" title="${this.escapeHtmlAttribute(labelButtonTooltip)}">Change Label</button>`
                 : (showSubtitle && subtitleText ? `<span>${subtitleText}</span>` : ''));
         const extractButtonHtml = item.type === 'triangle' && item.definition?.pointIds?.length === 3
-            ? `<button type="button" class="object-extract" data-extract-object-id="${item.id}" aria-label="Examine triangle as a flattened 2D view" title="Flatten this triangle into a 2D teaching view, showing its true shape, edge labels, and angle markers"${item.visible ? '' : ' disabled'}>Examine</button>`
+            ? `<button type="button" class="object-extract" data-extract-object-id="${item.id}" aria-label="Inspect triangle in a 2D view" title="Open this triangle in a 2D teaching view showing its true shape, edge labels, and angle markers"${item.visible ? '' : ' disabled'}>Inspect</button>`
             : '';
         if (item.type === 'label') {
             row.style.borderLeftColor = '#b9f18a';
@@ -6607,6 +6625,7 @@ class TrimensionApp {
         item.object3D = rebuiltObject;
         this.scene.add(rebuiltObject);
 
+        this.focusObjectSectionForType(item.type, item.definition);
         this.renderObjectsList();
         this.syncEdgeLabelVisibility();
     }
@@ -6654,6 +6673,7 @@ class TrimensionApp {
         item.object3D = angleGroup;
         item.object3D.visible = item.visible;
         this.scene.add(item.object3D);
+        this.focusObjectSectionForType(item.type, item.definition);
         this.renderObjectsList();
         this.renderSelectionSummary();
         this.renderActions();
