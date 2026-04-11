@@ -1788,11 +1788,19 @@ textarea {
     }
 
     .triangle-extract-label {
-        font-size: 33px;
+        font-size: clamp(42px, 6.8vw, 56px);
     }
 
     .triangle-extract-side-label {
-        font-size: 25px;
+        font-size: clamp(32px, 5.1vw, 42px);
+    }
+
+    .triangle-extract-angle-text {
+        font-size: clamp(34px, 5.4vw, 44px);
+    }
+
+    .triangle-extract-angle-arc {
+        stroke-width: 9;
     }
 
     .control-panel {

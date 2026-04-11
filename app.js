@@ -2330,7 +2330,10 @@ class TrimensionApp {
 
                 const dir1 = { x: d1x / armLen1, y: d1y / armLen1 };
                 const dir2 = { x: d2x / armLen2, y: d2y / armLen2 };
-                const r = Math.min(65, Math.min(armLen1, armLen2) * 0.25);
+                const isCompactViewport = window.matchMedia?.('(max-width: 768px)').matches ?? (window.innerWidth < 768);
+                const arcRadiusFactor = isCompactViewport ? 0.34 : 0.25;
+                const maxArcRadius = isCompactViewport ? 92 : 65;
+                const r = Math.min(maxArcRadius, Math.min(armLen1, armLen2) * arcRadiusFactor);
 
                 const startX = vertex.x + dir1.x * r;
                 const startY = vertex.y + dir1.y * r;
@@ -2350,7 +2353,7 @@ class TrimensionApp {
                 const bisX = dir1.x + dir2.x;
                 const bisY = dir1.y + dir2.y;
                 const bisMag = Math.hypot(bisX, bisY) || 1;
-                const labelDist = r + 28;
+                const labelDist = r + (isCompactViewport ? 36 : 28);
                 const textEl = document.createElementNS(ns, 'text');
                 textEl.setAttribute('x', `${vertex.x + (bisX / bisMag) * labelDist}`);
                 textEl.setAttribute('y', `${vertex.y + (bisY / bisMag) * labelDist}`);
