@@ -405,6 +405,7 @@ class TrimensionApp {
         this.triangleExtractFlightPolygon = document.getElementById('triangle-extract-flight-polygon');
         this.triangleExtractFlightOutline = document.getElementById('triangle-extract-flight-outline');
         this.triangleExtractSvg = document.getElementById('triangle-extract-svg');
+        this.triangleExtractStage = document.getElementById('triangle-extract-stage');
         this.triangleExtractPolygon = document.getElementById('triangle-extract-polygon');
         this.triangleExtractOutline = document.getElementById('triangle-extract-outline');
         this.triangleExtractRightAngle = document.getElementById('triangle-extract-right-angle');
@@ -1650,8 +1651,7 @@ class TrimensionApp {
 
         const worldPoints = points.map((point) => point.position.clone());
         const labels = points.map((point) => point.label || point.id);
-        const layout = this.buildTriangleExtractionLayout(worldPoints);
-        if (!layout || !this.triangleExtractOverlay || !this.triangleExtractModal || !this.triangleExtractFlightSvg) {
+        if (!this.triangleExtractOverlay || !this.triangleExtractModal || !this.triangleExtractFlightSvg) {
             return;
         }
         const flightColor = this.getTriangleExtractionColor(item.definition?.color);
@@ -1663,11 +1663,20 @@ class TrimensionApp {
         this.lastFocusedElementBeforeTriangleExtract = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         this.controls.enabled = false;
         this._keysHeld?.clear();
-        this.populateTriangleExtractionModal(layout, labels, item, flightColor);
 
         this.triangleExtractOverlay.classList.add('show', 'pre-open');
         this.triangleExtractOverlay.classList.remove('settled');
         this.triangleExtractOverlay.setAttribute('aria-hidden', 'false');
+
+        const layout = this.buildTriangleExtractionLayout(worldPoints, this.getTriangleExtractionStageAspectRatio());
+        if (!layout) {
+            this.triangleExtractOverlay.classList.remove('show', 'pre-open', 'settled');
+            this.triangleExtractOverlay.setAttribute('aria-hidden', 'true');
+            this.controls.enabled = true;
+            this.activeTriangleExtraction = null;
+            return;
+        }
+        this.populateTriangleExtractionModal(layout, labels, item, flightColor);
 
         const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
         const animationDurationMs = reducedMotion ? 0 : 1450;
@@ -1825,7 +1834,69 @@ class TrimensionApp {
         }, 30);
     }
 
-    buildTriangleExtractionLayout(worldPoints) {
+    getTriangleExtractionStageAspectRatio() {
+        const rect = this.triangleExtractStage?.getBoundingClientRect();
+        if (rect && rect.width > 1 && rect.height > 1) {
+            return rect.width / rect.height;
+        }
+
+        const modalRect = this.triangleExtractModal?.getBoundingClientRect();
+        if (modalRect && modalRect.width > 1 && modalRect.height > 1) {
+            // Approximate content area by reserving room for the header.
+            const estimatedStageHeight = Math.max(1, modalRect.height - 84);
+            return modalRect.width / estimatedStageHeight;
+        }
+
+        return window.innerWidth > 1 && window.innerHeight > 1
+            ? (window.innerWidth / window.innerHeight)
+            : (1000 / 760);
+    }
+
+    getTriangleOrientationCandidates(rawPoints) {
+        const candidates = [];
+        const baseDefinitions = [
+            { startIndex: 0, endIndex: 1, apexIndex: 2 },
+            { startIndex: 1, endIndex: 2, apexIndex: 0 },
+            { startIndex: 2, endIndex: 0, apexIndex: 1 }
+        ];
+
+        baseDefinitions.forEach((base) => {
+            const start = rawPoints[base.startIndex];
+            const end = rawPoints[base.endIndex];
+            const dx = end.x - start.x;
+            const dy = end.y - start.y;
+            const baseLength = Math.hypot(dx, dy);
+            if (baseLength <= 1e-6) {
+                return;
+            }
+
+            const ux = dx / baseLength;
+            const uy = dy / baseLength;
+            const oriented = rawPoints.map((point) => {
+                const relX = point.x - start.x;
+                const relY = point.y - start.y;
+                return {
+                    x: relX * ux + relY * uy,
+                    y: -relX * uy + relY * ux
+                };
+            });
+
+            if (oriented[base.apexIndex].y < 0) {
+                oriented.forEach((point) => {
+                    point.y *= -1;
+                });
+            }
+
+            candidates.push({
+                points: oriented,
+                baseLength
+            });
+        });
+
+        return candidates;
+    }
+
+    buildTriangleExtractionLayout(worldPoints, targetAspectRatio = 1000 / 760) {
         const sideAB = worldPoints[0].distanceTo(worldPoints[1]);
         const sideBC = worldPoints[1].distanceTo(worldPoints[2]);
         const sideCA = worldPoints[2].distanceTo(worldPoints[0]);
@@ -1846,23 +1917,65 @@ class TrimensionApp {
             { x: baseLength, y: 0 },
             { x: cX, y: cY }
         ];
-        const minX = Math.min(...rawPoints.map((point) => point.x));
-        const maxX = Math.max(...rawPoints.map((point) => point.x));
-        const minY = Math.min(...rawPoints.map((point) => point.y));
-        const maxY = Math.max(...rawPoints.map((point) => point.y));
-        const width = Math.max(maxX - minX, 1e-6);
-        const height = Math.max(maxY - minY, 1e-6);
+
         const stageWidth = 1000;
-        const stageHeight = 760;
+        const safeAspect = Number.isFinite(targetAspectRatio) && targetAspectRatio > 0.1
+            ? targetAspectRatio
+            : (1000 / 760);
+        const stageHeight = Math.max(1, Math.round(stageWidth / safeAspect));
         const paddingX = 140;
         const paddingY = 110;
-        const scale = Math.min((stageWidth - paddingX * 2) / width, (stageHeight - paddingY * 2) / height);
-        const offsetX = (stageWidth - width * scale) / 2 - minX * scale;
-        const offsetY = (stageHeight - height * scale) / 2 + maxY * scale;
 
-        const points2D = rawPoints.map((point) => ({
-            x: offsetX + point.x * scale,
-            y: offsetY - point.y * scale
+        const candidates = this.getTriangleOrientationCandidates(rawPoints);
+        if (candidates.length === 0) {
+            return null;
+        }
+
+        let bestCandidate = null;
+        candidates.forEach((candidate) => {
+            const minX = Math.min(...candidate.points.map((point) => point.x));
+            const maxX = Math.max(...candidate.points.map((point) => point.x));
+            const minY = Math.min(...candidate.points.map((point) => point.y));
+            const maxY = Math.max(...candidate.points.map((point) => point.y));
+            const width = Math.max(maxX - minX, 1e-6);
+            const height = Math.max(maxY - minY, 1e-6);
+            const scale = Math.min((stageWidth - paddingX * 2) / width, (stageHeight - paddingY * 2) / height);
+
+            if (!bestCandidate || scale > bestCandidate.scale + 1e-6) {
+                bestCandidate = {
+                    ...candidate,
+                    minX,
+                    minY,
+                    maxY,
+                    width,
+                    scale
+                };
+                return;
+            }
+
+            if (bestCandidate && Math.abs(scale - bestCandidate.scale) <= 1e-6 && candidate.baseLength > bestCandidate.baseLength) {
+                bestCandidate = {
+                    ...candidate,
+                    minX,
+                    minY,
+                    maxY,
+                    width,
+                    scale
+                };
+            }
+        });
+
+        if (!bestCandidate) {
+            return null;
+        }
+
+        const bestHeight = Math.max(bestCandidate.maxY - bestCandidate.minY, 1e-6);
+        const offsetX = (stageWidth - bestCandidate.width * bestCandidate.scale) / 2 - bestCandidate.minX * bestCandidate.scale;
+        const offsetY = (stageHeight - bestHeight * bestCandidate.scale) / 2 + bestCandidate.maxY * bestCandidate.scale;
+
+        const points2D = bestCandidate.points.map((point) => ({
+            x: offsetX + point.x * bestCandidate.scale,
+            y: offsetY - point.y * bestCandidate.scale
         }));
         const centroid = {
             x: (points2D[0].x + points2D[1].x + points2D[2].x) / 3,
@@ -1883,11 +1996,23 @@ class TrimensionApp {
             this.getOffsetMidpoint(points2D[1], points2D[2], centroid, 34),
             this.getOffsetMidpoint(points2D[2], points2D[0], centroid, 34)
         ];
+        const sideEdgePairs = [
+            [points2D[0], points2D[1]],
+            [points2D[1], points2D[2]],
+            [points2D[2], points2D[0]]
+        ];
+        const sideLabelAngles = sideEdgePairs.map(([a, b]) => {
+            let angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+            if (angle > 90) angle -= 180;
+            if (angle < -90) angle += 180;
+            return angle;
+        });
 
         return {
             points2D,
             labelPositions,
             sideLabelPositions,
+            sideLabelAngles,
             sideLengths: [sideAB, sideBC, sideCA],
             rightAnglePath: this.buildTriangleRightAnglePath(points2D),
             stageWidth,
@@ -1962,11 +2087,6 @@ class TrimensionApp {
         if (this.triangleExtractTitle) {
             this.triangleExtractTitle.textContent = `Triangle ${pointSequence}`;
         }
-        if (this.triangleExtractSubtitle) {
-            const rightAngleIndex = this.getRightAngleVertexIndex(layout.points2D);
-            const rightAngleText = rightAngleIndex >= 0 ? ` Right angle at ${labels[rightAngleIndex]}.` : '';
-            this.triangleExtractSubtitle.textContent = `${labels.join(' -> ')} flattened into a 2D teaching view.${rightAngleText}`;
-        }
         if (this.triangleExtractSvg) {
             this.triangleExtractSvg.setAttribute('viewBox', `0 0 ${layout.stageWidth} ${layout.stageHeight}`);
         }
@@ -2006,13 +2126,17 @@ class TrimensionApp {
             const edgeLabelObj = this.findEdgeLabelObject(sidePairs[index]);
             const labelText = edgeLabelObj?.definition?.text ?? '';
             if (labelText) {
+                const pos = layout.sideLabelPositions[index];
+                const angle = layout.sideLabelAngles[index];
                 sideEl.textContent = labelText;
-                sideEl.setAttribute('x', `${layout.sideLabelPositions[index].x}`);
-                sideEl.setAttribute('y', `${layout.sideLabelPositions[index].y}`);
+                sideEl.setAttribute('x', `${pos.x}`);
+                sideEl.setAttribute('y', `${pos.y}`);
+                sideEl.setAttribute('transform', `rotate(${angle}, ${pos.x}, ${pos.y})`);
                 sideEl.removeAttribute('visibility');
             } else {
                 sideEl.textContent = '';
                 sideEl.setAttribute('visibility', 'hidden');
+                sideEl.removeAttribute('transform');
             }
         });
 
