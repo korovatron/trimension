@@ -881,10 +881,15 @@ class TrimensionApp {
             const sec = this.objectSections[key];
             sec.list.addEventListener('click', (event) => {
                 const extractButton = event.target.closest('[data-extract-object-id]');
+                const editLabelButton = event.target.closest('[data-edit-label-object-id]');
                 const toggleButton = event.target.closest('[data-toggle-object-id]');
                 const deleteButton = event.target.closest('[data-delete-object-id]');
                 if (extractButton) {
                     this.openTriangleExtraction(Number(extractButton.dataset.extractObjectId));
+                    return;
+                }
+                if (editLabelButton) {
+                    this.editLabelFromObjectCard(Number(editLabelButton.dataset.editLabelObjectId));
                     return;
                 }
                 if (toggleButton) this.toggleObjectVisibility(Number(toggleButton.dataset.toggleObjectId));
@@ -6452,9 +6457,11 @@ class TrimensionApp {
         const displayName = this.getSceneObjectDisplayName(item);
         const showSubtitle = item.type === 'angle' || item.type === 'label';
         const subtitleText = typeof item.subtitle === 'string' ? item.subtitle : '';
-        const subtitleHtml = showSubtitle && subtitleText
-            ? `<span>${subtitleText}</span>`
-            : '';
+        const isEditableLabel = item.type === 'label'
+            && (item.definition?.kind === 'edge-label' || item.definition?.kind === 'length-label' || item.definition?.kind === 'point-label');
+        const subtitleHtml = isEditableLabel
+            ? `<button type="button" class="object-label-edit" data-edit-label-object-id="${item.id}" title="Change label text">Change Label</button>`
+            : (showSubtitle && subtitleText ? `<span>${subtitleText}</span>` : '');
         const extractButtonHtml = item.type === 'triangle' && item.definition?.pointIds?.length === 3
             ? `<button type="button" class="object-extract" data-extract-object-id="${item.id}" aria-label="Examine triangle as a flattened 2D view" title="Flatten this triangle into a 2D teaching view, showing its true shape, edge labels, and angle markers"${item.visible ? '' : ' disabled'}>Examine</button>`
             : '';
@@ -6483,6 +6490,54 @@ class TrimensionApp {
             </div>
         `;
         return row;
+    }
+
+    async editLabelFromObjectCard(objectId) {
+        const item = this.sceneObjects.find((entry) => entry.id === objectId && entry.type === 'label');
+        if (!item || !item.definition) {
+            return;
+        }
+
+        const def = item.definition;
+        const currentText = def.text || '';
+        let promptText = 'Change label text';
+
+        if ((def.kind === 'edge-label' || def.kind === 'length-label') && Array.isArray(def.pointIds) && def.pointIds.length === 2) {
+            promptText = `Change label for ${this.formatPointSequence(def.pointIds)}`;
+        }
+        if (def.kind === 'point-label') {
+            const point = this.getPointById(def.pointId);
+            promptText = `Change label for point ${point?.label || def.pointId || ''}`.trim();
+        }
+
+        const nextText = await this.showPromptModal(promptText, currentText, { quickSymbols: true });
+        if (nextText == null || !nextText.trim()) {
+            return;
+        }
+
+        const normalizedText = nextText.trim();
+        item.definition = {
+            ...def,
+            text: normalizedText
+        };
+        item.subtitle = normalizedText;
+
+        const rebuiltObject = this.createObjectFromDefinition(item.definition);
+        if (!rebuiltObject) {
+            return;
+        }
+
+        if (item.object3D) {
+            this.scene.remove(item.object3D);
+            this.disposeObject3D(item.object3D);
+        }
+        rebuiltObject.userData.sceneObjectId = item.id;
+        rebuiltObject.visible = item.visible;
+        item.object3D = rebuiltObject;
+        this.scene.add(rebuiltObject);
+
+        this.renderObjectsList();
+        this.syncEdgeLabelVisibility();
     }
 
     getSceneObjectDisplayName(item) {

@@ -1198,6 +1198,22 @@ textarea {
     pointer-events: none;
 }
 
+.object-label-edit {
+    align-self: flex-start;
+    margin-top: 4px;
+    height: 21px;
+    padding: 0 9px;
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 6px;
+    background: rgba(74, 144, 226, 0.2);
+    color: var(--text-primary);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    transition: transform 0.2s ease, filter 0.2s ease, border-color 0.2s ease;
+}
+
 .object-visibility-btn {
     width: 20px;
     height: 20px;
@@ -1232,6 +1248,12 @@ textarea {
     }
 
     .object-extract:hover {
+        filter: brightness(1.1);
+        border-color: rgba(255, 255, 255, 0.42);
+        transform: translateY(-1px);
+    }
+
+    .object-label-edit:hover {
         filter: brightness(1.1);
         border-color: rgba(255, 255, 255, 0.42);
         transform: translateY(-1px);
