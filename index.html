@@ -39,6 +39,40 @@
     <div id="title-screen" class="title-screen">
         <div class="title-content">
             <img src="images/titleLogo.png" alt="Trimension" class="title-logo" draggable="false">
+            <div class="title-goodie" aria-hidden="true">
+                <svg class="title-goodie-svg" viewBox="0 0 220 160" role="presentation" focusable="false">
+                    <defs>
+                        <linearGradient id="goodieLineGradient" gradientUnits="userSpaceOnUse" x1="56" y1="112" x2="154" y2="18">
+                            <stop offset="0%" stop-color="#ff005d"></stop>
+                            <stop offset="20%" stop-color="#ff6a00"></stop>
+                            <stop offset="40%" stop-color="#ffe600"></stop>
+                            <stop offset="60%" stop-color="#39ff14"></stop>
+                            <stop offset="80%" stop-color="#00e5ff"></stop>
+                            <stop offset="100%" stop-color="#7a00ff"></stop>
+                        </linearGradient>
+                    </defs>
+
+                    <!-- Stage 1: pixel extends left and right into horizontal line -->
+                    <line class="goodie-line-left" x1="92" y1="112" x2="56" y2="112"></line>
+                    <line class="goodie-line-right" x1="92" y1="112" x2="128" y2="112"></line>
+
+                    <!-- Stage 2: line rises, vertical edges extend to drag out square -->
+                    <line class="goodie-sq-left" x1="56" y1="112" x2="56" y2="40"></line>
+                    <line class="goodie-sq-right" x1="128" y1="112" x2="128" y2="40"></line>
+                    <line class="goodie-sq-top" x1="56" y1="40" x2="128" y2="40"></line>
+
+                    <!-- Stage 3: square drags in z, connector edges extending into cube -->
+                    <g class="goodie-cube">
+                        <rect class="goodie-cube-back" x="82" y="18" width="72" height="72"></rect>
+                        <line class="goodie-cube-connector" x1="56" y1="40" x2="82" y2="18"></line>
+                        <line class="goodie-cube-connector" x1="128" y1="40" x2="154" y2="18"></line>
+                        <line class="goodie-cube-connector" x1="128" y1="112" x2="154" y2="90"></line>
+                        <line class="goodie-cube-connector" x1="56" y1="112" x2="82" y2="90"></line>
+
+
+                    </g>
+                </svg>
+            </div>
             <p class="title-tagline">Escape Flatland. Think in 3D.</p>
             <div class="title-actions">
                 <button id="start-btn" class="start-btn">Start</button>
