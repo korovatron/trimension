@@ -3415,12 +3415,12 @@ class TrimensionApp {
     }
 
     canAttachLabelToPointPair(pointIds) {
-        // Labels should only attach to edges that actually exist as scene objects.
-        return this.hasSceneSegmentBetween(pointIds);
+        // Labels can attach to any valid edge connection, including raw primitive edges.
+        return this.hasPrimitiveEdgeBetween(pointIds) || this.hasSceneSegmentBetween(pointIds);
     }
 
     canAttachMidpointToPointPair(pointIds) {
-        return this.hasSceneSegmentBetween(pointIds);
+        return this.hasSegmentLikeConnection(pointIds);
     }
 
     hasSegmentLikeConnection(pointIds) {
@@ -3493,9 +3493,14 @@ class TrimensionApp {
         return this.sceneObjects.find((entry) => entry.definition?.kind === 'midpoint-point' && entry.definition.signature === signature) || null;
     }
 
-    removeEdgeLabelsForPointPair(pointIds) {
+    removeEdgeLabelsForPointPair(pointIds, options = {}) {
         const normalized = this.normalizePointPairIds(pointIds);
         if (!normalized) {
+            return;
+        }
+
+        const onlyIfDisconnected = options.onlyIfDisconnected === true;
+        if (onlyIfDisconnected && this.canAttachLabelToPointPair(normalized)) {
             return;
         }
 
@@ -3638,7 +3643,7 @@ class TrimensionApp {
         this.sceneObjects = survivors;
 
         removedPairs.forEach((pair) => {
-            this.removeEdgeLabelsForPointPair(pair);
+            this.removeEdgeLabelsForPointPair(pair, { onlyIfDisconnected: true });
         });
     }
 
@@ -5592,7 +5597,7 @@ class TrimensionApp {
 
         const [item] = this.sceneObjects.splice(index, 1);
         if (item.definition?.kind === 'segment' && Array.isArray(item.definition.pointIds) && item.definition.pointIds.length === 2) {
-            this.removeEdgeLabelsForPointPair(item.definition.pointIds);
+            this.removeEdgeLabelsForPointPair(item.definition.pointIds, { onlyIfDisconnected: true });
             this.removeMidpointPointsForPair(item.definition.pointIds, { onlyIfDisconnected: true });
         }
         this.scene.remove(item.object3D);
