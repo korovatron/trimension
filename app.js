@@ -34,8 +34,17 @@ function hasSharedStateInUrl() {
     return !!params.get(SHARE_HASH_KEY);
 }
 
+function restartTitleAnimation() {
+    const titleGoodie = titleScreen.querySelector('.title-goodie');
+    if (!titleGoodie) return;
+
+    const resetGoodie = titleGoodie.cloneNode(true);
+    titleGoodie.replaceWith(resetGoodie);
+}
+
 function returnToTitleScreen() {
     titleScreen.classList.remove('hidden');
+    restartTitleAnimation();
     mainApp.style.display = 'none';
     if (trimensionApp) {
         trimensionApp.cleanup();
