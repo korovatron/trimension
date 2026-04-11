@@ -435,14 +435,13 @@ class TrimensionApp {
 
         this.defaultParams = {
             cuboid: { width: 7, depth: 4, height: 5, includeFaceCentersMode: 'off' },
-
             'right-triangle-prism': { legA: 5, legB: 4, length: 7, triangleMode: 'isosceles' },
+            'rectangular-pyramid': { length: 7, width: 5, height: 6, apexPosition: 'center' },
             tetrahedron: { base: 6, triangleHeight: 4.5, height: 6, baseTriangleMode: 'isosceles', apexPosition: 'A', baseMirror: false },
             sphere: { radius: 3 },
             hemisphere: { radius: 3 },
             cylinder: { radius: 2.5, height: 6 },
-            cone: { radius: 2.5, height: 6 },
-            'rectangular-pyramid': { length: 7, width: 5, height: 6, apexPosition: 'center' }
+            cone: { radius: 2.5, height: 6 }
         };
 
         // compositeSlots: array of { id, primitive, orientation, params, hostSlotId, hostFaceId, attachFaceId, attachRotationQuarterTurns }
@@ -528,6 +527,14 @@ class TrimensionApp {
                     { key: 'length', label: 'Length', min: 2, max: 12, step: 0.5 }
                 ]
             },
+            'rectangular-pyramid': {
+                label: 'Rectangular Pyramid',
+                params: [
+                    { key: 'length', label: 'Length', min: 2, max: 12, step: 0.5 },
+                    { key: 'width', label: 'Width', min: 2, max: 12, step: 0.5 },
+                    { key: 'height', label: 'Height', min: 2, max: 10, step: 0.5 }
+                ]
+            },
             tetrahedron: {
                 label: 'Tetrahedron',
                 params: [
@@ -559,14 +566,6 @@ class TrimensionApp {
                 label: 'Cone',
                 params: [
                     { key: 'radius', label: 'Radius', min: 1, max: 5, step: 0.25 },
-                    { key: 'height', label: 'Height', min: 2, max: 10, step: 0.5 }
-                ]
-            },
-            'rectangular-pyramid': {
-                label: 'Rectangular Pyramid',
-                params: [
-                    { key: 'length', label: 'Length', min: 2, max: 12, step: 0.5 },
-                    { key: 'width', label: 'Width', min: 2, max: 12, step: 0.5 },
                     { key: 'height', label: 'Height', min: 2, max: 10, step: 0.5 }
                 ]
             }
@@ -3320,27 +3319,10 @@ class TrimensionApp {
                 ['A', 'B'], ['B', 'C'], ['C', 'A'],
                 ['A', 'D'], ['B', 'D'], ['C', 'D']
             ],
-            sphere: [
-                ['A', 'C'], ['A', 'D'], ['A', 'E'], ['A', 'F'],
-                ['B', 'C'], ['B', 'D'], ['B', 'E'], ['B', 'F'],
-                ['C', 'D'], ['D', 'E'], ['E', 'F'], ['F', 'C'],
-                ['A', 'O'], ['B', 'O'], ['C', 'O'], ['D', 'O'], ['E', 'O'], ['F', 'O']
-            ],
-            hemisphere: [
-                ['A', 'B'], ['A', 'C'], ['A', 'D'], ['A', 'E'],
-                ['B', 'C'], ['C', 'D'], ['D', 'E'], ['E', 'B'],
-                ['B', 'F'], ['C', 'F'], ['D', 'F'], ['E', 'F'], ['A', 'F']
-            ],
-            cylinder: [
-                ['A', 'B'], ['A', 'C'], ['A', 'D'], ['B', 'E'], ['B', 'F'],
-                ['C', 'D'], ['E', 'F'], ['C', 'E'], ['D', 'F'],
-                ['A', 'O'], ['B', 'O'], ['C', 'O'], ['D', 'O'], ['E', 'O'], ['F', 'O']
-            ],
-            cone: [
-                ['A', 'B'], ['A', 'C'], ['A', 'D'], ['A', 'E'], ['A', 'F'],
-                ['B', 'C'], ['B', 'D'], ['B', 'E'], ['B', 'F'],
-                ['C', 'D'], ['D', 'E'], ['E', 'F'], ['F', 'C']
-            ],
+            sphere: [],
+            hemisphere: [],
+            cylinder: [],
+            cone: [],
             'rectangular-pyramid': [
                 ['A', 'B'], ['B', 'C'], ['C', 'D'], ['D', 'A'],
                 ['A', 'E'], ['B', 'E'], ['C', 'E'], ['D', 'E']
