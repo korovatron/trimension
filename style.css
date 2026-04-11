@@ -1246,8 +1246,6 @@ textarea {
         border-color: rgba(255, 255, 255, 0.5);
         transform: scale(1.1);
     }
-
-    .object-extract:hover {
 }
 
 .object-visibility-btn:active {
