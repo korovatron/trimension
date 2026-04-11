@@ -419,6 +419,7 @@ class TrimensionApp {
             BC: document.getElementById('triangle-extract-side-bc'),
             CA: document.getElementById('triangle-extract-side-ca')
         };
+        this.triangleExtractAnglesGroup = document.getElementById('triangle-extract-angles-group');
 
         this.panelOpen = true;
         this.ghostFaces = true;
@@ -1979,6 +1980,7 @@ class TrimensionApp {
             const hasRightAngle = layout.rightAnglePath.length > 0;
             this.triangleExtractRightAngle.hidden = !hasRightAngle;
             this.triangleExtractRightAngle.setAttribute('d', layout.rightAnglePath);
+            if (color) this.triangleExtractRightAngle.style.stroke = color.stroke;
         }
 
         pointKeys.forEach((key, index) => {
@@ -2011,6 +2013,59 @@ class TrimensionApp {
                 sideEl.setAttribute('visibility', 'hidden');
             }
         });
+
+        // Angle arcs: render any angle labels whose three points are all from this triangle
+        if (this.triangleExtractAnglesGroup) {
+            this.triangleExtractAnglesGroup.innerHTML = '';
+            const ns = 'http://www.w3.org/2000/svg';
+            const angleObjects = this.findAngleLabelObjectsForTriangle(trianglePointIds);
+            for (const angleObj of angleObjects) {
+                const def = angleObj.definition;
+                const vertexIndex = trianglePointIds.indexOf(def.pointIds[1]);
+                const aIndex = trianglePointIds.indexOf(def.pointIds[0]);
+                const cIndex = trianglePointIds.indexOf(def.pointIds[2]);
+                if (vertexIndex < 0 || aIndex < 0 || cIndex < 0) continue;
+
+                const vertex = layout.points2D[vertexIndex];
+                const aPoint = layout.points2D[aIndex];
+                const cPoint = layout.points2D[cIndex];
+                const d1x = aPoint.x - vertex.x, d1y = aPoint.y - vertex.y;
+                const d2x = cPoint.x - vertex.x, d2y = cPoint.y - vertex.y;
+                const armLen1 = Math.hypot(d1x, d1y);
+                const armLen2 = Math.hypot(d2x, d2y);
+                if (armLen1 < 1e-6 || armLen2 < 1e-6) continue;
+
+                const dir1 = { x: d1x / armLen1, y: d1y / armLen1 };
+                const dir2 = { x: d2x / armLen2, y: d2y / armLen2 };
+                const r = Math.min(65, Math.min(armLen1, armLen2) * 0.25);
+
+                const startX = vertex.x + dir1.x * r;
+                const startY = vertex.y + dir1.y * r;
+                const endX = vertex.x + dir2.x * r;
+                const endY = vertex.y + dir2.y * r;
+                const cross = dir1.x * dir2.y - dir1.y * dir2.x;
+                const sweep = cross > 0 ? 1 : 0;
+
+                const arcColor = this.getTriangleExtractionColor(Number.isFinite(def.color) ? def.color : 0x00d1b2).stroke;
+
+                const arcEl = document.createElementNS(ns, 'path');
+                arcEl.setAttribute('d', `M ${startX} ${startY} A ${r} ${r} 0 0 ${sweep} ${endX} ${endY}`);
+                arcEl.setAttribute('class', 'triangle-extract-angle-arc');
+                arcEl.style.stroke = arcColor;
+                this.triangleExtractAnglesGroup.appendChild(arcEl);
+
+                const bisX = dir1.x + dir2.x;
+                const bisY = dir1.y + dir2.y;
+                const bisMag = Math.hypot(bisX, bisY) || 1;
+                const labelDist = r + 28;
+                const textEl = document.createElementNS(ns, 'text');
+                textEl.setAttribute('x', `${vertex.x + (bisX / bisMag) * labelDist}`);
+                textEl.setAttribute('y', `${vertex.y + (bisY / bisMag) * labelDist}`);
+                textEl.setAttribute('class', 'triangle-extract-angle-text');
+                textEl.textContent = def.text;
+                this.triangleExtractAnglesGroup.appendChild(textEl);
+            }
+        }
     }
 
     formatTriangleSideLength(lengthValue) {
@@ -4029,6 +4084,14 @@ class TrimensionApp {
             const pair = this.normalizePointPairIds(definition.pointIds);
             return !!pair && pair[0] === normalized[0] && pair[1] === normalized[1];
         }) || null;
+    }
+
+    findAngleLabelObjectsForTriangle(trianglePointIds) {
+        return this.sceneObjects.filter((entry) => {
+            const def = entry.definition;
+            if (!def || def.kind !== 'angle' || !Array.isArray(def.pointIds) || def.pointIds.length !== 3) return false;
+            return def.pointIds.every((id) => trianglePointIds.includes(id));
+        });
     }
 
     hasMidpointForPair(pointIds) {

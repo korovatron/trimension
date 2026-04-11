@@ -24,28 +24,14 @@
     --safe-area-bottom: env(safe-area-inset-bottom);
     --safe-area-left: env(safe-area-inset-left);
     --safe-area-right: env(safe-area-inset-right);
-    /* Triangle extract modal — light-theme values */
-    --extract-modal-border: rgba(0, 0, 0, 0.12);
-    --extract-stage-border: rgba(0, 0, 0, 0.08);
-    --extract-stage-bg: rgba(0, 0, 0, 0.04);
-    --extract-text: #1a2f42;
-    --extract-text-muted: rgba(26, 47, 66, 0.6);
+    /* Triangle extract modal — SVG label fill (theme-aware, set per-theme below) */
     --extract-label-fill: #1a2f42;
-    --extract-close-border: rgba(0, 0, 0, 0.14);
-    --extract-close-bg: rgba(0, 0, 0, 0.06);
 }
 
 html[data-theme="dark"] {
     --canvas-bg: #606060;
-    /* Triangle extract modal — dark-theme overrides */
-    --extract-modal-border: rgba(255, 255, 255, 0.16);
-    --extract-stage-border: rgba(255, 255, 255, 0.08);
-    --extract-stage-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
-    --extract-text: #E8F4FD;
-    --extract-text-muted: rgba(232, 244, 253, 0.68);
+    /* Triangle extract modal — SVG label fill on dark canvas */
     --extract-label-fill: #ffffff;
-    --extract-close-border: rgba(255, 255, 255, 0.16);
-    --extract-close-bg: rgba(255, 255, 255, 0.06);
 }
 
 html,
@@ -1541,8 +1527,8 @@ textarea {
 .triangle-extract-overlay.settled .triangle-extract-modal {
     opacity: 1;
     pointer-events: auto;
-    border-color: var(--extract-modal-border);
-    background: var(--canvas-bg);
+    border-color: var(--border-color);
+    background: var(--bg-primary);
     box-shadow: 0 34px 72px rgba(0, 0, 0, 0.44);
     gap: 20px;
     padding: clamp(18px, 2.8vw, 28px);
@@ -1586,12 +1572,12 @@ textarea {
     margin: 0;
     font-size: clamp(1.35rem, 2.6vw, 1.9rem);
     line-height: 1.1;
-    color: var(--extract-text);
+    color: var(--text-primary);
 }
 
 .triangle-extract-subtitle {
     margin: 0;
-    color: var(--extract-text-muted);
+    color: var(--text-muted);
     line-height: 1.4;
     font-size: 0.92rem;
 }
@@ -1600,9 +1586,9 @@ textarea {
     width: 38px;
     height: 38px;
     border-radius: 10px;
-    border: 1px solid var(--extract-close-border);
-    background: var(--extract-close-bg);
-    color: var(--extract-text);
+    border: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-primary);
     font-size: 1.5rem;
     line-height: 1;
     cursor: pointer;
@@ -1619,8 +1605,8 @@ textarea {
 }
 
 .triangle-extract-overlay.settled .triangle-extract-stage {
-    background: var(--extract-stage-bg);
-    border-color: var(--extract-stage-border);
+    background: var(--canvas-bg);
+    border-color: var(--border-color);
     padding: clamp(12px, 2vw, 18px);
 }
 
@@ -1645,7 +1631,7 @@ textarea {
 
 .triangle-extract-right-angle {
     fill: none;
-    stroke: #ffd166;
+    /* stroke set dynamically via JS to match the triangle's color */
     stroke-width: 7;
     stroke-linejoin: round;
     stroke-linecap: round;
@@ -1654,6 +1640,30 @@ textarea {
 }
 
 .triangle-extract-overlay.settled .triangle-extract-right-angle {
+    opacity: 1;
+}
+
+.triangle-extract-angle-arc {
+    fill: none;
+    /* stroke set dynamically via JS from the angle's color */
+    stroke-width: 7;
+    stroke-linecap: round;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+}
+
+.triangle-extract-angle-text {
+    fill: var(--extract-label-fill);
+    font-size: 28px;
+    font-weight: 700;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+}
+
+.triangle-extract-overlay.settled .triangle-extract-angle-arc,
+.triangle-extract-overlay.settled .triangle-extract-angle-text {
     opacity: 1;
 }
 
@@ -1700,7 +1710,7 @@ textarea {
 
 .triangle-extract-note {
     margin: 0;
-    color: var(--extract-text-muted);
+    color: var(--text-muted);
     font-size: 0.86rem;
     line-height: 1.45;
 }
