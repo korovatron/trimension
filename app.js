@@ -5749,7 +5749,7 @@ class TrimensionApp {
                 if (items.length > 0) {
                     const countEl = document.createElement('span');
                     countEl.className = 'section-object-count';
-                    countEl.textContent = ` (${items.length})`;
+                    countEl.textContent = `${items.length}`;
                     sec.title.appendChild(countEl);
                 }
             }

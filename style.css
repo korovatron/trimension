@@ -653,6 +653,8 @@ textarea {
 }
 
 .collapsible-section-header h3 {
+    display: flex;
+    align-items: center;
     font-size: 12px;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.9);
@@ -662,7 +664,17 @@ textarea {
 }
 
 .section-object-count {
-    color: #ffd54a;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.45em;
+    margin-left: auto;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: #ffd54a;
+    color: #111111;
+    font-weight: 700;
+    line-height: 1.2;
 }
 
 .collapsible-section-content {
