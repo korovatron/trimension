@@ -1656,9 +1656,16 @@ class TrimensionApp {
         }
         const flightColor = this.getTriangleExtractionColor(item.definition?.color);
 
+        const layout = this.buildTriangleExtractionLayout(worldPoints, this.getTriangleExtractionStageAspectRatio());
+        if (!layout) {
+            return;
+        }
+
         this.activeTriangleExtraction = {
             objectId: item.id,
-            pointIds: [...item.definition.pointIds]
+            pointIds: [...item.definition.pointIds],
+            layout,
+            color: flightColor
         };
         this.lastFocusedElementBeforeTriangleExtract = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         this.controls.enabled = false;
@@ -1668,14 +1675,6 @@ class TrimensionApp {
         this.triangleExtractOverlay.classList.remove('settled');
         this.triangleExtractOverlay.setAttribute('aria-hidden', 'false');
 
-        const layout = this.buildTriangleExtractionLayout(worldPoints, this.getTriangleExtractionStageAspectRatio());
-        if (!layout) {
-            this.triangleExtractOverlay.classList.remove('show', 'pre-open', 'settled');
-            this.triangleExtractOverlay.setAttribute('aria-hidden', 'true');
-            this.controls.enabled = true;
-            this.activeTriangleExtraction = null;
-            return;
-        }
         this.populateTriangleExtractionModal(layout, labels, item, flightColor);
 
         const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
@@ -1745,6 +1744,60 @@ class TrimensionApp {
             this.triangleExtractAnimationFrame = null;
         }
 
+        const extraction = this.activeTriangleExtraction;
+        const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+        const animationDurationMs = reducedMotion ? 0 : 1450;
+        const points = (extraction.pointIds || []).map((pointId) => this.getPointById(pointId));
+        const worldPoints = points.some((point) => !point)
+            ? null
+            : points.map((point) => point.position.clone());
+        const returnPoints = worldPoints
+            ? worldPoints.map((point) => this.projectWorldPointToViewport(point))
+            : null;
+        const startPoints = extraction.layout
+            ? this.getTriangleExtractionDestinationPoints(extraction.layout)
+            : null;
+
+        // Hide modal chrome/text first, then run a reverse flight animation.
+        this.triangleExtractOverlay.classList.remove('settled', 'pre-open');
+        if (extraction.color) {
+            this.updateTriangleExtractFlightStyle(extraction.color);
+        }
+
+        if (!startPoints || !returnPoints || animationDurationMs === 0) {
+            this.finishTriangleExtractionClose();
+            return;
+        }
+
+        this.renderTriangleExtractFlight(startPoints);
+        const startTime = performance.now();
+        const step = (now) => {
+            if (!this.activeTriangleExtraction) {
+                this.triangleExtractAnimationFrame = null;
+                return;
+            }
+
+            const rawProgress = Math.min(1, (now - startTime) / animationDurationMs);
+            const eased = 1 - Math.pow(1 - rawProgress, 3);
+            const currentPoints = startPoints.map((point, index) => ({
+                x: THREE.MathUtils.lerp(point.x, returnPoints[index].x, eased),
+                y: THREE.MathUtils.lerp(point.y, returnPoints[index].y, eased)
+            }));
+            this.renderTriangleExtractFlight(currentPoints);
+
+            if (rawProgress >= 1) {
+                this.triangleExtractAnimationFrame = null;
+                this.finishTriangleExtractionClose();
+                return;
+            }
+
+            this.triangleExtractAnimationFrame = window.requestAnimationFrame(step);
+        };
+
+        this.triangleExtractAnimationFrame = window.requestAnimationFrame(step);
+    }
+
+    finishTriangleExtractionClose() {
         this.activeTriangleExtraction = null;
         this.triangleExtractOverlay.classList.remove('show', 'pre-open', 'settled');
         this.triangleExtractOverlay.setAttribute('aria-hidden', 'true');
