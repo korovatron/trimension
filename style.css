@@ -670,9 +670,9 @@ textarea {
     min-width: 1.45em;
     margin-left: auto;
     padding: 1px 6px;
-    border-radius: 4px;
-    background: #ffd54a;
-    color: #111111;
+    border-radius: 6px;
+    background: #ffcc00;
+    color: #000000;
     font-weight: 700;
     line-height: 1.2;
 }
