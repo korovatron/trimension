@@ -4270,6 +4270,32 @@ class TrimensionApp {
         }) || null;
     }
 
+    findAngleObject(pointIds) {
+        if (!Array.isArray(pointIds) || pointIds.length !== 3) {
+            return null;
+        }
+
+        const vertexId = pointIds[1];
+        const endpointPair = this.normalizePointPairIds([pointIds[0], pointIds[2]]);
+        if (!vertexId || !endpointPair) {
+            return null;
+        }
+
+        return this.sceneObjects.find((entry) => {
+            const definition = entry.definition;
+            if (!definition || definition.kind !== 'angle' || !Array.isArray(definition.pointIds) || definition.pointIds.length !== 3) {
+                return false;
+            }
+
+            if (definition.pointIds[1] !== vertexId) {
+                return false;
+            }
+
+            const candidatePair = this.normalizePointPairIds([definition.pointIds[0], definition.pointIds[2]]);
+            return !!candidatePair && candidatePair[0] === endpointPair[0] && candidatePair[1] === endpointPair[1];
+        }) || null;
+    }
+
     findAngleLabelObjectsForTriangle(trianglePointIds) {
         return this.sceneObjects.filter((entry) => {
             const def = entry.definition;
@@ -5304,12 +5330,23 @@ class TrimensionApp {
         }
 
         if (this.selectedPoints.length === 3) {
-            return baseActions.filter((action) => {
-                if (action.key !== 'angle') {
-                    return true;
-                }
-                return this.canAttachAngleFromOrderedPoints(this.selectedPoints);
-            });
+            return baseActions
+                .filter((action) => {
+                    if (action.key !== 'angle') {
+                        return true;
+                    }
+                    return this.canAttachAngleFromOrderedPoints(this.selectedPoints);
+                })
+                .map((action) => {
+                    if (action.key !== 'angle') {
+                        return action;
+                    }
+                    const hasExistingAngle = !!this.findAngleObject(this.selectedPoints);
+                    return {
+                        ...action,
+                        label: hasExistingAngle ? 'Change Angle' : 'Add Angle'
+                    };
+                });
         }
 
         if (this.selectedPoints.length !== 4) {
@@ -5878,10 +5915,14 @@ class TrimensionApp {
                 return;
             }
 
-            const defaultAngleLabel = this.formatPointSequence(ids);
+            const existingAngle = this.findAngleObject(ids);
+            const defaultAngleLabel = existingAngle?.definition?.text || this.formatPointSequence(ids);
             let angleLabelInput = defaultAngleLabel;
+            const promptText = existingAngle
+                ? `Change label for angle at ${selectedLabels[1]}`
+                : `Label for angle at ${selectedLabels[1]}`;
             while (true) {
-                const nextLabel = await this.showPromptModal(`Label for angle at ${selectedLabels[1]}`, angleLabelInput, { quickSymbols: true });
+                const nextLabel = await this.showPromptModal(promptText, angleLabelInput, { quickSymbols: true });
                 if (nextLabel == null) {
                     return;
                 }
@@ -5894,20 +5935,41 @@ class TrimensionApp {
                 await this.showAlertModal('Angle label cannot be blank.');
             }
 
-            const color = this.nextConstructionColor();
+            const color = existingAngle?.definition?.color || this.nextConstructionColor();
             const angleGroup = this.createAngleMarker(vectors[0], vectors[1], vectors[2], angleLabelInput, color);
-            this.addSceneObject({
-                type: 'angle',
-                name: `Angle ${angleLabelInput}`,
-                subtitle: `Angle at ${selectedLabels[1]}`,
-                object3D: angleGroup,
-                definition: {
+
+            if (existingAngle) {
+                existingAngle.name = `Angle ${angleLabelInput}`;
+                existingAngle.subtitle = `Angle at ${selectedLabels[1]}`;
+                existingAngle.definition = {
                     kind: 'angle',
                     pointIds: ids,
                     text: angleLabelInput,
                     color
-                }
-            });
+                };
+                this.scene.remove(existingAngle.object3D);
+                this.disposeObject3D(existingAngle.object3D);
+                angleGroup.userData.sceneObjectId = existingAngle.id;
+                existingAngle.object3D = angleGroup;
+                existingAngle.object3D.visible = existingAngle.visible;
+                this.scene.add(existingAngle.object3D);
+                this.renderObjectsList();
+                this.renderSelectionSummary();
+                this.renderActions();
+            } else {
+                this.addSceneObject({
+                    type: 'angle',
+                    name: `Angle ${angleLabelInput}`,
+                    subtitle: `Angle at ${selectedLabels[1]}`,
+                    object3D: angleGroup,
+                    definition: {
+                        kind: 'angle',
+                        pointIds: ids,
+                        text: angleLabelInput,
+                        color
+                    }
+                });
+            }
         }
 
         if (actionKey === 'plane') {
