@@ -723,6 +723,7 @@ class TrimensionApp {
         this.grid.position.y = -4.5;
         this.grid.visible = this.gridVisible;
         this.scene.add(this.grid);
+        this.updateGridThemeAppearance();
 
         window.addEventListener('resize', this.handleWindowResize);
     }
@@ -2547,6 +2548,7 @@ class TrimensionApp {
         if (this.scene?.background) {
             this.scene.background.set(this.themeMode === 'dark' ? 0x606060 : 0xffffff);
         }
+        this.updateGridThemeAppearance();
         this.updateThemeToggleUI();
         const edgeColor = this.getEdgeColor();
         this.primitiveGroup?.traverse((obj) => {
@@ -2565,6 +2567,27 @@ class TrimensionApp {
         if (this.darkIcon) {
             this.darkIcon.classList.toggle('theme-active', this.themeMode === 'dark');
         }
+    }
+
+    updateGridThemeAppearance() {
+        if (!this.grid) {
+            return;
+        }
+
+        const materials = Array.isArray(this.grid.material)
+            ? this.grid.material
+            : [this.grid.material];
+        const isDark = this.themeMode === 'dark';
+
+        materials.forEach((material) => {
+            if (!material) {
+                return;
+            }
+
+            material.transparent = isDark;
+            material.opacity = isDark ? 0.35 : 1;
+            material.needsUpdate = true;
+        });
     }
 
     onWindowResize() {
