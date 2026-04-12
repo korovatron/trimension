@@ -505,6 +505,7 @@ class TrimensionApp {
         this.primitiveSectionCollapsed = false;
         this.pointsSectionCollapsed = false;
         this.activeTriangleExtraction = null;
+        this.triangleExtractTransitionState = 'closed';
         this.lastFocusedElementBeforeTriangleExtract = null;
         this.triangleExtractSettleTimer = null;
         this.triangleExtractAnimationFrame = null;
@@ -795,7 +796,11 @@ class TrimensionApp {
         window.addEventListener('keyup', this._handleKeyUp);
 
         if (this.triangleExtractCloseBtn) {
-            this.triangleExtractCloseBtn.addEventListener('click', () => this.closeTriangleExtraction());
+            this.triangleExtractCloseBtn.addEventListener('click', () => {
+                if (this.triangleExtractTransitionState === 'open') {
+                    this.closeTriangleExtraction();
+                }
+            });
         }
 
         if (this.triangleExtractRotateBtn) {
@@ -808,9 +813,7 @@ class TrimensionApp {
 
         if (this.triangleExtractOverlay) {
             this.triangleExtractOverlay.addEventListener('click', (event) => {
-                if (event.target === this.triangleExtractOverlay) {
-                    this.closeTriangleExtraction();
-                }
+                if (event.target === this.triangleExtractOverlay) return;
             });
         }
 
@@ -1782,6 +1785,10 @@ class TrimensionApp {
     }
 
     openTriangleExtraction(objectId) {
+        if (this.triangleExtractTransitionState !== 'closed') {
+            return;
+        }
+
         if (this.isTriangleExtractionOpen()) {
             this.closeTriangleExtraction();
         }
@@ -1830,6 +1837,7 @@ class TrimensionApp {
         this.lastFocusedElementBeforeTriangleExtract = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         this.controls.enabled = false;
         this._keysHeld?.clear();
+        this.triangleExtractTransitionState = 'opening';
 
         this.triangleExtractOverlay.classList.add('show', 'pre-open');
         this.triangleExtractOverlay.classList.remove('settled');
@@ -1891,8 +1899,18 @@ class TrimensionApp {
         });
     }
 
-    closeTriangleExtraction() {
+    closeTriangleExtraction(options = {}) {
         if (!this.activeTriangleExtraction || !this.triangleExtractOverlay || !this.triangleExtractModal) {
+            return;
+        }
+
+        const forceClose = options?.force === true;
+        if (!forceClose && this.triangleExtractTransitionState !== 'open') {
+            return;
+        }
+
+        if (forceClose && this.triangleExtractTransitionState !== 'open') {
+            this.finishTriangleExtractionClose();
             return;
         }
 
@@ -1920,6 +1938,7 @@ class TrimensionApp {
             : null;
 
         // Hide modal chrome/text first, then run a reverse flight animation.
+        this.triangleExtractTransitionState = 'closing';
         this.triangleExtractOverlay.classList.remove('settled', 'pre-open');
         if (extraction.color) {
             this.updateTriangleExtractFlightStyle(extraction.color);
@@ -1960,6 +1979,7 @@ class TrimensionApp {
 
     finishTriangleExtractionClose() {
         this.activeTriangleExtraction = null;
+        this.triangleExtractTransitionState = 'closed';
         this.triangleExtractOverlay.classList.remove('show', 'pre-open', 'settled');
         this.triangleExtractOverlay.setAttribute('aria-hidden', 'true');
         this.controls.enabled = true;
@@ -2044,6 +2064,8 @@ class TrimensionApp {
 
             this.clearTriangleExtractFlight();
             this.triangleExtractOverlay.classList.add('settled');
+            this.triangleExtractTransitionState = 'open';
+            this.updateTriangleExtractionOrientationButtons();
             this.triangleExtractCloseBtn?.focus();
             this.triangleExtractSettleTimer = null;
         }, 30);
@@ -2275,7 +2297,7 @@ class TrimensionApp {
     }
 
     rotateTriangleExtractionLayout() {
-        if (!this.activeTriangleExtraction?.baseLayout) {
+        if (this.triangleExtractTransitionState !== 'open' || !this.activeTriangleExtraction?.baseLayout) {
             return;
         }
 
@@ -2284,7 +2306,7 @@ class TrimensionApp {
     }
 
     flipTriangleExtractionLayout() {
-        if (!this.activeTriangleExtraction?.baseLayout) {
+        if (this.triangleExtractTransitionState !== 'open' || !this.activeTriangleExtraction?.baseLayout) {
             return;
         }
 
@@ -2317,7 +2339,7 @@ class TrimensionApp {
     }
 
     updateTriangleExtractionOrientationButtons() {
-        const hasExtraction = !!this.activeTriangleExtraction;
+        const hasExtraction = !!this.activeTriangleExtraction && this.triangleExtractTransitionState === 'open';
         if (this.triangleExtractRotateBtn) {
             this.triangleExtractRotateBtn.disabled = !hasExtraction;
         }
@@ -7322,7 +7344,7 @@ class TrimensionApp {
 
         const [item] = this.sceneObjects.splice(index, 1);
         if (this.activeTriangleExtraction?.objectId === objectId) {
-            this.closeTriangleExtraction();
+            this.closeTriangleExtraction({ force: true });
         }
         if (item.definition?.kind === 'segment' && Array.isArray(item.definition.pointIds) && item.definition.pointIds.length === 2) {
             this.removeEdgeLabelsForPointPair(item.definition.pointIds, { onlyIfDisconnected: true });
@@ -7343,7 +7365,7 @@ class TrimensionApp {
 
     clearObjects() {
         if (this.isTriangleExtractionOpen()) {
-            this.closeTriangleExtraction();
+            this.closeTriangleExtraction({ force: true });
         }
         this.sceneObjects.forEach((item) => {
             this.scene.remove(item.object3D);
@@ -7537,7 +7559,7 @@ class TrimensionApp {
         window.removeEventListener('keydown', this._handleKeyDown);
         window.removeEventListener('keyup', this._handleKeyUp);
         this.canvas.removeEventListener('pointerdown', this.handleCanvasPointerDown);
-        this.closeTriangleExtraction();
+        this.closeTriangleExtraction({ force: true });
         this.clearObjects();
         this.clearPrimitive();
         window.cancelAnimationFrame(this.animationFrameId);
