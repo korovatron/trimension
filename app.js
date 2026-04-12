@@ -2264,9 +2264,11 @@ class TrimensionApp {
             return null;
         }
 
-        const targetAspectRatio = this.getTriangleExtractionStageAspectRatio();
-        const stageWidth = 1000;
-        const stageHeight = Math.max(1, Math.round(stageWidth / (Number.isFinite(targetAspectRatio) && targetAspectRatio > 0.1 ? targetAspectRatio : (1000 / 760))));
+        // Use the base layout's own stage dimensions so rotate/flip operations never
+        // re-read the live DOM (which may have just been updated), preventing the
+        // feedback loop that causes the modal height to creep up on each rotation.
+        const stageWidth = baseLayout.stageWidth || 1000;
+        const stageHeight = baseLayout.stageHeight || 760;
 
         const centroid = baseLayout.points2D.reduce((acc, point) => ({
             x: acc.x + point.x,
