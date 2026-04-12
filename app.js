@@ -899,6 +899,7 @@ class TrimensionApp {
                 const deleteButton = event.target.closest('[data-delete-object-id]');
                 if (extractButton) {
                     this.openTriangleExtraction(Number(extractButton.dataset.extractObjectId));
+                    this.closePanelOnMobile();
                     return;
                 }
                 if (editLabelButton) {
