@@ -448,6 +448,7 @@ class TrimensionApp {
         this.gridVisible = true;
         this.displaySizeMode = this.getInitialDisplaySizeMode();
         this.themeMode = 'light';
+        this.examplesAccordionCollapsed = true;
         this.nextObjectId = 1;
         this.sceneObjects = [];
         this.selectedPoints = [];
@@ -813,18 +814,25 @@ class TrimensionApp {
             divider.className = 'dropdown-divider';
             this.addDropdown.appendChild(divider);
 
-            const examplesHeader = document.createElement('div');
-            examplesHeader.className = 'dropdown-examples-header';
-            examplesHeader.textContent = 'Examples';
-            this.addDropdown.appendChild(examplesHeader);
+            const accordionBtn = document.createElement('button');
+            accordionBtn.type = 'button';
+            accordionBtn.className = 'dropdown-accordion-header';
+            accordionBtn.setAttribute('data-examples-accordion', '');
+            accordionBtn.setAttribute('aria-expanded', String(!this.examplesAccordionCollapsed));
+            accordionBtn.innerHTML = '<span class="dropdown-accordion-arrow">&#9654;&#xFE0E;</span><span class="dropdown-accordion-label">Examples</span>';
+            this.addDropdown.appendChild(accordionBtn);
 
+            const accordionContent = document.createElement('div');
+            accordionContent.className = 'dropdown-accordion-content' + (this.examplesAccordionCollapsed ? ' collapsed' : '');
+            accordionContent.setAttribute('data-examples-content', '');
             BUILT_IN_EXAMPLES.forEach((example, idx) => {
                 const item = document.createElement('div');
                 item.className = 'dropdown-item dropdown-item-example';
                 item.dataset.example = String(idx);
                 item.textContent = example.name;
-                this.addDropdown.appendChild(item);
+                accordionContent.appendChild(item);
             });
+            this.addDropdown.appendChild(accordionContent);
 
             const isOpening = this.addDropdown.style.display === 'none';
             this.addDropdown.style.display = isOpening ? 'block' : 'none';
@@ -832,6 +840,14 @@ class TrimensionApp {
 
         this.addDropdown.addEventListener('click', (event) => {
             event.stopPropagation();
+            const accordionHeader = event.target.closest('[data-examples-accordion]');
+            if (accordionHeader) {
+                this.examplesAccordionCollapsed = !this.examplesAccordionCollapsed;
+                accordionHeader.setAttribute('aria-expanded', String(!this.examplesAccordionCollapsed));
+                const content = this.addDropdown.querySelector('[data-examples-content]');
+                if (content) { content.classList.toggle('collapsed', this.examplesAccordionCollapsed); }
+                return;
+            }
             const primitiveItem = event.target.closest('[data-primitive]');
             if (primitiveItem) {
                 this.addSlot(primitiveItem.dataset.primitive);
