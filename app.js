@@ -373,6 +373,15 @@ const ATTACHMENT_FACES = {
 class TrimensionApp {
     constructor() {
         this.canvas = document.getElementById('three-canvas');
+        this.canvasContainer = this.canvas?.closest('.canvas-container') || this.canvas?.parentElement || null;
+        this.canvasEmptyStateEl = null;
+        if (this.canvasContainer) {
+            const emptyState = document.createElement('div');
+            emptyState.className = 'canvas-empty-state';
+            emptyState.innerHTML = 'Use the <span class="inline-add-button" aria-hidden="true">+ Add</span> button to add up to 3 primitive objects to the diagram or choose an example diagram';
+            this.canvasContainer.appendChild(emptyState);
+            this.canvasEmptyStateEl = emptyState;
+        }
         this.panelToggleBtn = document.getElementById('panel-toggle-btn');
         this.controlPanel = document.querySelector('.control-panel');
         this.pointsListEl = document.getElementById('points-list');
@@ -417,9 +426,13 @@ class TrimensionApp {
         this.primitiveSectionHeader = document.getElementById('primitive-section-header');
         this.primitiveSectionContent = document.getElementById('primitive-section-content');
         this.primitiveSectionArrow = document.getElementById('primitive-section-arrow');
+        this.primitiveSectionTitle = this.primitiveSectionHeader?.querySelector('h3') || null;
+        this.primitiveSectionBaseTitle = this.primitiveSectionTitle?.textContent || '';
         this.pointsSectionHeader = document.getElementById('points-section-header');
         this.pointsSectionContent = document.getElementById('points-section-content');
         this.pointsSectionArrow = document.getElementById('points-section-arrow');
+        this.pointsSectionTitle = this.pointsSectionHeader?.querySelector('h3') || null;
+        this.pointsSectionBaseTitle = this.pointsSectionTitle?.textContent || '';
         this.triangleExtractOverlay = document.getElementById('triangle-extract-overlay');
         this.triangleExtractModal = document.getElementById('triangle-extract-modal');
         this.triangleExtractTitle = document.getElementById('triangle-extract-title');
@@ -505,9 +518,7 @@ class TrimensionApp {
         };
 
         // compositeSlots: array of { id, primitive, orientation, params, hostSlotId, hostFaceId, attachFaceId, attachRotationQuarterTurns }
-        this.compositeSlots = [
-            { id: 0, primitive: 'cuboid', orientation: 'standard', params: { width: 7, depth: 4, height: 5, includeFaceCentersMode: 'off' }, hostSlotId: null, hostFaceId: null, attachFaceId: null, attachRotationQuarterTurns: 0 }
-        ];
+        this.compositeSlots = [];
         this.nextSlotId = 1;
         this.compositeGroup = null;
         this.slotGroupMap = new Map();   // slotId -> Three.js Group
@@ -699,7 +710,7 @@ class TrimensionApp {
             if (!snapshot || snapshot.version !== SHARE_STATE_VERSION || !this.applySharedStateSnapshot(snapshot)) {
                 throw new Error('Invalid example snapshot');
             }
-            this.applySharedUrlDefaultSectionState();
+            this.applyBuiltInExampleSectionState();
             this.showToast(`Loaded: ${example.name}`);
         } catch (error) {
             console.error('Failed to load built-in example:', error);
@@ -794,6 +805,7 @@ class TrimensionApp {
 
         this.addBtn.addEventListener('click', (event) => {
             event.stopPropagation();
+            this.examplesAccordionCollapsed = true;
             // Populate dropdown dynamically based on current composite state
             const isFirst = this.compositeSlots.length === 0;
             const compatible = isFirst
@@ -858,6 +870,7 @@ class TrimensionApp {
             const primitiveItem = event.target.closest('[data-primitive]');
             if (primitiveItem) {
                 this.addSlot(primitiveItem.dataset.primitive);
+                this.expandPrimarySections();
                 this.addDropdown.style.display = 'none';
                 return;
             }
@@ -1071,6 +1084,18 @@ class TrimensionApp {
         });
     }
 
+    expandPrimarySections() {
+        this.primitiveSectionCollapsed = false;
+        this.primitiveSectionContent.classList.remove('collapsed');
+        this.primitiveSectionHeader.setAttribute('aria-expanded', 'true');
+        this.primitiveSectionArrow.textContent = '\u25BC\uFE0E';
+
+        this.pointsSectionCollapsed = false;
+        this.pointsSectionContent.classList.remove('collapsed');
+        this.pointsSectionHeader.setAttribute('aria-expanded', 'true');
+        this.pointsSectionArrow.textContent = '\u25BC\uFE0E';
+    }
+
     handleCanvasPointerDown(event) {
         if (event.target.closest('.control-panel')) {
             return;
@@ -1242,6 +1267,23 @@ class TrimensionApp {
         this.pointsSectionCollapsed = false;
         this.objectGroupCollapsed = {
             triangles: true,
+            segments: true,
+            angles: true,
+            planes: true,
+            labels: true
+        };
+
+        this.panelToggleBtn.classList.add('active');
+        this.controlPanel.classList.remove('closed');
+        this.applySectionCollapseStateToUI();
+    }
+
+    applyBuiltInExampleSectionState() {
+        this.panelOpen = true;
+        this.primitiveSectionCollapsed = false;
+        this.pointsSectionCollapsed = false;
+        this.objectGroupCollapsed = {
+            triangles: false,
             segments: true,
             angles: true,
             planes: true,
@@ -3464,6 +3506,7 @@ class TrimensionApp {
     renderCompositeCards() {
         this.primitiveCardsListEl.innerHTML = '';
         const hasMultiple = this.compositeSlots.length > 1;
+        this.updatePrimarySectionCounts();
 
         if (this.compositeSlots.length === 0) {
             const empty = document.createElement('p');
@@ -3723,6 +3766,7 @@ class TrimensionApp {
             this.renderPointsList();
             this.renderSelectionSummary();
             this.renderActions();
+            this.updateCanvasEmptyState();
             return;
         }
 
@@ -3816,6 +3860,13 @@ class TrimensionApp {
         if (fitCamera) {
             this.fitCameraToObject(this.compositeGroup);
         }
+        this.updateCanvasEmptyState();
+    }
+
+    updateCanvasEmptyState() {
+        if (!this.canvasEmptyStateEl) return;
+        const shouldShow = this.compositeSlots.length === 0;
+        this.canvasEmptyStateEl.classList.toggle('show', shouldShow);
     }
 
     getPrimitiveLocalPointMap(primitiveKey, params) {
@@ -5450,7 +5501,24 @@ class TrimensionApp {
             button.innerHTML = `<span class="point-name">${point.label}</span>`;
             this.pointsListEl.appendChild(button);
         });
+        this.updatePrimarySectionCounts();
         this.updatePointMarkerStyles();
+    }
+
+    updatePrimarySectionCounts() {
+        const updateSectionTitleCount = (titleEl, baseTitle, count) => {
+            if (!titleEl) return;
+            titleEl.textContent = baseTitle;
+            if (count > 0) {
+                const countEl = document.createElement('span');
+                countEl.className = 'section-object-count';
+                countEl.textContent = `${count}`;
+                titleEl.appendChild(countEl);
+            }
+        };
+
+        updateSectionTitleCount(this.primitiveSectionTitle, this.primitiveSectionBaseTitle, this.compositeSlots.length);
+        updateSectionTitleCount(this.pointsSectionTitle, this.pointsSectionBaseTitle, this.getAllPoints().length);
     }
 
     updatePointMarkerStyles() {
