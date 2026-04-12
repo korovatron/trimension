@@ -3976,8 +3976,8 @@ class TrimensionApp {
 
         if (this.compositeSlots.length === 0) {
             this.pointDefinitions = [];
-            this.rebuildConstructions();
             this.refreshDerivedPoints();
+            this.rebuildConstructions();
             this.buildPointMarkers();
             this.updatePanelCopy();
             this.renderPointsList();
@@ -4067,8 +4067,8 @@ class TrimensionApp {
         });
 
         this.pointDefinitions = this.mergeCoincidentBasePoints(allPoints);
-        this.rebuildConstructions();
         this.refreshDerivedPoints();
+        this.rebuildConstructions();
         this.buildPointMarkers();
         this.updatePanelCopy();
         this.renderPointsList();
