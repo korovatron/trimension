@@ -5,10 +5,10 @@ import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 
 const titleScreen = document.getElementById('title-screen');
-const mainApp = document.getElementById('main-app');
-const startBtn = document.getElementById('start-btn');
-const helpOverlay = document.getElementById('help-overlay');
-
+    {
+        name: 'AQA L2FM 2022',
+        payload: 'g.H4sIAAAAAAAACrWW0W7iOBSGXwWdaxc5sZM4uaNI26k0o2Fneoe4MIkLnglOZDtdqpb3mqfYZ1rZQAKZUhht4So-ceLv__lP7Bd4EtrISkEWIGgkZC9QcyXKr7VQkFndiA2CnK-E5v5eZaT106fxME4IjeI0CGISxylF0ZDEJElCGsVhRFlMUYCHEUlDxmhMkyRkaTRDYLleCAvZFA-DkKTuxyKcMkZYjPAwoCwI6b5GMUF4iCOC4zQJMGM4Chim8WyDoORzURqHNedGQDadISiElk-igGw6Bc2trF7r5LVmr-Q1AAQTmLkH82rlhQj3rBJr-72s7H3hPTBlZQ1k0xeQBWQYQa3lSlr5JCCDvJlXsgAElZZCWb61AozlquDa3ai55ivP9I8s7BKyxDHV7ooiWAq5WFrIIgRS5WVTiL94LsZCWaHNl6pwa1SPj7BBsKxMi6WastxW3PSuwq3l-fKt2rdqC_d3w7UV-qHRykCGN059Nf8hcmv22r_6oVcfO2uUsbrJ3cPjqqz0vSrE2sNLK1adM0GEwD7Xjtj_D4BA8ZUbfnbDwWgMCEwzt9KWrvoMCJ6kkXM3crlyvjxKtYvTC_yUqoAMRLEQN_s31pVU9r5wq0Lt_sCagEuQWFv_ys0G7WhoS2O15GpRig7oYVcZjG57UA9LLcSNX2VghBd9IebBKr9Dhi1p7iyELMVpROMQQVXzXNpnyPAwZB09ed_LSQ97_X-93HXJze8dcmTw-sDg8BKDx3eTaxtMXCEBdFJD53oQJzGhET5pe3DG9tGxmDAa5KsrWh8cWL9dq0PFLWrP-5E3_t9fx6jbKreDyYW8J8N8YVQ8QOc7TQMStvTpRc3ZT_l1mvOcnk4DoVHETmWHnYnOXS867LrRSQ6jw46ik5wh_XRMGoTXJWUHpNu1WtK4JTVisRLKdqx3bvMbmGZ-s7s1uD3G_uZW2oelm3ahkG72n_i9lEXRnpL2IqI_ETG6voiavf-tfFMEPZUZTziYeMJPd2_QD4KMXMirO7VvMW899pNG_mTmL28hIwiMXChuGy32rznQ1Io4s6mO-y2KPyD4--3poBvxUcbD96H6B5T0I5jC_sc6Pd5bzhzkep1GP8Sn3TmpY6I7n2abzX9gc3HBlQwAAA',
+    },
 let appInitialized = false;
 let trimensionApp = null;
 
