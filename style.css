@@ -1244,6 +1244,24 @@ textarea {
     color: rgba(255, 255, 255, 0.92);
 }
 
+.dropdown-divider {
+    border-top: 1px solid #3a4a5f;
+    margin: 4px 0;
+}
+
+.dropdown-examples-header {
+    padding: 5px 12px 3px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.add-dropdown .dropdown-item-example {
+    color: #c8d8e8;
+    font-style: italic;
+}
+
 .primitive-selector-hidden {
     display: none;
 }

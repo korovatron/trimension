@@ -170,6 +170,13 @@ const SHARE_STATE_VERSION = 1;
 const SHARE_HASH_KEY = 'state';
 const MAX_SHARE_URL_LENGTH = 7000;
 
+const BUILT_IN_EXAMPLES = [
+    {
+        name: 'AQA Exam Question',
+        payload: 'g.H4sIAAAAAAAACr2W227jNhCGX8WYa9ogdZbunKTZBqibOFkEWRiGQUuszVYiBYrKJsj6ts_Up2hfqaCsYxKnbjfpTZAZkprvnwPpJ7hnquBSQEQQlByiJ8ipYOllzgREWpVshyCmGVO0WpMF19X2xTicYGz7IQk9BxPfwyFyJ9izHcsnIXYc18EeItbEcywHu2EYYt_xXWeJQFO1YRqiBZ4Qy_OdMAwDF4dBYIeITIIwIJbTugKEJ9i1sRf6BAcBdkmAneUOQUrXLC0M1JoWDKLFAgq8-gEQXMESLaAgq2ln4NU5IJg3KyedgVefAMF1s3LaGXj1IyC4aVbO-oaJc9ts-xkQ3DXGDBB8abZd7o0lgoQpfs-SijPjSS650N9y71vuA4IZLI2kWGZVgplRJdiDvkmlvkggshAUqdQFRIsn4AlEGEGueMY1v2cQQVyuJU8AgVScCU33JYJCU5FQZRZyqmhWZesrT_QWIt8g5eY_d-Ii2DK-2WqIbGNwEadlws5pzE6Z0EwVM5mYOFrm47XUWmawQ7CVRUsoyjTde8ypzkO1pvH2Nd-13HPOS6o0U59LJQqI8A7tFZKhQsViTcWmTKka54-KZq_IpTl7GJf5QG3KxKaWWwt_Kdecu2obG-JK8nOBeKjOpAL-izxTZ7n-lcW6aKp8WZnmA8Q3TSAKrcrYHD6VqVQXImEPEIUIuGZZ1wPEQ6Af86ouilOxSRkgEDQzns-1ZzQ9MR1dlGvNdVqtbBVj46r_RgWrwgCCe17wtVk3I29a4xcu6oQ8wW9cJMMo1fGLxMBATozDMn9sWBoBqVQGz7cd1w0QyJzGXD9ChCdWsGsL7Lb4z9inFfhfvw-5916qR7MjcV9nNbD1LI5fzGEeGgGaPWiIoAJoxLhGDrE7eueY5N_Ovnx48o8QVIuwsediA36gIHYrqWCbjAndKfpken9UlOtxvTQ6GQqb1ZH7e45U1u3uCzssyTeStjxJ2heqVWD9GwXTD1aQe4crc1ABaRVU71vH3-LNr4fcZ_sIoybCkczN9nFz6AX6HrPgG0F1qVjvTC2io8YtdZ5S0ZuEeUkTxVOqmaLp6Gp-fTOEP5elqschluYsVaOc6nh7pIom3ADeNY5aAYI86I2AF3qeQ8LhCLQ6wqNm-nkBPmimezXoblQS-N6h-Q3evk___OPAfTr97vt0_wIQ3Ls8q2g1d4hD1_G6NPtHpXl69_-kucfe5dmzHRcfSrR7aEZ_MuZoejYE90bZkaAs2bBx882XT6zTy6_5aAvkvA10Mh8C2e8AZO07tAOy-0D2P2To2eNB8HulyOoRVV9tkay3ke5uh0juexDhqrVIj8ntI5HDr9VN_UbdPh-Cr7K9Lrufid_3TJFXJ6D67bbbLXe7vwHYpt0qJA4AAA',
+    },
+];
+
 const ATTACHMENT_FACES = {
     cuboid: [
         { id: 'top',    type: 'rectangle', normal: new THREE.Vector3(0, 1, 0),   uAxis: new THREE.Vector3(1, 0, 0), center: (p) => new THREE.Vector3(0, p.height / 2, 0),   dims: ['width', 'depth'],  label: 'Top' },
@@ -676,6 +683,22 @@ class TrimensionApp {
         }
     }
 
+    async loadBuiltInExample(index) {
+        const example = BUILT_IN_EXAMPLES[index];
+        if (!example) return;
+        try {
+            const snapshot = await this.decodeShareState(example.payload);
+            if (!snapshot || snapshot.version !== SHARE_STATE_VERSION || !this.applySharedStateSnapshot(snapshot)) {
+                throw new Error('Invalid example snapshot');
+            }
+            this.applySharedUrlDefaultSectionState();
+            this.showToast(`Loaded: ${example.name}`);
+        } catch (error) {
+            console.error('Failed to load built-in example:', error);
+            this.showAlertModal(`Unable to load example: ${example.name}`);
+        }
+    }
+
     initThree() {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0xffffff);
@@ -786,16 +809,40 @@ class TrimensionApp {
                 });
             }
 
+            const divider = document.createElement('div');
+            divider.className = 'dropdown-divider';
+            this.addDropdown.appendChild(divider);
+
+            const examplesHeader = document.createElement('div');
+            examplesHeader.className = 'dropdown-examples-header';
+            examplesHeader.textContent = 'Examples';
+            this.addDropdown.appendChild(examplesHeader);
+
+            BUILT_IN_EXAMPLES.forEach((example, idx) => {
+                const item = document.createElement('div');
+                item.className = 'dropdown-item dropdown-item-example';
+                item.dataset.example = String(idx);
+                item.textContent = example.name;
+                this.addDropdown.appendChild(item);
+            });
+
             const isOpening = this.addDropdown.style.display === 'none';
             this.addDropdown.style.display = isOpening ? 'block' : 'none';
         });
 
         this.addDropdown.addEventListener('click', (event) => {
             event.stopPropagation();
-            const item = event.target.closest('[data-primitive]');
-            if (!item) return;
-            this.addSlot(item.dataset.primitive);
-            this.addDropdown.style.display = 'none';
+            const primitiveItem = event.target.closest('[data-primitive]');
+            if (primitiveItem) {
+                this.addSlot(primitiveItem.dataset.primitive);
+                this.addDropdown.style.display = 'none';
+                return;
+            }
+            const exampleItem = event.target.closest('[data-example]');
+            if (exampleItem) {
+                this.addDropdown.style.display = 'none';
+                this.loadBuiltInExample(Number(exampleItem.dataset.example));
+            }
         });
 
         document.addEventListener('click', (event) => {
