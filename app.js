@@ -474,6 +474,7 @@ class TrimensionApp {
         this.selectedPoints = [];
         this.pointDefinitions = [];
         this.derivedPoints = [];
+        this.pointsHintDismissed = false;
         this.isRestoringSharedState = false;
         this.baseLabelOverrides = new Map();
         this.derivedLabelOverrides = new Map();
@@ -5485,7 +5486,8 @@ class TrimensionApp {
 
     renderPointsList() {
         this.pointsListEl.innerHTML = '';
-        this.getAllPoints().forEach((point) => {
+        const allPoints = this.getAllPoints();
+        allPoints.forEach((point) => {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'point-btn';
@@ -5501,6 +5503,12 @@ class TrimensionApp {
             button.innerHTML = `<span class="point-name">${point.label}</span>`;
             this.pointsListEl.appendChild(button);
         });
+        if (allPoints.length > 0 && this.selectedPoints.length === 0 && !this.pointsHintDismissed) {
+            const hint = document.createElement('p');
+            hint.className = 'section-note points-select-hint';
+            hint.textContent = 'Select 1–4 labelled points in order to reveal available actions.';
+            this.pointsListEl.appendChild(hint);
+        }
         this.updatePrimarySectionCounts();
         this.updatePointMarkerStyles();
     }
@@ -5534,6 +5542,7 @@ class TrimensionApp {
     }
 
     togglePointSelection(pointId) {
+        this.pointsHintDismissed = true;
         const existingIndex = this.selectedPoints.indexOf(pointId);
         if (existingIndex >= 0) {
             this.selectedPoints.splice(existingIndex, 1);
