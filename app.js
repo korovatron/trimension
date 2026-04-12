@@ -5448,7 +5448,7 @@ class TrimensionApp {
         }
 
         if (this.selectedPoints.length === 2) {
-            const hasExistingSegment = this.hasExplicitSceneSegmentBetween(this.selectedPoints);
+            const hasExistingSegment = this.hasExplicitSceneSegmentBetween(this.selectedPoints) || this.hasPrimitiveEdgeBetween(this.selectedPoints);
             const filteredActions = baseActions.filter((action) => action.key !== 'segment' || !hasExistingSegment);
 
             if (this.canAttachLabelToPointPair(this.selectedPoints)) {
