@@ -1814,6 +1814,38 @@ textarea {
     min-width: 0;
 }
 
+.triangle-extract-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+}
+
+.triangle-extract-action-btn {
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-primary);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.triangle-extract-action-btn[aria-pressed="true"] {
+    border-color: rgba(255, 204, 0, 0.65);
+    background: rgba(255, 204, 0, 0.14);
+}
+
+.triangle-extract-action-btn:disabled {
+    opacity: 0.58;
+    cursor: default;
+}
+
 .triangle-extract-kicker {
     margin: 0;
     color: var(--accent-color);
@@ -1982,6 +2014,7 @@ textarea {
 }
 
 @media (hover: hover) {
+    .triangle-extract-action-btn:hover,
     .triangle-extract-close:hover {
         filter: brightness(1.12);
     }
@@ -2019,6 +2052,20 @@ textarea {
         border-radius: 18px;
         padding: 18px;
         gap: 14px;
+    }
+
+    .triangle-extract-header {
+        flex-wrap: wrap;
+    }
+
+    .triangle-extract-header-actions {
+        order: 3;
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .triangle-extract-action-btn {
+        flex: 1 1 0;
     }
 
     .triangle-extract-stage {

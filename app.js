@@ -445,6 +445,8 @@ class TrimensionApp {
         this.triangleExtractPolygon = document.getElementById('triangle-extract-polygon');
         this.triangleExtractOutline = document.getElementById('triangle-extract-outline');
         this.triangleExtractRightAngle = document.getElementById('triangle-extract-right-angle');
+        this.triangleExtractRotateBtn = document.getElementById('triangle-extract-rotate');
+        this.triangleExtractFlipBtn = document.getElementById('triangle-extract-flip');
         this.triangleExtractCloseBtn = document.getElementById('triangle-extract-close');
         this.triangleExtractLabelEls = {
             A: document.getElementById('triangle-extract-label-a'),
@@ -794,6 +796,14 @@ class TrimensionApp {
 
         if (this.triangleExtractCloseBtn) {
             this.triangleExtractCloseBtn.addEventListener('click', () => this.closeTriangleExtraction());
+        }
+
+        if (this.triangleExtractRotateBtn) {
+            this.triangleExtractRotateBtn.addEventListener('click', () => this.rotateTriangleExtractionLayout());
+        }
+
+        if (this.triangleExtractFlipBtn) {
+            this.triangleExtractFlipBtn.addEventListener('click', () => this.flipTriangleExtractionLayout());
         }
 
         if (this.triangleExtractOverlay) {
@@ -1812,6 +1822,9 @@ class TrimensionApp {
             type: item.type,
             pointIds: [...item.definition.pointIds],
             layout,
+            baseLayout: layout,
+            labels: [...labels],
+            item,
             color: flightColor
         };
         this.lastFocusedElementBeforeTriangleExtract = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -1823,6 +1836,7 @@ class TrimensionApp {
         this.triangleExtractOverlay.setAttribute('aria-hidden', 'false');
 
         this.populateTriangleExtractionModal(layout, labels, item, flightColor);
+        this.updateTriangleExtractionOrientationButtons();
 
         const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
         const animationDurationMs = reducedMotion ? 0 : 1450;
@@ -1950,6 +1964,7 @@ class TrimensionApp {
         this.triangleExtractOverlay.setAttribute('aria-hidden', 'true');
         this.controls.enabled = true;
         this.clearTriangleExtractFlight();
+        this.updateTriangleExtractionOrientationButtons();
 
         if (this.lastFocusedElementBeforeTriangleExtract?.focus) {
             this.lastFocusedElementBeforeTriangleExtract.focus();
@@ -2089,7 +2104,10 @@ class TrimensionApp {
 
             candidates.push({
                 points: oriented,
-                baseLength
+                baseLength,
+                startIndex: base.startIndex,
+                endIndex: base.endIndex,
+                apexIndex: base.apexIndex
             });
         });
 
@@ -2140,6 +2158,175 @@ class TrimensionApp {
         return candidates;
     }
 
+    getExtractionLayoutPadding(stageWidth, stageHeight) {
+        return {
+            x: Math.max(88, Math.min(128, stageWidth * 0.115)),
+            y: Math.max(72, Math.min(104, stageHeight * 0.135))
+        };
+    }
+
+    fitExtractionPointsToStage(rawPoints, stageWidth, stageHeight, paddingX = null, paddingY = null) {
+        if (!Array.isArray(rawPoints) || rawPoints.length < 3) {
+            return null;
+        }
+
+        const padding = this.getExtractionLayoutPadding(stageWidth, stageHeight);
+        const safePaddingX = Number.isFinite(paddingX) ? paddingX : padding.x;
+        const safePaddingY = Number.isFinite(paddingY) ? paddingY : padding.y;
+
+        const minX = Math.min(...rawPoints.map((point) => point.x));
+        const maxX = Math.max(...rawPoints.map((point) => point.x));
+        const minY = Math.min(...rawPoints.map((point) => point.y));
+        const maxY = Math.max(...rawPoints.map((point) => point.y));
+        const width = Math.max(maxX - minX, 1e-6);
+        const height = Math.max(maxY - minY, 1e-6);
+        const scale = Math.min((stageWidth - safePaddingX * 2) / width, (stageHeight - safePaddingY * 2) / height);
+        const offsetX = (stageWidth - width * scale) / 2 - minX * scale;
+        const offsetY = (stageHeight - height * scale) / 2 + maxY * scale;
+
+        return rawPoints.map((point) => ({
+            x: offsetX + point.x * scale,
+            y: offsetY - point.y * scale
+        }));
+    }
+
+    buildExtractionLayoutFromPoints(points2D, stageWidth, stageHeight) {
+        if (!Array.isArray(points2D) || points2D.length < 3) {
+            return null;
+        }
+
+        const centroid = points2D.reduce((acc, point) => ({
+            x: acc.x + point.x,
+            y: acc.y + point.y
+        }), { x: 0, y: 0 });
+        centroid.x /= points2D.length;
+        centroid.y /= points2D.length;
+
+        const labelPositions = points2D.map((point) => {
+            const dx = point.x - centroid.x;
+            const dy = point.y - centroid.y;
+            const length = Math.hypot(dx, dy) || 1;
+            const offset = 52;
+            return {
+                x: point.x + (dx / length) * offset,
+                y: point.y + (dy / length) * offset
+            };
+        });
+
+        const sideEdgePairs = points2D.map((point, index) => [point, points2D[(index + 1) % points2D.length]]);
+        const sideLabelPositions = sideEdgePairs.map(([a, b]) => this.getOffsetMidpoint(a, b, centroid, 34));
+        const sideLabelAngles = sideEdgePairs.map(([a, b]) => {
+            let angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+            if (angle > 90) angle -= 180;
+            if (angle < -90) angle += 180;
+            return angle;
+        });
+
+        return {
+            points2D,
+            labelPositions,
+            sideLabelPositions,
+            sideLabelAngles,
+            rightAnglePath: this.buildPolygonRightAnglePath(points2D),
+            stageWidth,
+            stageHeight
+        };
+    }
+
+    buildTransformedExtractionLayout(baseLayout, quarterTurns = 0, isFlipped = false) {
+        if (!baseLayout?.points2D?.length) {
+            return null;
+        }
+
+        const targetAspectRatio = this.getTriangleExtractionStageAspectRatio();
+        const stageWidth = 1000;
+        const stageHeight = Math.max(1, Math.round(stageWidth / (Number.isFinite(targetAspectRatio) && targetAspectRatio > 0.1 ? targetAspectRatio : (1000 / 760))));
+
+        const centroid = baseLayout.points2D.reduce((acc, point) => ({
+            x: acc.x + point.x,
+            y: acc.y + point.y
+        }), { x: 0, y: 0 });
+        centroid.x /= baseLayout.points2D.length;
+        centroid.y /= baseLayout.points2D.length;
+
+        const normalizedQuarterTurns = ((quarterTurns % 4) + 4) % 4;
+        const transformed = baseLayout.points2D.map((point) => {
+            let x = point.x - centroid.x;
+            let y = point.y - centroid.y;
+
+            if (isFlipped) {
+                x *= -1;
+            }
+
+            for (let index = 0; index < normalizedQuarterTurns; index += 1) {
+                const nextX = -y;
+                const nextY = x;
+                x = nextX;
+                y = nextY;
+            }
+
+            return { x, y };
+        });
+
+        const fittedPoints = this.fitExtractionPointsToStage(transformed, stageWidth, stageHeight);
+        return fittedPoints
+            ? this.buildExtractionLayoutFromPoints(fittedPoints, stageWidth, stageHeight)
+            : null;
+    }
+
+    rotateTriangleExtractionLayout() {
+        if (!this.activeTriangleExtraction?.baseLayout) {
+            return;
+        }
+
+        const nextQuarterTurns = (((this.activeTriangleExtraction.orientationQuarterTurns || 0) + 1) % 4 + 4) % 4;
+        this.applyTriangleExtractionOrientation(nextQuarterTurns, this.activeTriangleExtraction.orientationFlipped === true);
+    }
+
+    flipTriangleExtractionLayout() {
+        if (!this.activeTriangleExtraction?.baseLayout) {
+            return;
+        }
+
+        this.applyTriangleExtractionOrientation(
+            this.activeTriangleExtraction.orientationQuarterTurns || 0,
+            !(this.activeTriangleExtraction.orientationFlipped === true)
+        );
+    }
+
+    applyTriangleExtractionOrientation(quarterTurns, isFlipped) {
+        if (!this.activeTriangleExtraction?.baseLayout) {
+            return;
+        }
+
+        const layout = this.buildTransformedExtractionLayout(this.activeTriangleExtraction.baseLayout, quarterTurns, isFlipped);
+        if (!layout) {
+            return;
+        }
+
+        this.activeTriangleExtraction.orientationQuarterTurns = ((quarterTurns % 4) + 4) % 4;
+        this.activeTriangleExtraction.orientationFlipped = isFlipped === true;
+        this.activeTriangleExtraction.layout = layout;
+        this.populateTriangleExtractionModal(
+            layout,
+            this.activeTriangleExtraction.labels,
+            this.activeTriangleExtraction.item,
+            this.activeTriangleExtraction.color
+        );
+        this.updateTriangleExtractionOrientationButtons();
+    }
+
+    updateTriangleExtractionOrientationButtons() {
+        const hasExtraction = !!this.activeTriangleExtraction;
+        if (this.triangleExtractRotateBtn) {
+            this.triangleExtractRotateBtn.disabled = !hasExtraction;
+        }
+        if (this.triangleExtractFlipBtn) {
+            this.triangleExtractFlipBtn.disabled = !hasExtraction;
+            this.triangleExtractFlipBtn.setAttribute('aria-pressed', this.activeTriangleExtraction?.orientationFlipped === true ? 'true' : 'false');
+        }
+    }
+
     buildPolygonExtractionLayout(rawPoints, targetAspectRatio = 1000 / 760) {
         if (!Array.isArray(rawPoints) || rawPoints.length < 3) {
             return null;
@@ -2150,8 +2337,9 @@ class TrimensionApp {
             ? targetAspectRatio
             : (1000 / 760);
         const stageHeight = Math.max(1, Math.round(stageWidth / safeAspect));
-        const paddingX = 140;
-        const paddingY = 110;
+        const padding = this.getExtractionLayoutPadding(stageWidth, stageHeight);
+        const paddingX = padding.x;
+        const paddingY = padding.y;
 
         const candidates = this.getPolygonOrientationCandidates(rawPoints);
         if (candidates.length === 0) {
@@ -2198,48 +2386,10 @@ class TrimensionApp {
             return null;
         }
 
-        const offsetX = (stageWidth - bestCandidate.width * bestCandidate.scale) / 2 - bestCandidate.minX * bestCandidate.scale;
-        const offsetY = (stageHeight - bestCandidate.height * bestCandidate.scale) / 2 + bestCandidate.maxY * bestCandidate.scale;
-        const points2D = bestCandidate.points.map((point) => ({
-            x: offsetX + point.x * bestCandidate.scale,
-            y: offsetY - point.y * bestCandidate.scale
-        }));
-        const centroid = points2D.reduce((acc, point) => ({
-            x: acc.x + point.x,
-            y: acc.y + point.y
-        }), { x: 0, y: 0 });
-        centroid.x /= points2D.length;
-        centroid.y /= points2D.length;
-
-        const labelPositions = points2D.map((point) => {
-            const dx = point.x - centroid.x;
-            const dy = point.y - centroid.y;
-            const length = Math.hypot(dx, dy) || 1;
-            const offset = 52;
-            return {
-                x: point.x + (dx / length) * offset,
-                y: point.y + (dy / length) * offset
-            };
-        });
-
-        const sideEdgePairs = points2D.map((point, index) => [point, points2D[(index + 1) % points2D.length]]);
-        const sideLabelPositions = sideEdgePairs.map(([a, b]) => this.getOffsetMidpoint(a, b, centroid, 34));
-        const sideLabelAngles = sideEdgePairs.map(([a, b]) => {
-            let angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
-            if (angle > 90) angle -= 180;
-            if (angle < -90) angle += 180;
-            return angle;
-        });
-
-        return {
-            points2D,
-            labelPositions,
-            sideLabelPositions,
-            sideLabelAngles,
-            rightAnglePath: this.buildPolygonRightAnglePath(points2D),
-            stageWidth,
-            stageHeight
-        };
+        const points2D = this.fitExtractionPointsToStage(bestCandidate.points, stageWidth, stageHeight, paddingX, paddingY);
+        return points2D
+            ? this.buildExtractionLayoutFromPoints(points2D, stageWidth, stageHeight)
+            : null;
     }
 
     buildTriangleExtractionLayout(worldPoints, targetAspectRatio = 1000 / 760) {
@@ -2263,6 +2413,50 @@ class TrimensionApp {
             { x: baseLength, y: 0 },
             { x: cX, y: cY }
         ];
+
+        const sideSquares = [sideAB * sideAB, sideBC * sideBC, sideCA * sideCA].sort((a, b) => a - b);
+        const rightAngleTolerance = Math.max(1e-6, sideSquares[2] * 0.0025);
+        const isRightAngled = Math.abs(sideSquares[0] + sideSquares[1] - sideSquares[2]) <= rightAngleTolerance;
+
+        if (isRightAngled) {
+            const stageWidth = 1000;
+            const safeAspect = Number.isFinite(targetAspectRatio) && targetAspectRatio > 0.1
+                ? targetAspectRatio
+                : (1000 / 760);
+            const stageHeight = Math.max(1, Math.round(stageWidth / safeAspect));
+            const padding = this.getExtractionLayoutPadding(stageWidth, stageHeight);
+            const hypotenuseLength = Math.max(sideAB, sideBC, sideCA);
+            const lengthTolerance = Math.max(1e-6, hypotenuseLength * 0.0035);
+
+            const legBaseCandidates = this.getTriangleOrientationCandidates(rawPoints)
+                .filter((candidate) => Math.abs(candidate.baseLength - hypotenuseLength) > lengthTolerance);
+
+            let bestLayout = null;
+            let bestScaleScore = -Infinity;
+            legBaseCandidates.forEach((candidate) => {
+                const fittedPoints = this.fitExtractionPointsToStage(candidate.points, stageWidth, stageHeight, padding.x, padding.y);
+                if (!fittedPoints) {
+                    return;
+                }
+
+                const minX = Math.min(...candidate.points.map((point) => point.x));
+                const maxX = Math.max(...candidate.points.map((point) => point.x));
+                const minY = Math.min(...candidate.points.map((point) => point.y));
+                const maxY = Math.max(...candidate.points.map((point) => point.y));
+                const width = Math.max(maxX - minX, 1e-6);
+                const height = Math.max(maxY - minY, 1e-6);
+                const scaleScore = Math.min((stageWidth - padding.x * 2) / width, (stageHeight - padding.y * 2) / height);
+
+                if (scaleScore > bestScaleScore + 1e-6) {
+                    bestScaleScore = scaleScore;
+                    bestLayout = this.buildExtractionLayoutFromPoints(fittedPoints, stageWidth, stageHeight);
+                }
+            });
+
+            if (bestLayout) {
+                return bestLayout;
+            }
+        }
 
         return this.buildPolygonExtractionLayout(rawPoints, targetAspectRatio);
     }
