@@ -1850,8 +1850,7 @@ class TrimensionApp {
         this.populateTriangleExtractionModal(layout, labels, item, flightColor);
         this.updateTriangleExtractionOrientationButtons();
 
-        const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-        const animationDurationMs = reducedMotion ? 0 : 1450;
+        const animationDurationMs = 1450;
         const sourcePoints = worldPoints.map((point) => this.projectWorldPointToViewport(point));
 
         requestAnimationFrame(() => {
@@ -1928,8 +1927,7 @@ class TrimensionApp {
         }
 
         const extraction = this.activeTriangleExtraction;
-        const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-        const animationDurationMs = reducedMotion ? 0 : 1450;
+        const animationDurationMs = 1450;
         const points = (extraction.pointIds || []).map((pointId) => this.getPointById(pointId));
         const worldPoints = points.some((point) => !point)
             ? null
