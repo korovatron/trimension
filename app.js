@@ -73,6 +73,11 @@ document.addEventListener('keydown', (event) => {
         event.preventDefault();
         startApp();
     } else if (event.code === 'Escape') {
+        if (trimensionApp?.isCrashReportOpen?.()) {
+            trimensionApp.closeCrashReport();
+            return;
+        }
+
         if (trimensionApp?.isTriangleExtractionOpen?.()) {
             trimensionApp.closeTriangleExtraction();
             return;
@@ -513,6 +518,15 @@ class TrimensionApp {
         this.lastFocusedElementBeforeTriangleExtract = null;
         this.triangleExtractSettleTimer = null;
         this.triangleExtractAnimationFrame = null;
+        this.crashReportOverlay = document.getElementById('crash-report-overlay');
+        this.crashReportPre = document.getElementById('crash-report-content');
+        this.crashReportCopyBtn = document.getElementById('crash-report-copy');
+        this.crashReportCloseBtn = document.getElementById('crash-report-close');
+        this.crashReportEntries = [];
+        this.maxCrashReportEntries = 140;
+        this.crashReportOpenedAt = null;
+        this.crashReportShortcut = 'Ctrl+Alt+Shift+K';
+        this._crashListenersBound = false;
 
         this.defaultParams = {
             cuboid: { width: 7, depth: 4, height: 5, includeFaceCentersMode: 'off' },
@@ -685,6 +699,7 @@ class TrimensionApp {
             sec.arrow.textContent = collapsed ? '\u25B6\uFE0E' : '\u25BC\uFE0E';
         });
 
+        this.setupCrashDiagnostics();
         this.initThree();
         this.bindEvents();
         this.buildComposite();
@@ -790,6 +805,21 @@ class TrimensionApp {
         this._keysHeld = new Set();
         this._handleKeyDown = (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+            const isCrashReportShortcut = e.ctrlKey && e.altKey && e.shiftKey && e.code === 'KeyK';
+            if (isCrashReportShortcut) {
+                e.preventDefault();
+                this.toggleCrashReport();
+                return;
+            }
+
+            if (this.isCrashReportOpen()) {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    this.closeCrashReport();
+                }
+                return;
+            }
+
             if (this.triangleExtractOverlay?.classList.contains('show')) return;
             const nav = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
             if (nav.includes(e.key)) e.preventDefault();
@@ -819,6 +849,25 @@ class TrimensionApp {
             this.triangleExtractOverlay.addEventListener('click', (event) => {
                 if (event.target === this.triangleExtractOverlay) return;
             });
+        }
+
+        if (this.crashReportCopyBtn) {
+            this._handleCrashReportCopyClick = () => this.copyCrashReport();
+            this.crashReportCopyBtn.addEventListener('click', this._handleCrashReportCopyClick);
+        }
+
+        if (this.crashReportCloseBtn) {
+            this._handleCrashReportCloseClick = () => this.closeCrashReport();
+            this.crashReportCloseBtn.addEventListener('click', this._handleCrashReportCloseClick);
+        }
+
+        if (this.crashReportOverlay) {
+            this._handleCrashReportOverlayClick = (event) => {
+                if (event.target === this.crashReportOverlay) {
+                    this.closeCrashReport();
+                }
+            };
+            this.crashReportOverlay.addEventListener('click', this._handleCrashReportOverlayClick);
         }
 
         this.addBtn.addEventListener('click', (event) => {
@@ -1782,6 +1831,226 @@ class TrimensionApp {
             }
             this.toastHideTimer = null;
         }, Math.max(800, durationMs));
+    }
+
+    setupCrashDiagnostics() {
+        if (this._crashListenersBound) {
+            return;
+        }
+
+        this.recordCrashEvent('app.init', {
+            userAgent: navigator.userAgent,
+            url: window.location.href,
+            shortcut: this.crashReportShortcut
+        });
+
+        this._onCrashWindowError = (event) => {
+            this.recordCrashEvent('window.error', {
+                message: event?.message || 'Unknown error',
+                source: event?.filename || '',
+                line: event?.lineno || 0,
+                column: event?.colno || 0,
+                stack: event?.error?.stack || ''
+            });
+        };
+
+        this._onCrashUnhandledRejection = (event) => {
+            const reason = event?.reason;
+            this.recordCrashEvent('window.unhandledrejection', {
+                message: reason?.message || String(reason || 'Unknown rejection'),
+                stack: reason?.stack || ''
+            });
+        };
+
+        this._onCrashVisibilityChange = () => {
+            this.recordCrashEvent('document.visibilitychange', {
+                state: document.visibilityState
+            });
+        };
+
+        this._onCrashPageHide = (event) => {
+            this.recordCrashEvent('window.pagehide', {
+                persisted: event?.persisted === true
+            });
+        };
+
+        this._onCrashPageShow = (event) => {
+            this.recordCrashEvent('window.pageshow', {
+                persisted: event?.persisted === true
+            });
+        };
+
+        this._onCrashFocus = () => {
+            this.recordCrashEvent('window.focus', {});
+        };
+
+        this._onCrashBlur = () => {
+            this.recordCrashEvent('window.blur', {});
+        };
+
+        this._onCrashWebglContextLost = (event) => {
+            // Prevent default so the browser can attempt WebGL context restoration.
+            event.preventDefault();
+            this.recordCrashEvent('canvas.webglcontextlost', {});
+        };
+
+        this._onCrashWebglContextRestored = () => {
+            this.recordCrashEvent('canvas.webglcontextrestored', {});
+        };
+
+        window.addEventListener('error', this._onCrashWindowError);
+        window.addEventListener('unhandledrejection', this._onCrashUnhandledRejection);
+        document.addEventListener('visibilitychange', this._onCrashVisibilityChange);
+        window.addEventListener('pagehide', this._onCrashPageHide);
+        window.addEventListener('pageshow', this._onCrashPageShow);
+        window.addEventListener('focus', this._onCrashFocus);
+        window.addEventListener('blur', this._onCrashBlur);
+        this.canvas?.addEventListener('webglcontextlost', this._onCrashWebglContextLost);
+        this.canvas?.addEventListener('webglcontextrestored', this._onCrashWebglContextRestored);
+
+        this._crashListenersBound = true;
+    }
+
+    teardownCrashDiagnostics() {
+        if (!this._crashListenersBound) {
+            return;
+        }
+
+        window.removeEventListener('error', this._onCrashWindowError);
+        window.removeEventListener('unhandledrejection', this._onCrashUnhandledRejection);
+        document.removeEventListener('visibilitychange', this._onCrashVisibilityChange);
+        window.removeEventListener('pagehide', this._onCrashPageHide);
+        window.removeEventListener('pageshow', this._onCrashPageShow);
+        window.removeEventListener('focus', this._onCrashFocus);
+        window.removeEventListener('blur', this._onCrashBlur);
+        this.canvas?.removeEventListener('webglcontextlost', this._onCrashWebglContextLost);
+        this.canvas?.removeEventListener('webglcontextrestored', this._onCrashWebglContextRestored);
+
+        this._crashListenersBound = false;
+    }
+
+    recordCrashEvent(type, payload = {}) {
+        const entry = {
+            timestamp: new Date().toISOString(),
+            type,
+            payload
+        };
+
+        this.crashReportEntries.push(entry);
+        if (this.crashReportEntries.length > this.maxCrashReportEntries) {
+            this.crashReportEntries.splice(0, this.crashReportEntries.length - this.maxCrashReportEntries);
+        }
+    }
+
+    isCrashReportOpen() {
+        return !!this.crashReportOverlay?.classList.contains('show');
+    }
+
+    toggleCrashReport() {
+        if (this.isCrashReportOpen()) {
+            this.closeCrashReport();
+            return;
+        }
+
+        this.openCrashReport();
+    }
+
+    openCrashReport() {
+        if (!this.crashReportOverlay || !this.crashReportPre) {
+            return;
+        }
+
+        this.crashReportOpenedAt = new Date().toISOString();
+        this.recordCrashEvent('crash-report.opened', {
+            shortcut: this.crashReportShortcut
+        });
+        this.crashReportPre.textContent = this.buildCrashReportText();
+        this.crashReportOverlay.classList.add('show');
+        this.crashReportOverlay.setAttribute('aria-hidden', 'false');
+        this.crashReportCloseBtn?.focus();
+    }
+
+    closeCrashReport() {
+        if (!this.crashReportOverlay) {
+            return;
+        }
+
+        this.crashReportOverlay.classList.remove('show');
+        this.crashReportOverlay.setAttribute('aria-hidden', 'true');
+    }
+
+    buildCrashReportText() {
+        const summary = {
+            generatedAt: new Date().toISOString(),
+            openedAt: this.crashReportOpenedAt,
+            url: window.location.href,
+            visibilityState: document.visibilityState,
+            panelOpen: this.panelOpen,
+            activeCompositePrimitives: this.compositeSlots.length,
+            points: this.getAllPoints().length,
+            sceneObjects: this.sceneObjects.length,
+            visibleSceneObjects: this.sceneObjects.filter((entry) => entry.visible !== false).length,
+            selectedPoints: this.selectedPoints.length,
+            triangleExtractState: this.triangleExtractTransitionState,
+            triangleExtractOpen: this.isTriangleExtractionOpen(),
+            addDropdownVisible: this.addDropdown?.style.display === 'block',
+            rendererInfo: this.renderer?.info ? {
+                geometries: this.renderer.info.memory?.geometries ?? null,
+                textures: this.renderer.info.memory?.textures ?? null,
+                calls: this.renderer.info.render?.calls ?? null,
+                triangles: this.renderer.info.render?.triangles ?? null,
+                points: this.renderer.info.render?.points ?? null,
+                lines: this.renderer.info.render?.lines ?? null
+            } : null
+        };
+
+        const lines = [];
+        lines.push('Trimension Hidden Crash Report');
+        lines.push(`Shortcut: ${this.crashReportShortcut}`);
+        lines.push('');
+        lines.push('[Summary]');
+        lines.push(JSON.stringify(summary, null, 2));
+        lines.push('');
+        lines.push('[Recent Events]');
+
+        if (this.crashReportEntries.length === 0) {
+            lines.push('(no events recorded)');
+        } else {
+            this.crashReportEntries.slice(-80).forEach((entry) => {
+                const payloadText = JSON.stringify(entry.payload || {});
+                lines.push(`${entry.timestamp} | ${entry.type} | ${payloadText}`);
+            });
+        }
+
+        return lines.join('\n');
+    }
+
+    async copyCrashReport() {
+        if (!this.crashReportPre) {
+            return;
+        }
+
+        const text = this.crashReportPre.textContent || this.buildCrashReportText();
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(text);
+                this.showToast('Crash report copied.');
+                return;
+            }
+        } catch {
+            // Ignore and continue to fallback copy path.
+        }
+
+        const tempArea = document.createElement('textarea');
+        tempArea.value = text;
+        tempArea.setAttribute('readonly', 'true');
+        tempArea.style.position = 'fixed';
+        tempArea.style.left = '-9999px';
+        document.body.appendChild(tempArea);
+        tempArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempArea);
+        this.showToast('Crash report copied.');
     }
 
     isTriangleExtractionOpen() {
@@ -7563,6 +7832,17 @@ class TrimensionApp {
         window.removeEventListener('keydown', this._handleKeyDown);
         window.removeEventListener('keyup', this._handleKeyUp);
         this.canvas.removeEventListener('pointerdown', this.handleCanvasPointerDown);
+        if (this.crashReportCopyBtn && this._handleCrashReportCopyClick) {
+            this.crashReportCopyBtn.removeEventListener('click', this._handleCrashReportCopyClick);
+        }
+        if (this.crashReportCloseBtn && this._handleCrashReportCloseClick) {
+            this.crashReportCloseBtn.removeEventListener('click', this._handleCrashReportCloseClick);
+        }
+        if (this.crashReportOverlay && this._handleCrashReportOverlayClick) {
+            this.crashReportOverlay.removeEventListener('click', this._handleCrashReportOverlayClick);
+        }
+        this.closeCrashReport();
+        this.teardownCrashDiagnostics();
         this.closeTriangleExtraction({ force: true });
         this.clearObjects();
         this.clearPrimitive();
