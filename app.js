@@ -2219,9 +2219,22 @@ class TrimensionApp {
         }
         const flightColor = this.getTriangleExtractionColor(item.definition?.color);
 
-        const layout = item.type === 'plane'
+        const sourcePoints = worldPoints.map((point) => this.projectWorldPointToViewport(point));
+        const isTriangleExtraction = item.type === 'triangle';
+
+        let layout = item.type === 'plane'
             ? this.buildPlaneExtractionLayout(worldPoints, this.getTriangleExtractionStageAspectRatio())
-            : this.buildTriangleExtractionLayout(worldPoints, this.getTriangleExtractionStageAspectRatio());
+            : this.buildCameraAwareTriangleExtractionLayout(
+                worldPoints,
+                sourcePoints,
+                this.getTriangleExtractionStageAspectRatio()
+            );
+
+        if (isTriangleExtraction && layout) {
+            const cameraAware = this.applyCameraAwareTriangleOrientation(layout, sourcePoints);
+            layout = cameraAware.layout;
+        }
+
         if (!layout) {
             return;
         }
@@ -2234,7 +2247,9 @@ class TrimensionApp {
             baseLayout: layout,
             labels: [...labels],
             item,
-            color: flightColor
+            color: flightColor,
+            orientationQuarterTurns: 0,
+            orientationFlipped: false
         };
         this.lastFocusedElementBeforeTriangleExtract = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         this.controls.enabled = false;
@@ -2249,7 +2264,6 @@ class TrimensionApp {
         this.updateTriangleExtractionOrientationButtons();
 
         const animationDurationMs = 1450;
-        const sourcePoints = worldPoints.map((point) => this.projectWorldPointToViewport(point));
 
         requestAnimationFrame(() => {
             if (!this.activeTriangleExtraction) {
@@ -2298,6 +2312,237 @@ class TrimensionApp {
             this.renderTriangleExtractFlight(sourcePoints);
             this.triangleExtractAnimationFrame = window.requestAnimationFrame(step);
         });
+    }
+
+    getTriangleSignedArea2D(points) {
+        if (!Array.isArray(points) || points.length < 3) {
+            return 0;
+        }
+
+        const a = points[0];
+        const b = points[1];
+        const c = points[2];
+        return ((b.x - a.x) * (c.y - a.y)) - ((b.y - a.y) * (c.x - a.x));
+    }
+
+    scoreTriangleLayoutAgainstCamera(layout, cameraPoints) {
+        if (!layout?.points2D || layout.points2D.length < 3 || !Array.isArray(cameraPoints) || cameraPoints.length < 3) {
+            return -Infinity;
+        }
+
+        const normalizedLayout = this.normalizeTrianglePointsForComparison(layout.points2D);
+        const normalizedCamera = this.normalizeTrianglePointsForComparison(cameraPoints);
+        if (!normalizedLayout || !normalizedCamera) {
+            return -Infinity;
+        }
+
+        // Vertex-to-vertex fit after translation/scale normalization.
+        let pointError = 0;
+        for (let index = 0; index < 3; index += 1) {
+            const dx = normalizedLayout[index].x - normalizedCamera[index].x;
+            const dy = normalizedLayout[index].y - normalizedCamera[index].y;
+            pointError += (dx * dx) + (dy * dy);
+        }
+
+        // Edge-direction agreement stabilizes ties where point fit is very close.
+        const edgePairs = [[0, 1], [1, 2], [2, 0]];
+        let edgeDirectionScore = 0;
+        edgePairs.forEach(([startIndex, endIndex]) => {
+            const layoutDx = normalizedLayout[endIndex].x - normalizedLayout[startIndex].x;
+            const layoutDy = normalizedLayout[endIndex].y - normalizedLayout[startIndex].y;
+            const cameraDx = normalizedCamera[endIndex].x - normalizedCamera[startIndex].x;
+            const cameraDy = normalizedCamera[endIndex].y - normalizedCamera[startIndex].y;
+
+            const layoutLen = Math.hypot(layoutDx, layoutDy);
+            const cameraLen = Math.hypot(cameraDx, cameraDy);
+            if (layoutLen <= 1e-6 || cameraLen <= 1e-6) {
+                return;
+            }
+
+            edgeDirectionScore += ((layoutDx / layoutLen) * (cameraDx / cameraLen))
+                + ((layoutDy / layoutLen) * (cameraDy / cameraLen));
+        });
+
+        return edgeDirectionScore - (pointError * 2.5);
+    }
+
+    normalizeTrianglePointsForComparison(points) {
+        if (!Array.isArray(points) || points.length < 3) {
+            return null;
+        }
+
+        const centroid = points.reduce((acc, point) => ({
+            x: acc.x + point.x,
+            y: acc.y + point.y
+        }), { x: 0, y: 0 });
+        centroid.x /= points.length;
+        centroid.y /= points.length;
+
+        const centered = points.map((point) => ({
+            x: point.x - centroid.x,
+            y: point.y - centroid.y
+        }));
+
+        const rms = Math.sqrt(
+            centered.reduce((acc, point) => acc + (point.x * point.x) + (point.y * point.y), 0)
+            / centered.length
+        );
+        if (rms <= 1e-6) {
+            return null;
+        }
+
+        return centered.map((point) => ({
+            x: point.x / rms,
+            y: point.y / rms
+        }));
+    }
+
+    applyCameraAwareTriangleOrientation(layout, cameraPoints) {
+        if (!layout?.points2D || layout.points2D.length < 3) {
+            return {
+                layout,
+                quarterTurns: 0,
+                flipped: false
+            };
+        }
+
+        const candidates = [];
+        for (let quarterTurns = 0; quarterTurns < 4; quarterTurns += 1) {
+            for (let flipIndex = 0; flipIndex < 2; flipIndex += 1) {
+                const isFlipped = flipIndex === 1;
+                const candidateLayout = (quarterTurns === 0 && !isFlipped)
+                    ? layout
+                    : this.buildTransformedExtractionLayout(layout, quarterTurns, isFlipped);
+
+                if (!candidateLayout) {
+                    continue;
+                }
+
+                const cameraScore = this.scoreTriangleLayoutAgainstCamera(candidateLayout, cameraPoints);
+                candidates.push({
+                    layout: candidateLayout,
+                    quarterTurns,
+                    flipped: isFlipped,
+                    cameraScore,
+                    score: cameraScore
+                });
+            }
+        }
+
+        if (candidates.length === 0) {
+            return {
+                layout,
+                quarterTurns: 0,
+                flipped: false,
+                score: -Infinity
+            };
+        }
+
+        const selected = candidates.reduce((best, candidate) => {
+            if (!best || candidate.cameraScore > best.cameraScore + 1e-6) {
+                return candidate;
+            }
+
+            if (!best || Math.abs(candidate.cameraScore - best.cameraScore) <= 1e-6) {
+                if (candidate.quarterTurns < best.quarterTurns) {
+                    return candidate;
+                }
+                if (candidate.quarterTurns === best.quarterTurns && Number(candidate.flipped) < Number(best.flipped)) {
+                    return candidate;
+                }
+            }
+
+            return best;
+        }, null);
+
+        return selected || {
+            layout,
+            quarterTurns: 0,
+            flipped: false,
+            score: -Infinity
+        };
+    }
+
+    buildTriangleExtractionCandidateLayouts(worldPoints, targetAspectRatio = 1000 / 760) {
+        if (!Array.isArray(worldPoints) || worldPoints.length !== 3) {
+            return [];
+        }
+
+        const sideAB = worldPoints[0].distanceTo(worldPoints[1]);
+        const sideBC = worldPoints[1].distanceTo(worldPoints[2]);
+        const sideCA = worldPoints[2].distanceTo(worldPoints[0]);
+        const baseLength = sideAB;
+        if (baseLength <= 1e-6) {
+            return [];
+        }
+
+        const cX = (sideCA * sideCA - sideBC * sideBC + baseLength * baseLength) / (2 * baseLength);
+        const cY = Math.sqrt(Math.max(0, sideCA * sideCA - cX * cX));
+        if (cY <= 1e-6) {
+            return [];
+        }
+
+        const rawPoints = [
+            { x: 0, y: 0 },
+            { x: baseLength, y: 0 },
+            { x: cX, y: cY }
+        ];
+
+        const stageWidth = 1000;
+        const safeAspect = Number.isFinite(targetAspectRatio) && targetAspectRatio > 0.1
+            ? targetAspectRatio
+            : (1000 / 760);
+        const stageHeight = Math.max(1, Math.round(stageWidth / safeAspect));
+        const padding = this.getExtractionLayoutPadding(stageWidth, stageHeight);
+
+        return this.getTriangleOrientationCandidates(rawPoints)
+            .map((candidate) => {
+                const minX = Math.min(...candidate.points.map((point) => point.x));
+                const maxX = Math.max(...candidate.points.map((point) => point.x));
+                const minY = Math.min(...candidate.points.map((point) => point.y));
+                const maxY = Math.max(...candidate.points.map((point) => point.y));
+                const width = Math.max(maxX - minX, 1e-6);
+                const height = Math.max(maxY - minY, 1e-6);
+                const scaleScore = Math.min((stageWidth - padding.x * 2) / width, (stageHeight - padding.y * 2) / height);
+                const points2D = this.fitExtractionPointsToStage(candidate.points, stageWidth, stageHeight, padding.x, padding.y);
+                const layout = points2D
+                    ? this.buildExtractionLayoutFromPoints(points2D, stageWidth, stageHeight)
+                    : null;
+
+                return layout
+                    ? {
+                        layout,
+                        scaleScore,
+                        startIndex: candidate.startIndex,
+                        endIndex: candidate.endIndex,
+                        apexIndex: candidate.apexIndex
+                    }
+                    : null;
+            })
+            .filter(Boolean);
+    }
+
+    buildCameraAwareTriangleExtractionLayout(worldPoints, cameraPoints, targetAspectRatio = 1000 / 760) {
+        const candidateLayouts = this.buildTriangleExtractionCandidateLayouts(worldPoints, targetAspectRatio);
+        if (candidateLayouts.length === 0) {
+            return this.buildTriangleExtractionLayout(worldPoints, targetAspectRatio);
+        }
+
+        let bestCandidate = null;
+        candidateLayouts.forEach((candidate) => {
+            const oriented = this.applyCameraAwareTriangleOrientation(candidate.layout, cameraPoints);
+            const totalScore = (Number.isFinite(oriented.score) ? oriented.score : -Infinity)
+                + (candidate.scaleScore * 0.015);
+
+            if (!bestCandidate || totalScore > bestCandidate.totalScore + 1e-6) {
+                bestCandidate = {
+                    layout: oriented.layout,
+                    totalScore
+                };
+            }
+        });
+
+        return bestCandidate?.layout || this.buildTriangleExtractionLayout(worldPoints, targetAspectRatio);
     }
 
     closeTriangleExtraction(options = {}) {
