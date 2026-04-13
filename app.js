@@ -520,6 +520,7 @@ class TrimensionApp {
         this.triangleExtractAnimationFrame = null;
         this.crashReportOverlay = document.getElementById('crash-report-overlay');
         this.crashReportPre = document.getElementById('crash-report-content');
+        this.crashReportRefreshBtn = document.getElementById('crash-report-refresh');
         this.crashReportCopyBtn = document.getElementById('crash-report-copy');
         this.crashReportCloseBtn = document.getElementById('crash-report-close');
         this.crashReportEntries = [];
@@ -527,6 +528,10 @@ class TrimensionApp {
         this.crashReportOpenedAt = null;
         this.crashReportShortcut = 'Ctrl+Alt+Shift+K';
         this._crashListenersBound = false;
+        this.crashWatchdogIntervalMs = 30000;
+        this.crashWatchdogIntervalId = null;
+        this.wasDiscardedAtLoad = document.wasDiscarded === true;
+        this.lastIntegrityDigest = null;
 
         this.defaultParams = {
             cuboid: { width: 7, depth: 4, height: 5, includeFaceCentersMode: 'off' },
@@ -854,6 +859,11 @@ class TrimensionApp {
         if (this.crashReportCopyBtn) {
             this._handleCrashReportCopyClick = () => this.copyCrashReport();
             this.crashReportCopyBtn.addEventListener('click', this._handleCrashReportCopyClick);
+        }
+
+        if (this.crashReportRefreshBtn) {
+            this._handleCrashReportRefreshClick = () => this.refreshCrashReport();
+            this.crashReportRefreshBtn.addEventListener('click', this._handleCrashReportRefreshClick);
         }
 
         if (this.crashReportCloseBtn) {
@@ -1841,7 +1851,10 @@ class TrimensionApp {
         this.recordCrashEvent('app.init', {
             userAgent: navigator.userAgent,
             url: window.location.href,
-            shortcut: this.crashReportShortcut
+            shortcut: this.crashReportShortcut,
+            wasDiscardedAtLoad: this.wasDiscardedAtLoad,
+            deviceMemoryGb: Number.isFinite(navigator.deviceMemory) ? navigator.deviceMemory : null,
+            hardwareConcurrency: Number.isFinite(navigator.hardwareConcurrency) ? navigator.hardwareConcurrency : null
         });
 
         this._onCrashWindowError = (event) => {
@@ -1866,6 +1879,7 @@ class TrimensionApp {
             this.recordCrashEvent('document.visibilitychange', {
                 state: document.visibilityState
             });
+            this.recordIntegrityCheck(`visibilitychange:${document.visibilityState}`);
         };
 
         this._onCrashPageHide = (event) => {
@@ -1878,10 +1892,12 @@ class TrimensionApp {
             this.recordCrashEvent('window.pageshow', {
                 persisted: event?.persisted === true
             });
+            this.recordIntegrityCheck('pageshow');
         };
 
         this._onCrashFocus = () => {
             this.recordCrashEvent('window.focus', {});
+            this.recordIntegrityCheck('focus');
         };
 
         this._onCrashBlur = () => {
@@ -1896,6 +1912,17 @@ class TrimensionApp {
 
         this._onCrashWebglContextRestored = () => {
             this.recordCrashEvent('canvas.webglcontextrestored', {});
+            this.recordIntegrityCheck('webglcontextrestored');
+        };
+
+        this._onCrashFreeze = () => {
+            this.recordCrashEvent('document.freeze', {});
+            this.recordIntegrityCheck('freeze');
+        };
+
+        this._onCrashResume = () => {
+            this.recordCrashEvent('document.resume', {});
+            this.recordIntegrityCheck('resume');
         };
 
         window.addEventListener('error', this._onCrashWindowError);
@@ -1905,8 +1932,18 @@ class TrimensionApp {
         window.addEventListener('pageshow', this._onCrashPageShow);
         window.addEventListener('focus', this._onCrashFocus);
         window.addEventListener('blur', this._onCrashBlur);
+        document.addEventListener('freeze', this._onCrashFreeze);
+        document.addEventListener('resume', this._onCrashResume);
         this.canvas?.addEventListener('webglcontextlost', this._onCrashWebglContextLost);
         this.canvas?.addEventListener('webglcontextrestored', this._onCrashWebglContextRestored);
+
+        this.crashWatchdogIntervalId = window.setInterval(() => {
+            if (document.visibilityState === 'hidden') {
+                this.recordIntegrityCheck('interval:hidden');
+            }
+        }, this.crashWatchdogIntervalMs);
+
+        this.recordIntegrityCheck('startup');
 
         this._crashListenersBound = true;
     }
@@ -1923,8 +1960,15 @@ class TrimensionApp {
         window.removeEventListener('pageshow', this._onCrashPageShow);
         window.removeEventListener('focus', this._onCrashFocus);
         window.removeEventListener('blur', this._onCrashBlur);
+        document.removeEventListener('freeze', this._onCrashFreeze);
+        document.removeEventListener('resume', this._onCrashResume);
         this.canvas?.removeEventListener('webglcontextlost', this._onCrashWebglContextLost);
         this.canvas?.removeEventListener('webglcontextrestored', this._onCrashWebglContextRestored);
+
+        if (this.crashWatchdogIntervalId) {
+            window.clearInterval(this.crashWatchdogIntervalId);
+            this.crashWatchdogIntervalId = null;
+        }
 
         this._crashListenersBound = false;
     }
@@ -1940,6 +1984,70 @@ class TrimensionApp {
         if (this.crashReportEntries.length > this.maxCrashReportEntries) {
             this.crashReportEntries.splice(0, this.crashReportEntries.length - this.maxCrashReportEntries);
         }
+    }
+
+    buildStateIntegritySnapshot(reason = 'manual') {
+        const sectionCounts = {};
+        Object.entries(this.objectSections || {}).forEach(([key, sec]) => {
+            sectionCounts[key] = sec?.list?.children?.length ?? null;
+        });
+
+        const sceneObjectTypeCounts = {};
+        (this.sceneObjects || []).forEach((entry) => {
+            const type = entry?.type || 'unknown';
+            sceneObjectTypeCounts[type] = (sceneObjectTypeCounts[type] || 0) + 1;
+        });
+
+        const stateShape = {
+            reason,
+            visibilityState: document.visibilityState,
+            compositeSlots: this.compositeSlots?.length ?? 0,
+            pointDefinitions: this.pointDefinitions?.length ?? 0,
+            derivedPoints: this.derivedPoints?.length ?? 0,
+            sceneObjects: this.sceneObjects?.length ?? 0,
+            visibleSceneObjects: (this.sceneObjects || []).filter((entry) => entry.visible !== false).length,
+            selectedPoints: this.selectedPoints?.length ?? 0,
+            sceneChildren: this.scene?.children?.length ?? 0,
+            pointMarkers: this.pointMarkers?.size ?? 0,
+            pointSprites: this.pointSprites?.length ?? 0,
+            labelSprites: this.labelSprites?.length ?? 0,
+            objectSectionDomCounts: sectionCounts,
+            sceneObjectTypeCounts,
+            panelOpen: this.panelOpen,
+            triangleExtractState: this.triangleExtractTransitionState,
+            triangleExtractOpen: !!this.activeTriangleExtraction,
+            addDropdownVisible: this.addDropdown?.style?.display === 'block',
+            methodPresence: {
+                addSlot: typeof this.addSlot === 'function',
+                renderObjectsList: typeof this.renderObjectsList === 'function',
+                buildComposite: typeof this.buildComposite === 'function'
+            }
+        };
+
+        stateShape.stateSize = JSON.stringify(stateShape).length;
+        return stateShape;
+    }
+
+    recordIntegrityCheck(reason = 'manual') {
+        const snapshot = this.buildStateIntegritySnapshot(reason);
+        const digest = [
+            snapshot.visibilityState,
+            snapshot.compositeSlots,
+            snapshot.pointDefinitions,
+            snapshot.derivedPoints,
+            snapshot.sceneObjects,
+            snapshot.visibleSceneObjects,
+            snapshot.sceneChildren,
+            snapshot.addDropdownVisible,
+            snapshot.triangleExtractState
+        ].join('|');
+
+        if (reason === 'interval:hidden' && digest === this.lastIntegrityDigest) {
+            return;
+        }
+
+        this.lastIntegrityDigest = digest;
+        this.recordCrashEvent('state.integrity', snapshot);
     }
 
     isCrashReportOpen() {
@@ -1961,6 +2069,7 @@ class TrimensionApp {
         }
 
         this.crashReportOpenedAt = new Date().toISOString();
+        this.recordIntegrityCheck('report:open');
         this.recordCrashEvent('crash-report.opened', {
             shortcut: this.crashReportShortcut
         });
@@ -1979,12 +2088,31 @@ class TrimensionApp {
         this.crashReportOverlay.setAttribute('aria-hidden', 'true');
     }
 
+    refreshCrashReport() {
+        if (!this.crashReportPre) {
+            return;
+        }
+
+        this.recordIntegrityCheck('report:refresh');
+        this.crashReportPre.textContent = this.buildCrashReportText();
+    }
+
     buildCrashReportText() {
+        const integritySnapshot = this.buildStateIntegritySnapshot('report:summary');
         const summary = {
             generatedAt: new Date().toISOString(),
             openedAt: this.crashReportOpenedAt,
             url: window.location.href,
+            wasDiscardedAtLoad: this.wasDiscardedAtLoad,
             visibilityState: document.visibilityState,
+            online: navigator.onLine,
+            deviceMemoryGb: Number.isFinite(navigator.deviceMemory) ? navigator.deviceMemory : null,
+            hardwareConcurrency: Number.isFinite(navigator.hardwareConcurrency) ? navigator.hardwareConcurrency : null,
+            performanceMemory: performance?.memory ? {
+                jsHeapSizeLimit: performance.memory.jsHeapSizeLimit,
+                totalJSHeapSize: performance.memory.totalJSHeapSize,
+                usedJSHeapSize: performance.memory.usedJSHeapSize
+            } : null,
             panelOpen: this.panelOpen,
             activeCompositePrimitives: this.compositeSlots.length,
             points: this.getAllPoints().length,
@@ -2001,7 +2129,8 @@ class TrimensionApp {
                 triangles: this.renderer.info.render?.triangles ?? null,
                 points: this.renderer.info.render?.points ?? null,
                 lines: this.renderer.info.render?.lines ?? null
-            } : null
+            } : null,
+            integritySnapshot
         };
 
         const lines = [];
@@ -7832,6 +7961,9 @@ class TrimensionApp {
         window.removeEventListener('keydown', this._handleKeyDown);
         window.removeEventListener('keyup', this._handleKeyUp);
         this.canvas.removeEventListener('pointerdown', this.handleCanvasPointerDown);
+        if (this.crashReportRefreshBtn && this._handleCrashReportRefreshClick) {
+            this.crashReportRefreshBtn.removeEventListener('click', this._handleCrashReportRefreshClick);
+        }
         if (this.crashReportCopyBtn && this._handleCrashReportCopyClick) {
             this.crashReportCopyBtn.removeEventListener('click', this._handleCrashReportCopyClick);
         }
