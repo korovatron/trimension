@@ -2223,7 +2223,11 @@ class TrimensionApp {
         const isTriangleExtraction = item.type === 'triangle';
 
         let layout = item.type === 'plane'
-            ? this.buildPlaneExtractionLayout(worldPoints, this.getTriangleExtractionStageAspectRatio())
+            ? this.buildCameraAwarePlaneExtractionLayout(
+                worldPoints,
+                sourcePoints,
+                this.getTriangleExtractionStageAspectRatio()
+            )
             : this.buildCameraAwareTriangleExtractionLayout(
                 worldPoints,
                 sourcePoints,
@@ -2330,8 +2334,8 @@ class TrimensionApp {
             return -Infinity;
         }
 
-        const normalizedLayout = this.normalizeTrianglePointsForComparison(layout.points2D);
-        const normalizedCamera = this.normalizeTrianglePointsForComparison(cameraPoints);
+        const normalizedLayout = this.normalizePointsForComparison(layout.points2D);
+        const normalizedCamera = this.normalizePointsForComparison(cameraPoints);
         if (!normalizedLayout || !normalizedCamera) {
             return -Infinity;
         }
@@ -2366,7 +2370,46 @@ class TrimensionApp {
         return edgeDirectionScore - (pointError * 2.5);
     }
 
-    normalizeTrianglePointsForComparison(points) {
+    scorePolygonLayoutAgainstCamera(layout, cameraPoints) {
+        if (!layout?.points2D || layout.points2D.length < 3 || !Array.isArray(cameraPoints) || cameraPoints.length !== layout.points2D.length) {
+            return -Infinity;
+        }
+
+        const normalizedLayout = this.normalizePointsForComparison(layout.points2D);
+        const normalizedCamera = this.normalizePointsForComparison(cameraPoints);
+        if (!normalizedLayout || !normalizedCamera) {
+            return -Infinity;
+        }
+
+        let pointError = 0;
+        for (let index = 0; index < normalizedLayout.length; index += 1) {
+            const dx = normalizedLayout[index].x - normalizedCamera[index].x;
+            const dy = normalizedLayout[index].y - normalizedCamera[index].y;
+            pointError += (dx * dx) + (dy * dy);
+        }
+
+        let edgeDirectionScore = 0;
+        for (let index = 0; index < normalizedLayout.length; index += 1) {
+            const nextIndex = (index + 1) % normalizedLayout.length;
+            const layoutDx = normalizedLayout[nextIndex].x - normalizedLayout[index].x;
+            const layoutDy = normalizedLayout[nextIndex].y - normalizedLayout[index].y;
+            const cameraDx = normalizedCamera[nextIndex].x - normalizedCamera[index].x;
+            const cameraDy = normalizedCamera[nextIndex].y - normalizedCamera[index].y;
+
+            const layoutLen = Math.hypot(layoutDx, layoutDy);
+            const cameraLen = Math.hypot(cameraDx, cameraDy);
+            if (layoutLen <= 1e-6 || cameraLen <= 1e-6) {
+                continue;
+            }
+
+            edgeDirectionScore += ((layoutDx / layoutLen) * (cameraDx / cameraLen))
+                + ((layoutDy / layoutLen) * (cameraDy / cameraLen));
+        }
+
+        return edgeDirectionScore - (pointError * 2.5);
+    }
+
+    normalizePointsForComparison(points) {
         if (!Array.isArray(points) || points.length < 3) {
             return null;
         }
@@ -2395,6 +2438,73 @@ class TrimensionApp {
             x: point.x / rms,
             y: point.y / rms
         }));
+    }
+
+    applyCameraAwarePolygonOrientation(layout, cameraPoints) {
+        if (!layout?.points2D || layout.points2D.length < 3) {
+            return {
+                layout,
+                quarterTurns: 0,
+                flipped: false,
+                score: -Infinity
+            };
+        }
+
+        const candidates = [];
+        for (let quarterTurns = 0; quarterTurns < 4; quarterTurns += 1) {
+            for (let flipIndex = 0; flipIndex < 2; flipIndex += 1) {
+                const isFlipped = flipIndex === 1;
+                const candidateLayout = (quarterTurns === 0 && !isFlipped)
+                    ? layout
+                    : this.buildTransformedExtractionLayout(layout, quarterTurns, isFlipped);
+
+                if (!candidateLayout) {
+                    continue;
+                }
+
+                const cameraScore = this.scorePolygonLayoutAgainstCamera(candidateLayout, cameraPoints);
+                candidates.push({
+                    layout: candidateLayout,
+                    quarterTurns,
+                    flipped: isFlipped,
+                    cameraScore,
+                    score: cameraScore
+                });
+            }
+        }
+
+        if (candidates.length === 0) {
+            return {
+                layout,
+                quarterTurns: 0,
+                flipped: false,
+                score: -Infinity
+            };
+        }
+
+        const selected = candidates.reduce((best, candidate) => {
+            if (!best || candidate.cameraScore > best.cameraScore + 1e-6) {
+                return candidate;
+            }
+
+            if (!best || Math.abs(candidate.cameraScore - best.cameraScore) <= 1e-6) {
+                if (candidate.quarterTurns < best.quarterTurns) {
+                    return candidate;
+                }
+                if (candidate.quarterTurns === best.quarterTurns && Number(candidate.flipped) < Number(best.flipped)) {
+                    return candidate;
+                }
+            }
+
+            return best;
+        }, null);
+
+        return selected || {
+            layout,
+            quarterTurns: 0,
+            flipped: false,
+            score: -Infinity
+        };
     }
 
     applyCameraAwareTriangleOrientation(layout, cameraPoints) {
@@ -2543,6 +2653,102 @@ class TrimensionApp {
         });
 
         return bestCandidate?.layout || this.buildTriangleExtractionLayout(worldPoints, targetAspectRatio);
+    }
+
+    buildPolygonExtractionCandidateLayouts(rawPoints, targetAspectRatio = 1000 / 760) {
+        if (!Array.isArray(rawPoints) || rawPoints.length < 3) {
+            return [];
+        }
+
+        const stageWidth = 1000;
+        const safeAspect = Number.isFinite(targetAspectRatio) && targetAspectRatio > 0.1
+            ? targetAspectRatio
+            : (1000 / 760);
+        const stageHeight = Math.max(1, Math.round(stageWidth / safeAspect));
+        const padding = this.getExtractionLayoutPadding(stageWidth, stageHeight);
+
+        return this.getPolygonOrientationCandidates(rawPoints)
+            .map((candidate) => {
+                const minX = Math.min(...candidate.points.map((point) => point.x));
+                const maxX = Math.max(...candidate.points.map((point) => point.x));
+                const minY = Math.min(...candidate.points.map((point) => point.y));
+                const maxY = Math.max(...candidate.points.map((point) => point.y));
+                const width = Math.max(maxX - minX, 1e-6);
+                const height = Math.max(maxY - minY, 1e-6);
+                const scaleScore = Math.min((stageWidth - padding.x * 2) / width, (stageHeight - padding.y * 2) / height);
+                const points2D = this.fitExtractionPointsToStage(candidate.points, stageWidth, stageHeight, padding.x, padding.y);
+                const layout = points2D
+                    ? this.buildExtractionLayoutFromPoints(points2D, stageWidth, stageHeight)
+                    : null;
+
+                return layout
+                    ? {
+                        layout,
+                        scaleScore
+                    }
+                    : null;
+            })
+            .filter(Boolean);
+    }
+
+    buildCameraAwarePolygonExtractionLayout(rawPoints, cameraPoints, targetAspectRatio = 1000 / 760) {
+        const candidateLayouts = this.buildPolygonExtractionCandidateLayouts(rawPoints, targetAspectRatio);
+        if (candidateLayouts.length === 0) {
+            return this.buildPolygonExtractionLayout(rawPoints, targetAspectRatio);
+        }
+
+        let bestCandidate = null;
+        candidateLayouts.forEach((candidate) => {
+            const oriented = this.applyCameraAwarePolygonOrientation(candidate.layout, cameraPoints);
+            const totalScore = (Number.isFinite(oriented.score) ? oriented.score : -Infinity)
+                + (candidate.scaleScore * 0.015);
+
+            if (!bestCandidate || totalScore > bestCandidate.totalScore + 1e-6) {
+                bestCandidate = {
+                    layout: oriented.layout,
+                    totalScore
+                };
+            }
+        });
+
+        return bestCandidate?.layout || this.buildPolygonExtractionLayout(rawPoints, targetAspectRatio);
+    }
+
+    buildCameraAwarePlaneExtractionLayout(worldPoints, cameraPoints, targetAspectRatio = 1000 / 760) {
+        if (!Array.isArray(worldPoints) || worldPoints.length !== 4) {
+            return null;
+        }
+
+        const origin = worldPoints[0];
+        const uVector = worldPoints[1].clone().sub(origin);
+        if (uVector.lengthSq() <= 1e-12) {
+            return null;
+        }
+
+        let normal = null;
+        for (let index = 2; index < worldPoints.length; index += 1) {
+            const candidate = new THREE.Vector3().crossVectors(uVector, worldPoints[index].clone().sub(origin));
+            if (candidate.lengthSq() > 1e-12) {
+                normal = candidate.normalize();
+                break;
+            }
+        }
+
+        if (!normal) {
+            return null;
+        }
+
+        const u = uVector.clone().normalize();
+        const v = new THREE.Vector3().crossVectors(normal, u).normalize();
+        const rawPoints = worldPoints.map((point) => {
+            const relative = point.clone().sub(origin);
+            return {
+                x: relative.dot(u),
+                y: relative.dot(v)
+            };
+        });
+
+        return this.buildCameraAwarePolygonExtractionLayout(rawPoints, cameraPoints, targetAspectRatio);
     }
 
     closeTriangleExtraction(options = {}) {
