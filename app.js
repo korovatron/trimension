@@ -1815,6 +1815,84 @@ class TrimensionApp {
         });
     }
 
+    showConfirmModal(message, options = {}) {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById('custom-modal-overlay');
+            const msgEl = document.getElementById('custom-modal-message');
+            const input = document.getElementById('custom-modal-input');
+            const ratioFields = document.getElementById('custom-modal-ratio-fields');
+            const symbols = document.getElementById('custom-modal-symbols');
+            const errorEl = document.getElementById('custom-modal-error');
+            const confirm = document.getElementById('custom-modal-confirm');
+            const cancel = document.getElementById('custom-modal-cancel');
+
+            if (!overlay || !msgEl || !input || !confirm || !cancel) {
+                resolve(false);
+                return;
+            }
+
+            const originalConfirmText = confirm.textContent;
+            const originalCancelText = cancel.textContent;
+
+            msgEl.textContent = message;
+            input.hidden = true;
+            if (ratioFields) {
+                ratioFields.hidden = true;
+            }
+            if (symbols) {
+                symbols.hidden = true;
+            }
+            errorEl.textContent = '';
+            confirm.textContent = options.confirmText || 'OK';
+            cancel.textContent = options.cancelText || 'Cancel';
+            cancel.style.display = '';
+
+            overlay.classList.add('show');
+            overlay.setAttribute('aria-hidden', 'false');
+
+            const close = (value) => {
+                overlay.classList.remove('show');
+                overlay.setAttribute('aria-hidden', 'true');
+                input.hidden = false;
+                if (ratioFields) {
+                    ratioFields.hidden = true;
+                }
+                if (symbols) {
+                    symbols.hidden = true;
+                }
+                confirm.textContent = originalConfirmText;
+                cancel.textContent = originalCancelText;
+                confirm.removeEventListener('click', onConfirm);
+                cancel.removeEventListener('click', onCancel);
+                overlay.removeEventListener('click', onBackdrop);
+                overlay.removeEventListener('keydown', onKey);
+                resolve(value);
+            };
+
+            const onConfirm = () => close(true);
+            const onCancel = () => close(false);
+            const onBackdrop = (e) => { if (e.target === overlay) close(false); };
+            const onKey = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    close(true);
+                }
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    close(false);
+                }
+            };
+
+            setTimeout(() => {
+                confirm.focus();
+                confirm.addEventListener('click', onConfirm);
+                cancel.addEventListener('click', onCancel);
+                overlay.addEventListener('click', onBackdrop);
+                overlay.addEventListener('keydown', onKey);
+            }, 0);
+        });
+    }
+
     showToast(message, durationMs = 2200) {
         if (!message) return;
 
@@ -8236,10 +8314,11 @@ class TrimensionApp {
         this.renderActions();
     }
 
-    clearAllObjects() {
+    async clearAllObjects() {
         // User-initiated: clear everything with confirmation
-        const confirmed = window.confirm(
-            `Delete all objects? This cannot be undone.`
+        const confirmed = await this.showConfirmModal(
+            'Delete all objects? This cannot be undone.',
+            { confirmText: 'Delete', cancelText: 'Cancel' }
         );
         if (!confirmed) {
             return;
