@@ -895,14 +895,50 @@ class TrimensionApp {
             this.crashReportOverlay.addEventListener('click', this._handleCrashReportOverlayClick);
         }
 
-        this.addBtn.addEventListener('click', (event) => {
+        if (this._handleAddBtnClick) {
+            this.addBtn.removeEventListener('click', this._handleAddBtnClick);
+        }
+        this._handleAddBtnClick = (event) => {
+            const eventStamp = String(event.timeStamp);
+            if (this.addBtn?.dataset?.lastHandledClickTs === eventStamp) {
+                return;
+            }
+            if (this.addBtn) {
+                this.addBtn.dataset.lastHandledClickTs = eventStamp;
+            }
+
             event.stopPropagation();
             this.examplesAccordionCollapsed = true;
             // Populate dropdown dynamically based on current composite state
             const isFirst = this.compositeSlots.length === 0;
-            const compatible = isFirst
+            const defaultParamKeys = this.defaultParams && typeof this.defaultParams === 'object'
                 ? Object.keys(this.defaultParams)
+                : [];
+
+            if (defaultParamKeys.length === 0) {
+                this.recordCrashEvent('add.dropdown.failed', {
+                    reason: 'defaultParams-empty',
+                    compositeSlots: this.compositeSlots.length,
+                    primitiveMetaKeys: this.primitiveMeta && typeof this.primitiveMeta === 'object'
+                        ? Object.keys(this.primitiveMeta).length
+                        : 0,
+                    orientationsKeys: this.orientations && typeof this.orientations === 'object'
+                        ? Object.keys(this.orientations).length
+                        : 0
+                });
+                return;
+            }
+
+            const compatible = isFirst
+                ? defaultParamKeys
                 : this.getCompatiblePrimitives();
+
+            this.recordCrashEvent('add.dropdown.opened', {
+                isFirst,
+                compositeSlots: this.compositeSlots.length,
+                compatibleCount: compatible.length,
+                defaultParamsKeys: defaultParamKeys.length
+            });
 
             this.addDropdown.innerHTML = '';
 
@@ -947,9 +983,21 @@ class TrimensionApp {
 
             const isOpening = this.addDropdown.style.display === 'none';
             this.addDropdown.style.display = isOpening ? 'block' : 'none';
-        });
+        };
+        this.addBtn.addEventListener('click', this._handleAddBtnClick);
 
-        this.addDropdown.addEventListener('click', (event) => {
+        if (this._handleAddDropdownClick) {
+            this.addDropdown.removeEventListener('click', this._handleAddDropdownClick);
+        }
+        this._handleAddDropdownClick = (event) => {
+            const eventStamp = String(event.timeStamp);
+            if (this.addDropdown?.dataset?.lastHandledClickTs === eventStamp) {
+                return;
+            }
+            if (this.addDropdown) {
+                this.addDropdown.dataset.lastHandledClickTs = eventStamp;
+            }
+
             event.stopPropagation();
             const accordionHeader = event.target.closest('[data-examples-accordion]');
             if (accordionHeader) {
@@ -961,6 +1009,10 @@ class TrimensionApp {
             }
             const primitiveItem = event.target.closest('[data-primitive]');
             if (primitiveItem) {
+                this.recordCrashEvent('add.primitive.selected', {
+                    primitiveKey: primitiveItem.dataset.primitive,
+                    compositeSlotsBefore: this.compositeSlots.length
+                });
                 this.addSlot(primitiveItem.dataset.primitive);
                 this.expandPrimarySections();
                 this.addDropdown.style.display = 'none';
@@ -971,12 +1023,17 @@ class TrimensionApp {
                 this.addDropdown.style.display = 'none';
                 this.loadBuiltInExample(Number(exampleItem.dataset.example));
             }
-        });
+        };
+        this.addDropdown.addEventListener('click', this._handleAddDropdownClick);
 
-        document.addEventListener('click', (event) => {
+        if (this._handleDocumentClickCloseAddDropdown) {
+            document.removeEventListener('click', this._handleDocumentClickCloseAddDropdown);
+        }
+        this._handleDocumentClickCloseAddDropdown = (event) => {
             if (event.target.closest('#add-btn') || event.target.closest('#add-dropdown')) return;
             this.addDropdown.style.display = 'none';
-        });
+        };
+        document.addEventListener('click', this._handleDocumentClickCloseAddDropdown);
 
         // Card-level delegation: orientation chips, cycle face, remove slot
         this.primitiveCardsListEl.addEventListener('click', (event) => {
@@ -2286,6 +2343,16 @@ class TrimensionApp {
             sceneObjectTypeCounts[type] = (sceneObjectTypeCounts[type] || 0) + 1;
         });
 
+        const defaultParamsKeyCount = this.defaultParams && typeof this.defaultParams === 'object'
+            ? Object.keys(this.defaultParams).length
+            : 0;
+        const primitiveMetaKeyCount = this.primitiveMeta && typeof this.primitiveMeta === 'object'
+            ? Object.keys(this.primitiveMeta).length
+            : 0;
+        const orientationsKeyCount = this.orientations && typeof this.orientations === 'object'
+            ? Object.keys(this.orientations).length
+            : 0;
+
         const stateShape = {
             reason,
             visibilityState: document.visibilityState,
@@ -2305,6 +2372,11 @@ class TrimensionApp {
             triangleExtractState: this.triangleExtractTransitionState,
             triangleExtractOpen: !!this.activeTriangleExtraction,
             addDropdownVisible: this.addDropdown?.style?.display === 'block',
+            primitiveConfigHealth: {
+                defaultParamsKeyCount,
+                primitiveMetaKeyCount,
+                orientationsKeyCount
+            },
             methodPresence: {
                 addSlot: typeof this.addSlot === 'function',
                 renderObjectsList: typeof this.renderObjectsList === 'function',
@@ -4566,15 +4638,42 @@ class TrimensionApp {
     }
 
     addSlot(primitiveKey) {
-        if (!this.primitiveMeta[primitiveKey]) return;
+        if (!this.primitiveMeta || !this.primitiveMeta[primitiveKey]) {
+            this.recordCrashEvent('add.slot.rejected', {
+                reason: 'primitive-meta-missing',
+                primitiveKey,
+                primitiveMetaKeys: this.primitiveMeta && typeof this.primitiveMeta === 'object'
+                    ? Object.keys(this.primitiveMeta).length
+                    : 0
+            });
+            return;
+        }
+
+        const orientation = this.orientations?.[primitiveKey]?.[0]?.value;
+        const paramsTemplate = this.defaultParams?.[primitiveKey];
+        if (!orientation || !paramsTemplate) {
+            this.recordCrashEvent('add.slot.rejected', {
+                reason: 'primitive-config-missing',
+                primitiveKey,
+                hasOrientation: !!orientation,
+                hasDefaultParams: !!paramsTemplate,
+                orientationsKeys: this.orientations && typeof this.orientations === 'object'
+                    ? Object.keys(this.orientations).length
+                    : 0,
+                defaultParamsKeys: this.defaultParams && typeof this.defaultParams === 'object'
+                    ? Object.keys(this.defaultParams).length
+                    : 0
+            });
+            return;
+        }
 
         if (this.compositeSlots.length === 0) {
             // First slot - reset everything
             const slot = {
                 id: this.nextSlotId++,
                 primitive: primitiveKey,
-                orientation: this.orientations[primitiveKey][0].value,
-                params: { ...this.defaultParams[primitiveKey] },
+                orientation,
+                params: { ...paramsTemplate },
                 hostSlotId: null,
                 hostFaceId: null,
                 attachFaceId: null,
@@ -4582,12 +4681,19 @@ class TrimensionApp {
             };
             this.compositeSlots.push(slot);
         } else {
-            if (this.compositeSlots.length >= 3) return;
+            if (this.compositeSlots.length >= 3) {
+                this.recordCrashEvent('add.slot.rejected', {
+                    reason: 'max-primitives-reached',
+                    primitiveKey,
+                    compositeSlots: this.compositeSlots.length
+                });
+                return;
+            }
             const slot = {
                 id: this.nextSlotId++,
                 primitive: primitiveKey,
-                orientation: this.orientations[primitiveKey][0].value,
-                params: { ...this.defaultParams[primitiveKey] },
+                orientation,
+                params: { ...paramsTemplate },
                 hostSlotId: null,
                 hostFaceId: null,
                 attachFaceId: null,
@@ -4596,7 +4702,14 @@ class TrimensionApp {
 
             const prevSlots = this.compositeSlots.slice();
             const availableEntries = this.getValidHostFaceEntries(slot, prevSlots, { excludeOccupied: true });
-            if (availableEntries.length === 0) return;
+            if (availableEntries.length === 0) {
+                this.recordCrashEvent('add.slot.rejected', {
+                    reason: 'no-compatible-host-face',
+                    primitiveKey,
+                    compositeSlots: this.compositeSlots.length
+                });
+                return;
+            }
 
             this.compositeSlots.push(slot);
             this.snapSlotDimensions(slot);
@@ -4605,6 +4718,11 @@ class TrimensionApp {
             this.normalizeCylinderConeHostOrder();
             this.normalizeCylinderHemisphereHostOrder();
         }
+
+        this.recordCrashEvent('add.slot.success', {
+            primitiveKey,
+            compositeSlots: this.compositeSlots.length
+        });
 
         this.resetSceneObjects();
         this.buildComposite();
@@ -8744,6 +8862,18 @@ class TrimensionApp {
         if (this.localStateSaveTimer) {
             clearTimeout(this.localStateSaveTimer);
             this.localStateSaveTimer = null;
+        }
+        if (this._handleAddBtnClick) {
+            this.addBtn.removeEventListener('click', this._handleAddBtnClick);
+            this._handleAddBtnClick = null;
+        }
+        if (this._handleAddDropdownClick) {
+            this.addDropdown.removeEventListener('click', this._handleAddDropdownClick);
+            this._handleAddDropdownClick = null;
+        }
+        if (this._handleDocumentClickCloseAddDropdown) {
+            document.removeEventListener('click', this._handleDocumentClickCloseAddDropdown);
+            this._handleDocumentClickCloseAddDropdown = null;
         }
         window.removeEventListener('resize', this.handleWindowResize);
         window.removeEventListener('keydown', this._handleKeyDown);
