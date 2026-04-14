@@ -1089,7 +1089,7 @@ class TrimensionApp {
 
         const clearObjectsBtn = document.getElementById('clear-objects-btn');
         if (clearObjectsBtn) {
-            clearObjectsBtn.addEventListener('click', () => this.clearObjects());
+            clearObjectsBtn.addEventListener('click', () => this.clearAllObjects());
         }
         document.getElementById('reset-view-btn').addEventListener('click', () => {
             this.resetView();
@@ -8217,16 +8217,55 @@ class TrimensionApp {
     }
 
     clearObjects() {
+        // Internal method: clear the 3D scene representation only (not the data)
         if (this.isTriangleExtractionOpen()) {
             this.closeTriangleExtraction({ force: true });
         }
+
         this.sceneObjects.forEach((item) => {
             this.scene.remove(item.object3D);
             this.disposeObject3D(item.object3D);
         });
         this.sceneObjects = [];
+        this.selectedPoints = [];
+
         this.renderObjectsList();
-        this.refreshDerivedPoints();
+        this.buildPointMarkers();
+        this.renderPointsList();
+        this.renderSelectionSummary();
+        this.renderActions();
+    }
+
+    clearAllObjects() {
+        // User-initiated: clear everything with confirmation
+        const confirmed = window.confirm(
+            `Delete all objects? This cannot be undone.`
+        );
+        if (!confirmed) {
+            return;
+        }
+
+        if (this.isTriangleExtractionOpen()) {
+            this.closeTriangleExtraction({ force: true });
+        }
+
+        // Remove all composite slots properly
+        while (this.compositeSlots.length > 0) {
+            this.removeSlot(this.compositeSlots[0].id);
+        }
+
+        // Clear any remaining scene objects and selections
+        this.sceneObjects.forEach((item) => {
+            this.scene.remove(item.object3D);
+            this.disposeObject3D(item.object3D);
+        });
+        this.sceneObjects = [];
+        this.selectedPoints = [];
+        this.pointDefinitions = [];
+
+        // Rebuild UI to show clean state
+        this.renderObjectsList();
+        this.renderCompositeCards();
         this.buildPointMarkers();
         this.renderPointsList();
         this.renderSelectionSummary();
