@@ -1042,6 +1042,18 @@ textarea {
     min-width: 0;
 }
 
+.top-half-buttons {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    width: 100%;
+}
+
+.top-half-btn {
+    flex: 1;
+    min-width: 0;
+}
+
 .share-controls-row {
     grid-template-columns: minmax(0, 1fr);
     margin-bottom: 0;
@@ -1139,13 +1151,14 @@ textarea {
 .point-marker-icon {
     color: #666;
     transition: color 0.2s;
-    cursor: pointer;
     width: 20px;
     height: 20px;
+    display: none;
 }
 
 .point-marker-icon.point-marker-active {
     color: #ffffff;
+    display: block;
 }
 
 .theme-icon {
