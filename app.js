@@ -865,7 +865,9 @@ class TrimensionApp {
 
         if (this.triangleExtractOverlay) {
             this.triangleExtractOverlay.addEventListener('click', (event) => {
-                if (event.target === this.triangleExtractOverlay) return;
+                if (event.target === this.triangleExtractOverlay && this.triangleExtractTransitionState === 'open') {
+                    this.closeTriangleExtraction();
+                }
             });
         }
 
@@ -1846,6 +1848,9 @@ class TrimensionApp {
 
             const originalConfirmText = confirm.textContent;
             const originalCancelText = cancel.textContent;
+            const dismissValue = Object.prototype.hasOwnProperty.call(options, 'dismissValue')
+                ? options.dismissValue
+                : false;
 
             msgEl.textContent = message;
             input.hidden = true;
@@ -1884,7 +1889,7 @@ class TrimensionApp {
 
             const onConfirm = () => close(true);
             const onCancel = () => close(false);
-            const onBackdrop = (e) => { if (e.target === overlay) close(false); };
+            const onBackdrop = (e) => { if (e.target === overlay) close(dismissValue); };
             const onKey = (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
@@ -1892,7 +1897,7 @@ class TrimensionApp {
                 }
                 if (e.key === 'Escape') {
                     e.preventDefault();
-                    close(false);
+                    close(dismissValue);
                 }
             };
 
@@ -2065,7 +2070,11 @@ class TrimensionApp {
 
         const shouldKeepRestoredDiagram = await this.showConfirmModal(
             'Do you want to restore your previous diagram?',
-            { confirmText: 'Restore', cancelText: 'Delete' }
+            {
+                confirmText: 'Restore',
+                cancelText: 'Delete',
+                dismissValue: true
+            }
         );
 
         if (!shouldKeepRestoredDiagram) {
