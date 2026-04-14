@@ -173,6 +173,9 @@ function getTetrahedronBasePoints(params, yPos) {
 const SHARE_STATE_VERSION = 1;
 const SHARE_HASH_KEY = 'state';
 const MAX_SHARE_URL_LENGTH = 7000;
+const LOCAL_STATE_KEY = 'trimension-local-state-v1';
+const LOCAL_STATE_SUPPRESS_SIGNATURE_KEY = 'trimension-local-state-suppress-signature-v1';
+const LOCAL_STATE_SAVE_DEBOUNCE_MS = 450;
 
 const BUILT_IN_EXAMPLES = [
     {
@@ -487,6 +490,10 @@ class TrimensionApp {
         this.derivedPoints = [];
         this.pointsHintDismissed = false;
         this.isRestoringSharedState = false;
+        this.localStateReady = false;
+        this.localStateSaveTimer = null;
+        this.isShuttingDown = false;
+        this.localDeletedBaselineSignature = null;
         this.baseLabelOverrides = new Map();
         this.derivedLabelOverrides = new Map();
         this.pointMarkers = new Map();
@@ -714,19 +721,24 @@ class TrimensionApp {
     }
 
     async restoreStateFromUrlIfPresent() {
-        const payload = this.getSharePayloadFromHash();
-        if (!payload) return;
-
         try {
-            const snapshot = await this.decodeShareState(payload);
-            if (!snapshot || snapshot.version !== SHARE_STATE_VERSION || !this.applySharedStateSnapshot(snapshot)) {
-                throw new Error('Unsupported or invalid shared state');
+            const payload = this.getSharePayloadFromHash();
+            if (payload) {
+                const snapshot = await this.decodeShareState(payload);
+                if (!snapshot || snapshot.version !== SHARE_STATE_VERSION || !this.applySharedStateSnapshot(snapshot)) {
+                    throw new Error('Unsupported or invalid shared state');
+                }
+                this.applySharedUrlDefaultSectionState();
+                this.showToast('Loaded shared diagram.');
+                return;
             }
-            this.applySharedUrlDefaultSectionState();
-            this.showToast('Loaded shared diagram.');
+
+            await this.restoreLocalStateIfPresent();
         } catch (error) {
-            console.error('Failed to restore shared state:', error);
-            this.showAlertModal('Unable to load the shared diagram state from this URL.');
+            console.error('Failed to restore shared/local state:', error);
+            this.showAlertModal('Unable to load saved diagram state.');
+        } finally {
+            this.localStateReady = true;
         }
     }
 
@@ -739,6 +751,7 @@ class TrimensionApp {
                 throw new Error('Invalid example snapshot');
             }
             this.applyBuiltInExampleSectionState();
+            this.scheduleLocalStateSave();
             this.showToast(`Loaded: ${example.name}`);
         } catch (error) {
             console.error('Failed to load built-in example:', error);
@@ -1891,6 +1904,194 @@ class TrimensionApp {
                 overlay.addEventListener('keydown', onKey);
             }, 0);
         });
+    }
+
+    buildLocalStateSnapshot() {
+        const snapshot = this.getShareableStateSnapshot();
+        return {
+            version: snapshot.version,
+            labels: snapshot.labels,
+            composite: snapshot.composite,
+            objects: snapshot.objects,
+            savedAt: Date.now()
+        };
+    }
+
+    getLocalStateSignature(snapshot) {
+        if (!snapshot || typeof snapshot !== 'object') {
+            return null;
+        }
+
+        try {
+            return JSON.stringify({
+                version: snapshot.version,
+                labels: snapshot.labels,
+                composite: snapshot.composite,
+                objects: snapshot.objects
+            });
+        } catch (error) {
+            return null;
+        }
+    }
+
+    hasRestorableContent(snapshot) {
+        const slotCount = Array.isArray(snapshot?.composite?.slots) ? snapshot.composite.slots.length : 0;
+        const itemCount = Array.isArray(snapshot?.objects?.items) ? snapshot.objects.items.length : 0;
+        return slotCount > 0 || itemCount > 0;
+    }
+
+    clearLocalStateSnapshot() {
+        try {
+            window.localStorage.removeItem(LOCAL_STATE_KEY);
+        } catch (error) {
+            console.warn('Unable to clear local state:', error);
+        }
+    }
+
+    getSuppressedLocalStateSignature() {
+        try {
+            return window.localStorage.getItem(LOCAL_STATE_SUPPRESS_SIGNATURE_KEY);
+        } catch (error) {
+            return null;
+        }
+    }
+
+    setSuppressedLocalStateSignature(signature) {
+        try {
+            if (!signature) {
+                window.localStorage.removeItem(LOCAL_STATE_SUPPRESS_SIGNATURE_KEY);
+                return;
+            }
+            window.localStorage.setItem(LOCAL_STATE_SUPPRESS_SIGNATURE_KEY, signature);
+        } catch (error) {
+            // Ignore storage write failures and continue gracefully.
+        }
+    }
+
+    scheduleLocalStateSave() {
+        if (!this.localStateReady || this.isRestoringSharedState || this.isShuttingDown) {
+            return;
+        }
+
+        if (this.localStateSaveTimer) {
+            clearTimeout(this.localStateSaveTimer);
+            this.localStateSaveTimer = null;
+        }
+
+        this.localStateSaveTimer = window.setTimeout(() => {
+            this.localStateSaveTimer = null;
+            this.persistLocalStateNow();
+        }, LOCAL_STATE_SAVE_DEBOUNCE_MS);
+    }
+
+    persistLocalStateNow() {
+        if (!this.localStateReady || this.isRestoringSharedState || this.isShuttingDown) {
+            return;
+        }
+
+        const snapshot = this.buildLocalStateSnapshot();
+        if (!this.hasRestorableContent(snapshot)) {
+            this.clearLocalStateSnapshot();
+            this.localDeletedBaselineSignature = null;
+            this.setSuppressedLocalStateSignature(null);
+            return;
+        }
+
+        const currentSignature = this.getLocalStateSignature(snapshot);
+        const suppressedSignature = this.getSuppressedLocalStateSignature();
+        if (
+            (this.localDeletedBaselineSignature && currentSignature === this.localDeletedBaselineSignature)
+            || (suppressedSignature && currentSignature === suppressedSignature)
+        ) {
+            this.clearLocalStateSnapshot();
+            return;
+        }
+
+        if (this.localDeletedBaselineSignature && currentSignature !== this.localDeletedBaselineSignature) {
+            this.localDeletedBaselineSignature = null;
+            this.setSuppressedLocalStateSignature(null);
+        }
+
+        try {
+            window.localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(snapshot));
+        } catch (error) {
+            console.warn('Unable to persist local state:', error);
+        }
+    }
+
+    getStoredLocalStateSnapshot() {
+        try {
+            const raw = window.localStorage.getItem(LOCAL_STATE_KEY);
+            if (!raw) {
+                return null;
+            }
+
+            const parsed = JSON.parse(raw);
+            if (!parsed || parsed.version !== SHARE_STATE_VERSION) {
+                return null;
+            }
+
+            if (!this.hasRestorableContent(parsed)) {
+                return null;
+            }
+
+            const parsedSignature = this.getLocalStateSignature(parsed);
+            const suppressedSignature = this.getSuppressedLocalStateSignature();
+            if (suppressedSignature && parsedSignature && parsedSignature === suppressedSignature) {
+                this.clearLocalStateSnapshot();
+                return null;
+            }
+
+            return parsed;
+        } catch (error) {
+            console.warn('Unable to read local state:', error);
+            return null;
+        }
+    }
+
+    async restoreLocalStateIfPresent() {
+        const snapshot = this.getStoredLocalStateSnapshot();
+        if (!snapshot) {
+            return false;
+        }
+
+        const restored = this.applySharedStateSnapshot(snapshot);
+        if (!restored) {
+            this.clearLocalStateSnapshot();
+            return false;
+        }
+
+        this.showToast('Restored previous diagram.');
+
+        const shouldKeepRestoredDiagram = await this.showConfirmModal(
+            'Do you want to restore your previous diagram?',
+            { confirmText: 'Restore', cancelText: 'Delete' }
+        );
+
+        if (!shouldKeepRestoredDiagram) {
+            this.localDeletedBaselineSignature = this.getLocalStateSignature(snapshot);
+            this.setSuppressedLocalStateSignature(this.localDeletedBaselineSignature);
+            this.clearLocalStateSnapshot();
+
+            if (this.isTriangleExtractionOpen()) {
+                this.closeTriangleExtraction({ force: true });
+            }
+            this.compositeSlots = [];
+            this.nextSlotId = 1;
+            this.baseLabelOverrides = new Map();
+            this.derivedLabelOverrides = new Map();
+            this.resetSceneObjects();
+            this.buildComposite();
+            this.renderCompositeCards();
+
+            this.showToast('Saved local diagram deleted.');
+            return false;
+        }
+
+        this.localDeletedBaselineSignature = null;
+        this.setSuppressedLocalStateSignature(null);
+
+        return true;
     }
 
     showToast(message, durationMs = 2200) {
@@ -4915,6 +5116,7 @@ class TrimensionApp {
             this.renderSelectionSummary();
             this.renderActions();
             this.updateCanvasEmptyState();
+            this.scheduleLocalStateSave();
             return;
         }
 
@@ -5009,6 +5211,7 @@ class TrimensionApp {
             this.fitCameraToObject(this.compositeGroup);
         }
         this.updateCanvasEmptyState();
+        this.scheduleLocalStateSave();
     }
 
     updateCanvasEmptyState() {
@@ -7968,6 +8171,8 @@ class TrimensionApp {
                 }
             }
         }
+
+        this.scheduleLocalStateSave();
     }
 
 
@@ -8526,6 +8731,11 @@ class TrimensionApp {
     }
 
     cleanup() {
+        this.isShuttingDown = true;
+        if (this.localStateSaveTimer) {
+            clearTimeout(this.localStateSaveTimer);
+            this.localStateSaveTimer = null;
+        }
         window.removeEventListener('resize', this.handleWindowResize);
         window.removeEventListener('keydown', this._handleKeyDown);
         window.removeEventListener('keyup', this._handleKeyUp);
