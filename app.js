@@ -2125,35 +2125,6 @@ class TrimensionApp {
 
         this.showToast('Restored previous diagram.');
 
-        const shouldKeepRestoredDiagram = await this.showConfirmModal(
-            'Do you want to restore your previous diagram?',
-            {
-                confirmText: 'Restore',
-                cancelText: 'Delete',
-                dismissValue: true
-            }
-        );
-
-        if (!shouldKeepRestoredDiagram) {
-            this.localDeletedBaselineSignature = this.getLocalStateSignature(snapshot);
-            this.setSuppressedLocalStateSignature(this.localDeletedBaselineSignature);
-            this.clearLocalStateSnapshot();
-
-            if (this.isTriangleExtractionOpen()) {
-                this.closeTriangleExtraction({ force: true });
-            }
-            this.compositeSlots = [];
-            this.nextSlotId = 1;
-            this.baseLabelOverrides = new Map();
-            this.derivedLabelOverrides = new Map();
-            this.resetSceneObjects();
-            this.buildComposite();
-            this.renderCompositeCards();
-
-            this.showToast('Saved local diagram deleted.');
-            return false;
-        }
-
         this.localDeletedBaselineSignature = null;
         this.setSuppressedLocalStateSignature(null);
 
