@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trimension-version-1.0.95';
+const CACHE_NAME = 'trimension-version-1.0.96';
 const LOCAL_ASSETS = [
   './',
   './index.html',

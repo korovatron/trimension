@@ -159,7 +159,7 @@ textarea {
     height: auto;
     overflow: visible;
     animation: goodie-post-cycle 12s linear infinite;
-    animation-delay: 8.2s;
+    animation-delay: 4s;
     animation-fill-mode: backwards;
 }
 
@@ -172,7 +172,7 @@ textarea {
     stroke-dasharray: 36;
     stroke-dashoffset: 36;
     filter: saturate(1.45) brightness(1.12) drop-shadow(0 0 7px rgba(0, 229, 255, 0.55));
-    animation: goodie-line-draw 8.2s ease-in-out 1 forwards;
+    animation: goodie-line-draw 4s ease-in-out 1 forwards;
 }
 
 .goodie-sq-left,
@@ -188,24 +188,24 @@ textarea {
 .goodie-sq-left {
     stroke-dasharray: 72;
     stroke-dashoffset: 72;
-    animation: goodie-sq-side-draw 8.2s ease-in-out 1 forwards;
+    animation: goodie-sq-side-draw 4s ease-in-out 1 forwards;
 }
 
 .goodie-sq-right {
     stroke-dasharray: 72;
     stroke-dashoffset: 72;
-    animation: goodie-sq-side-draw 8.2s ease-in-out 1 forwards;
+    animation: goodie-sq-side-draw 4s ease-in-out 1 forwards;
 }
 
 .goodie-sq-top {
     stroke-dasharray: 72;
     stroke-dashoffset: 72;
-    animation: goodie-sq-top-draw 8.2s ease-in-out 1 forwards;
+    animation: goodie-sq-top-draw 4s ease-in-out 1 forwards;
 }
 
 .goodie-cube {
     opacity: 0;
-    animation: goodie-cube-visibility 8.2s ease-in-out 1 forwards;
+    animation: goodie-cube-visibility 4s ease-in-out 1 forwards;
 }
 
 .goodie-cube-back {
@@ -213,7 +213,7 @@ textarea {
     stroke: url(#goodieLineGradient);
     stroke-width: 2;
     filter: saturate(1.45) brightness(1.12) drop-shadow(0 0 7px rgba(0, 229, 255, 0.5));
-    animation: goodie-cube-drag 8.2s ease-in-out 1 forwards;
+    animation: goodie-cube-drag 4s ease-in-out 1 forwards;
 }
 
 .goodie-cube-connector {
@@ -223,7 +223,7 @@ textarea {
     stroke-dasharray: 34;
     stroke-dashoffset: 34;
     filter: saturate(1.45) brightness(1.12) drop-shadow(0 0 7px rgba(0, 229, 255, 0.5));
-    animation: goodie-cube-connectors 8.2s ease-in-out 1 forwards;
+    animation: goodie-cube-connectors 4s ease-in-out 1 forwards;
 }
 
 
@@ -2260,5 +2260,50 @@ textarea {
     .triangle-extract-modal,
     .object-extract {
         transition: none !important;
+    }
+}
+
+@media (min-width: 1100px) {
+    .title-content {
+        gap: 32px;
+        padding: 60px 48px;
+    }
+
+    .title-logo {
+        max-width: min(60vw, 740px);
+    }
+
+    .title-goodie {
+        width: min(40vw, 280px);
+    }
+
+    .title-mark {
+        width: 108px;
+        height: 108px;
+        border-radius: 28px;
+        font-size: 52px;
+    }
+
+    .title-tagline {
+        font-size: 1.35rem;
+    }
+
+    .goodie-line-left,
+    .goodie-line-right {
+        stroke-width: 4.5;
+    }
+
+    .goodie-sq-left,
+    .goodie-sq-right,
+    .goodie-sq-top {
+        stroke-width: 3.5;
+    }
+
+    .goodie-cube-back {
+        stroke-width: 3;
+    }
+
+    .goodie-cube-connector {
+        stroke-width: 3;
     }
 }
