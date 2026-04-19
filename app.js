@@ -2584,7 +2584,9 @@ class TrimensionApp {
             item,
             color: flightColor,
             orientationQuarterTurns: 0,
-            orientationFlipped: false
+            orientationFlipped: false,
+            transformStageWidth: null,
+            transformStageHeight: null
         };
         this.lastFocusedElementBeforeTriangleExtract = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         this.controls.enabled = false;
@@ -3544,6 +3546,8 @@ class TrimensionApp {
         const orientationQuarterTurns = this.activeTriangleExtraction.orientationQuarterTurns || 0;
         const orientationFlipped = this.activeTriangleExtraction.orientationFlipped === true;
         const { stageWidth, stageHeight } = this.getLiveTriangleExtractionTransformStageDimensions(this.activeTriangleExtraction.baseLayout);
+        this.activeTriangleExtraction.transformStageWidth = stageWidth;
+        this.activeTriangleExtraction.transformStageHeight = stageHeight;
         const layout = this.buildTransformedExtractionLayout(
             this.activeTriangleExtraction.baseLayout,
             orientationQuarterTurns,
@@ -3590,7 +3594,17 @@ class TrimensionApp {
             return;
         }
 
-        const { stageWidth, stageHeight } = this.getLiveTriangleExtractionTransformStageDimensions(this.activeTriangleExtraction.baseLayout);
+        let stageWidth = this.activeTriangleExtraction.transformStageWidth;
+        let stageHeight = this.activeTriangleExtraction.transformStageHeight;
+
+        if (!Number.isFinite(stageWidth) || !Number.isFinite(stageHeight) || stageWidth <= 1 || stageHeight <= 1) {
+            const resolved = this.getLiveTriangleExtractionTransformStageDimensions(this.activeTriangleExtraction.baseLayout);
+            stageWidth = resolved.stageWidth;
+            stageHeight = resolved.stageHeight;
+            this.activeTriangleExtraction.transformStageWidth = stageWidth;
+            this.activeTriangleExtraction.transformStageHeight = stageHeight;
+        }
+
         const layout = this.buildTransformedExtractionLayout(
             this.activeTriangleExtraction.baseLayout,
             quarterTurns,
