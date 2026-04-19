@@ -1985,6 +1985,7 @@ textarea {
     background: transparent;
     border: 1px solid transparent;
     padding: 0;
+    contain: paint;
     transition: background 0.24s ease, border-color 0.24s ease, padding 0.24s ease;
 }
 
@@ -1999,6 +2000,10 @@ textarea {
     height: 100%;
     display: block;
     overflow: visible;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
 }
 
 .triangle-extract-polygon {

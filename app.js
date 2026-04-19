@@ -525,6 +525,8 @@ class TrimensionApp {
         this.lastFocusedElementBeforeTriangleExtract = null;
         this.triangleExtractSettleTimer = null;
         this.triangleExtractAnimationFrame = null;
+        this.isIOSWebKit = this.detectIOSWebKit();
+        this.triangleExtractRepaintNonce = 0;
         this.crashReportOverlay = document.getElementById('crash-report-overlay');
         this.crashReportPre = document.getElementById('crash-report-content');
         this.crashReportRefreshBtn = document.getElementById('crash-report-refresh');
@@ -3639,6 +3641,29 @@ class TrimensionApp {
         }
     }
 
+    detectIOSWebKit() {
+        const userAgent = navigator.userAgent || '';
+        const platform = navigator.platform || '';
+        const isIOSDevice = /iPhone|iPad|iPod/.test(userAgent)
+            || (platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const isWebKitEngine = /WebKit/i.test(userAgent);
+        return isIOSDevice && isWebKitEngine;
+    }
+
+    forceTriangleExtractionSvgRepaint() {
+        if (!this.isIOSWebKit || !this.triangleExtractSvg) {
+            return;
+        }
+
+        // iOS Safari can retain stale 1px glyph/stroke fragments when only SVG
+        // geometry attributes change; nudging transform forces a clean repaint.
+        this.triangleExtractRepaintNonce = (this.triangleExtractRepaintNonce + 1) % 2;
+        const nudge = this.triangleExtractRepaintNonce === 0 ? '0px' : '0.001px';
+        this.triangleExtractSvg.style.transform = `translateX(${nudge})`;
+        this.triangleExtractSvg.getBoundingClientRect();
+        this.triangleExtractSvg.style.transform = '';
+    }
+
     buildPolygonExtractionLayout(rawPoints, targetAspectRatio = 1000 / 760) {
         if (!Array.isArray(rawPoints) || rawPoints.length < 3) {
             return null;
@@ -3992,6 +4017,8 @@ class TrimensionApp {
                 this.triangleExtractAnglesGroup.appendChild(textEl);
             }
         }
+
+        this.forceTriangleExtractionSvgRepaint();
     }
 
     formatTriangleSideLength(lengthValue) {
