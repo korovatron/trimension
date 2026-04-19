@@ -3369,7 +3369,7 @@ class TrimensionApp {
         };
     }
 
-    fitExtractionPointsToStage(rawPoints, stageWidth, stageHeight, paddingX = null, paddingY = null) {
+    fitExtractionPointsToStage(rawPoints, stageWidth, stageHeight, paddingX = null, paddingY = null, invertYAxis = true) {
         if (!Array.isArray(rawPoints) || rawPoints.length < 3) {
             return null;
         }
@@ -3386,11 +3386,15 @@ class TrimensionApp {
         const height = Math.max(maxY - minY, 1e-6);
         const scale = Math.min((stageWidth - safePaddingX * 2) / width, (stageHeight - safePaddingY * 2) / height);
         const offsetX = (stageWidth - width * scale) / 2 - minX * scale;
-        const offsetY = (stageHeight - height * scale) / 2 + maxY * scale;
+        const offsetY = invertYAxis
+            ? ((stageHeight - height * scale) / 2 + maxY * scale)
+            : ((stageHeight - height * scale) / 2 - minY * scale);
 
         return rawPoints.map((point) => ({
             x: offsetX + point.x * scale,
-            y: offsetY - point.y * scale
+            y: invertYAxis
+                ? (offsetY - point.y * scale)
+                : (offsetY + point.y * scale)
         }));
     }
 
@@ -3474,7 +3478,14 @@ class TrimensionApp {
             return { x, y };
         });
 
-        const fittedPoints = this.fitExtractionPointsToStage(transformed, stageWidth, stageHeight);
+        const fittedPoints = this.fitExtractionPointsToStage(
+            transformed,
+            stageWidth,
+            stageHeight,
+            null,
+            null,
+            false
+        );
         return fittedPoints
             ? this.buildExtractionLayoutFromPoints(fittedPoints, stageWidth, stageHeight)
             : null;
