@@ -3247,6 +3247,7 @@ class TrimensionApp {
             this.clearTriangleExtractFlight();
             this.triangleExtractOverlay.classList.add('settled');
             this.triangleExtractTransitionState = 'open';
+            this.refreshTriangleExtractionLayoutForLiveStage();
             this.updateTriangleExtractionOrientationButtons();
             this.triangleExtractCloseBtn?.focus();
             this.triangleExtractSettleTimer = null;
@@ -3441,28 +3442,55 @@ class TrimensionApp {
         };
     }
 
-    buildTransformedExtractionLayout(baseLayout, quarterTurns = 0, isFlipped = false) {
+    buildTransformedExtractionLayout(baseLayout, quarterTurns = 0, isFlipped = false, forcedStageWidth = null, forcedStageHeight = null) {
         if (!baseLayout?.points2D?.length) {
             return null;
         }
 
-        // Use the base layout's own stage dimensions so rotate/flip operations never
-        // re-read the live DOM (which may have just been updated), preventing the
-        // feedback loop that causes the modal height to creep up on each rotation.
-        const stageWidth = baseLayout.stageWidth || 1000;
-        const stageHeight = baseLayout.stageHeight || 760;
+        const stageWidth = Number.isFinite(forcedStageWidth) && forcedStageWidth > 1
+            ? forcedStageWidth
+            : (baseLayout.stageWidth || 1000);
+        const stageHeight = Number.isFinite(forcedStageHeight) && forcedStageHeight > 1
+            ? forcedStageHeight
+            : (baseLayout.stageHeight || 760);
 
-        const centroid = baseLayout.points2D.reduce((acc, point) => ({
-            x: acc.x + point.x,
-            y: acc.y + point.y
-        }), { x: 0, y: 0 });
-        centroid.x /= baseLayout.points2D.length;
-        centroid.y /= baseLayout.points2D.length;
+        // Rotate/flip from a normalized geometry basis so each orientation can
+        // be re-fitted to the stage independently (prevents inherited shrinking).
+        let transformBasePoints = Array.isArray(baseLayout.transformBasePoints)
+            ? baseLayout.transformBasePoints
+            : null;
+
+        if (!transformBasePoints || transformBasePoints.length !== baseLayout.points2D.length) {
+            const centroid = baseLayout.points2D.reduce((acc, point) => ({
+                x: acc.x + point.x,
+                y: acc.y + point.y
+            }), { x: 0, y: 0 });
+            centroid.x /= baseLayout.points2D.length;
+            centroid.y /= baseLayout.points2D.length;
+
+            const centered = baseLayout.points2D.map((point) => ({
+                x: point.x - centroid.x,
+                y: point.y - centroid.y
+            }));
+
+            const minX = Math.min(...centered.map((point) => point.x));
+            const maxX = Math.max(...centered.map((point) => point.x));
+            const minY = Math.min(...centered.map((point) => point.y));
+            const maxY = Math.max(...centered.map((point) => point.y));
+            const maxDimension = Math.max(maxX - minX, maxY - minY, 1e-6);
+
+            transformBasePoints = centered.map((point) => ({
+                x: point.x / maxDimension,
+                y: point.y / maxDimension
+            }));
+
+            baseLayout.transformBasePoints = transformBasePoints;
+        }
 
         const normalizedQuarterTurns = ((quarterTurns % 4) + 4) % 4;
-        const transformed = baseLayout.points2D.map((point) => {
-            let x = point.x - centroid.x;
-            let y = point.y - centroid.y;
+        const transformed = transformBasePoints.map((point) => {
+            let x = point.x;
+            let y = point.y;
 
             if (isFlipped) {
                 x *= -1;
@@ -3491,6 +3519,52 @@ class TrimensionApp {
             : null;
     }
 
+    getLiveTriangleExtractionTransformStageDimensions(fallbackLayout = null) {
+        const fallbackWidth = fallbackLayout?.stageWidth || 1000;
+        const fallbackHeight = fallbackLayout?.stageHeight || 760;
+        const rect = this.triangleExtractStage?.getBoundingClientRect();
+
+        if (!rect || rect.width <= 1 || rect.height <= 1) {
+            return {
+                stageWidth: fallbackWidth,
+                stageHeight: fallbackHeight
+            };
+        }
+
+        const stageWidth = 1000;
+        const stageHeight = Math.max(1, Math.round(stageWidth * (rect.height / rect.width)));
+        return { stageWidth, stageHeight };
+    }
+
+    refreshTriangleExtractionLayoutForLiveStage() {
+        if (!this.activeTriangleExtraction?.baseLayout) {
+            return;
+        }
+
+        const orientationQuarterTurns = this.activeTriangleExtraction.orientationQuarterTurns || 0;
+        const orientationFlipped = this.activeTriangleExtraction.orientationFlipped === true;
+        const { stageWidth, stageHeight } = this.getLiveTriangleExtractionTransformStageDimensions(this.activeTriangleExtraction.baseLayout);
+        const layout = this.buildTransformedExtractionLayout(
+            this.activeTriangleExtraction.baseLayout,
+            orientationQuarterTurns,
+            orientationFlipped,
+            stageWidth,
+            stageHeight
+        );
+
+        if (!layout) {
+            return;
+        }
+
+        this.activeTriangleExtraction.layout = layout;
+        this.populateTriangleExtractionModal(
+            layout,
+            this.activeTriangleExtraction.labels,
+            this.activeTriangleExtraction.item,
+            this.activeTriangleExtraction.color
+        );
+    }
+
     rotateTriangleExtractionLayout() {
         if (this.triangleExtractTransitionState !== 'open' || !this.activeTriangleExtraction?.baseLayout) {
             return;
@@ -3516,7 +3590,14 @@ class TrimensionApp {
             return;
         }
 
-        const layout = this.buildTransformedExtractionLayout(this.activeTriangleExtraction.baseLayout, quarterTurns, isFlipped);
+        const { stageWidth, stageHeight } = this.getLiveTriangleExtractionTransformStageDimensions(this.activeTriangleExtraction.baseLayout);
+        const layout = this.buildTransformedExtractionLayout(
+            this.activeTriangleExtraction.baseLayout,
+            quarterTurns,
+            isFlipped,
+            stageWidth,
+            stageHeight
+        );
         if (!layout) {
             return;
         }
