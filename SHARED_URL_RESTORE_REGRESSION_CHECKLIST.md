@@ -119,3 +119,24 @@ Case results:
 7. Case 7: Pass or Fail
 
 Notes:
+
+## Mobile Rendering Sanity (iOS Safari)
+
+Purpose: verify triangle extraction rotate/flip redraws cleanly on iPhone with no stale 1px artifacts.
+
+Setup:
+1. On iPhone Safari, load built-in example AQA GCSE 2013.
+2. Inspect triangle VMY.
+3. Tap Rotate at least once.
+4. Load built-in example AQAA L2FM 2022.
+5. Inspect triangle CGP.
+6. Tap Rotate multiple times.
+
+Expected:
+1. No faint residual horizontal or vertical line remains where an edge or label used to be.
+2. No partial glyph remnants remain (for example, top pixels from "20").
+3. Triangle fill, outline, and labels repaint cleanly on each orientation update.
+
+Fix reference:
+1. iOS WebKit-specific SVG repaint nudge after extraction redraw in [app.js](app.js#L3644) and [app.js](app.js#L3653).
+2. Paint/compositing containment hints in [style.css](style.css#L1988) and [style.css](style.css#L2003).
