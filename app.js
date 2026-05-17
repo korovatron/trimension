@@ -2014,6 +2014,7 @@ class TrimensionApp {
         });
 
         const faceFillElements = options.faceFill ? this.collectFaceExportPolygons(options, width, height) : [];
+        const curvedSilhouetteElements = this.collectCurvedPrimitiveSvgSilhouettes(width, height);
         const intrinsicRightAngleElements = this.collectIntrinsicRightAngleMarkerSvgElements(width, height);
         const constructionRightAngleElements = this.collectConstructionRightAngleMarkerSvgElements(options, width, height);
         const allRightAngleElements = [...intrinsicRightAngleElements, ...constructionRightAngleElements];
@@ -2033,6 +2034,7 @@ class TrimensionApp {
             faceFillElements.length ? `<g id="face-fills">${faceFillElements.join('')}</g>` : '',
             hiddenPrimitiveLines.length ? `<g id="primitive-hidden-lines">${hiddenPrimitiveLines.join('')}</g>` : '',
             visiblePrimitiveLines.length ? `<g id="primitive-lines">${visiblePrimitiveLines.join('')}</g>` : '',
+            curvedSilhouetteElements.length ? `<g id="curved-silhouettes">${curvedSilhouetteElements.join('')}</g>` : '',
             hiddenConstructionLines.length ? `<g id="construction-hidden-lines">${hiddenConstructionLines.join('')}</g>` : '',
             visibleConstructionLines.length ? `<g id="construction-lines">${visibleConstructionLines.join('')}</g>` : '',
             intrinsicRightAngleElements.length || constructionRightAngleElements.length ? `<g id="right-angle-markers">${allRightAngleElements.join('')}</g>` : '',
@@ -2073,6 +2075,156 @@ class TrimensionApp {
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;');
+    }
+
+    collectCurvedPrimitiveSvgSilhouettes(width, height) {
+        if (!this.camera || !this.compositeSlots || !this.slotGroupMap) return [];
+        const elements = [];
+        const SEGMENTS = 96;
+        const edgeColorHex = this.colorNumberToHex(this.getEdgeColor());
+        const strokeWidth = 3.5;
+
+        const emitPolyline = (worldPoints) => {
+            if (worldPoints.length < 2) return;
+            const pts = worldPoints.map((p) => {
+                const proj = this.projectWorldPointToSvg(p, width, height);
+                return `${this.formatSvgNumber(proj.x)},${this.formatSvgNumber(proj.y)}`;
+            });
+            elements.push(`<polyline points="${pts.join(' ')}" stroke="${edgeColorHex}" stroke-width="${strokeWidth}" fill="none" stroke-linecap="round" stroke-linejoin="round" />`);
+        };
+
+        const circleLocalPoints = (centerLocal, radius, normalLocal) => {
+            const n = normalLocal.clone().normalize();
+            let u = new THREE.Vector3(1, 0, 0);
+            if (Math.abs(n.dot(u)) > 0.9) u = new THREE.Vector3(0, 1, 0);
+            const t1 = u.clone().sub(n.clone().multiplyScalar(n.dot(u))).normalize();
+            const t2 = new THREE.Vector3().crossVectors(n, t1).normalize();
+            const pts = [];
+            for (let i = 0; i <= SEGMENTS; i++) {
+                const angle = (i / SEGMENTS) * Math.PI * 2;
+                pts.push(centerLocal.clone()
+                    .addScaledVector(t1, radius * Math.cos(angle))
+                    .addScaledVector(t2, radius * Math.sin(angle)));
+            }
+            return pts;
+        };
+
+        this.compositeSlots.forEach((slot) => {
+            const primitiveKey = slot.primitive;
+            if (!['sphere', 'hemisphere', 'cylinder', 'cone'].includes(primitiveKey)) return;
+
+            const slotGroup = this.slotGroupMap.get(slot.id);
+            if (!slotGroup) return;
+
+            slotGroup.updateMatrixWorld(true);
+            const worldMatrix = slotGroup.matrixWorld;
+            const invMatrix = new THREE.Matrix4().copy(worldMatrix).invert();
+            const camLocal = this.camera.position.clone().applyMatrix4(invMatrix);
+            const params = { ...(this.defaultParams[primitiveKey] || {}), ...(slot.params || {}) };
+
+            const toWorld = (localPts) => localPts.map((p) => p.clone().applyMatrix4(worldMatrix));
+
+            if (primitiveKey === 'sphere') {
+                const R = params.radius || 3;
+                const camRelDist = camLocal.length();
+                if (camRelDist > R * 1.001) {
+                    const camRelDir = camLocal.clone().normalize();
+                    const silhDist = (R * R) / camRelDist;
+                    const silhR = R * Math.sqrt(Math.max(0, 1 - (R * R) / (camRelDist * camRelDist)));
+                    const silhCenter = camRelDir.clone().multiplyScalar(silhDist);
+                    emitPolyline(toWorld(circleLocalPoints(silhCenter, silhR, camRelDir)));
+                }
+            } else if (primitiveKey === 'hemisphere') {
+                const R = params.radius || 3;
+                // The sphere geometry is translated by (0, -R/2, 0), so sphere centre in local space is (0, -R/2, 0)
+                const sphereCenter = new THREE.Vector3(0, -R / 2, 0);
+                const camRel = camLocal.clone().sub(sphereCenter);
+                const camRelDist = camRel.length();
+                if (camRelDist > R * 1.001) {
+                    const camRelDir = camRel.clone().normalize();
+                    const silhDist = (R * R) / camRelDist;
+                    const silhR = R * Math.sqrt(Math.max(0, 1 - (R * R) / (camRelDist * camRelDist)));
+                    const silhCenter = sphereCenter.clone().addScaledVector(camRelDir, silhDist);
+
+                    const n = camRelDir.clone();
+                    let u = new THREE.Vector3(1, 0, 0);
+                    if (Math.abs(n.dot(u)) > 0.9) u = new THREE.Vector3(0, 1, 0);
+                    const t1 = u.clone().sub(n.clone().multiplyScalar(n.dot(u))).normalize();
+                    const t2 = new THREE.Vector3().crossVectors(n, t1).normalize();
+                    const rimY = -R / 2;
+                    // Emit only the dome-side arc (local y >= rim y)
+                    let run = [];
+                    const flushRun = () => {
+                        if (run.length >= 2) emitPolyline(toWorld(run));
+                        run = [];
+                    };
+                    for (let i = 0; i <= SEGMENTS; i++) {
+                        const angle = (i / SEGMENTS) * Math.PI * 2;
+                        const lp = silhCenter.clone()
+                            .addScaledVector(t1, silhR * Math.cos(angle))
+                            .addScaledVector(t2, silhR * Math.sin(angle));
+                        if (lp.y >= rimY - 0.01) {
+                            run.push(lp);
+                        } else {
+                            flushRun();
+                        }
+                    }
+                    flushRun();
+                }
+            } else if (primitiveKey === 'cylinder') {
+                const R = params.radius || 2.5;
+                const H = params.height || 6;
+                let topCenter, bottomCenter, axisDir;
+                if (slot.orientation === 'horizontal') {
+                    topCenter = new THREE.Vector3(H / 2, 0, 0);
+                    bottomCenter = new THREE.Vector3(-H / 2, 0, 0);
+                    axisDir = new THREE.Vector3(1, 0, 0);
+                } else {
+                    topCenter = new THREE.Vector3(0, H / 2, 0);
+                    bottomCenter = new THREE.Vector3(0, -H / 2, 0);
+                    axisDir = new THREE.Vector3(0, 1, 0);
+                }
+                // Project camera direction onto the plane perpendicular to the axis
+                const camProj = camLocal.clone().sub(axisDir.clone().multiplyScalar(camLocal.dot(axisDir)));
+                if (camProj.length() > 1e-6) {
+                    const perpDir = new THREE.Vector3().crossVectors(axisDir, camProj.clone().normalize()).normalize();
+                    emitPolyline(toWorld([
+                        topCenter.clone().addScaledVector(perpDir, R),
+                        bottomCenter.clone().addScaledVector(perpDir, R)
+                    ]));
+                    emitPolyline(toWorld([
+                        topCenter.clone().addScaledVector(perpDir, -R),
+                        bottomCenter.clone().addScaledVector(perpDir, -R)
+                    ]));
+                }
+            } else if (primitiveKey === 'cone') {
+                const R = params.radius || 2.5;
+                const H = params.height || 6;
+                let apexLocal, baseCenterLocal, axisDir;
+                if (slot.orientation === 'apex-down') {
+                    apexLocal = new THREE.Vector3(0, -H / 2, 0);
+                    baseCenterLocal = new THREE.Vector3(0, H / 2, 0);
+                    axisDir = new THREE.Vector3(0, -1, 0);
+                } else if (slot.orientation === 'sideways-right') {
+                    apexLocal = new THREE.Vector3(H / 2, 0, 0);
+                    baseCenterLocal = new THREE.Vector3(-H / 2, 0, 0);
+                    axisDir = new THREE.Vector3(1, 0, 0);
+                } else {
+                    apexLocal = new THREE.Vector3(0, H / 2, 0);
+                    baseCenterLocal = new THREE.Vector3(0, -H / 2, 0);
+                    axisDir = new THREE.Vector3(0, 1, 0);
+                }
+                const camProj = camLocal.clone().sub(axisDir.clone().multiplyScalar(camLocal.dot(axisDir)));
+                if (camProj.length() > 1e-6) {
+                    const perpDir = new THREE.Vector3().crossVectors(axisDir, camProj.clone().normalize()).normalize();
+                    const apexW = apexLocal.clone().applyMatrix4(worldMatrix);
+                    emitPolyline([apexW, baseCenterLocal.clone().addScaledVector(perpDir, R).applyMatrix4(worldMatrix)]);
+                    emitPolyline([apexW, baseCenterLocal.clone().addScaledVector(perpDir, -R).applyMatrix4(worldMatrix)]);
+                }
+            }
+        });
+
+        return elements;
     }
 
     collectConstructionRightAngleMarkerSvgElements(options, width, height) {
