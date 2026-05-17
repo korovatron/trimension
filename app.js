@@ -1655,27 +1655,50 @@ class TrimensionApp {
     }
 
     async handleShareButtonClick() {
+        let shareUrl;
         try {
             const snapshot = this.getShareableStateSnapshot();
             const payload = await this.encodeShareState(snapshot);
-            const shareUrl = `${window.location.origin}${window.location.pathname}${window.location.search}#${SHARE_HASH_KEY}=${payload}`;
-
-            if (shareUrl.length > MAX_SHARE_URL_LENGTH) {
-                await this.showAlertModal('This diagram is too large to share as a URL.');
-                return;
-            }
-
-            if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-                await navigator.clipboard.writeText(shareUrl);
-                await this.showAlertModal('Share link copied to clipboard.');
-                return;
-            }
-
-            await this.showPromptModal('Copy this share URL', shareUrl);
+            shareUrl = `${window.location.origin}${window.location.pathname}${window.location.search}#${SHARE_HASH_KEY}=${payload}`;
         } catch (error) {
             console.error('Failed to create share URL:', error);
             await this.showAlertModal('Unable to generate share URL.');
+            return;
         }
+
+        if (shareUrl.length > MAX_SHARE_URL_LENGTH) {
+            await this.showAlertModal('This diagram is too large to share as a URL.');
+            return;
+        }
+
+        const userAgent = navigator.userAgent || '';
+        const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+        const isIPad = userAgent.includes('Mac') && navigator.maxTouchPoints > 1;
+        const isMobile = isIOS || isIPad || /Android/i.test(userAgent);
+
+        if (isMobile && typeof navigator.share === 'function') {
+            try {
+                await navigator.share({ url: shareUrl });
+                return;
+            } catch (shareError) {
+                if (shareError?.name === 'AbortError') {
+                    return;
+                }
+                console.warn('Web Share API failed, trying clipboard/manual fallback:', shareError);
+            }
+        }
+
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            try {
+                await navigator.clipboard.writeText(shareUrl);
+                await this.showAlertModal('Share link copied to clipboard.');
+                return;
+            } catch (clipboardError) {
+                console.warn('Clipboard write failed, showing manual copy prompt:', clipboardError);
+            }
+        }
+
+        await this.showPromptModal('Copy this share URL', shareUrl);
     }
 
     showPromptModal(message, defaultValue = '', options = {}) {
