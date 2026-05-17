@@ -2331,7 +2331,7 @@ class TrimensionApp {
                 const pts2d = arcPts3d.map((p) => this.projectWorldPointToSvg(p, width, height));
                 const pointsAttr = pts2d.map((p) => `${this.formatSvgNumber(p.x)},${this.formatSvgNumber(p.y)}`).join(' ');
                 elements.push(`<polyline points="${pointsAttr}" fill="none" stroke="${stroke}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />`);
-                const labelRadius = radius3d * 1.4;
+                const labelRadius = radius3d * 0.6;
                 labelPoint3d = vertex.clone()
                     .add(dir1.clone().multiplyScalar(Math.cos(rawAngle / 2) * labelRadius))
                     .add(tangent.clone().multiplyScalar(Math.sin(rawAngle / 2) * labelRadius));
