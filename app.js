@@ -2023,7 +2023,7 @@ class TrimensionApp {
         const vertexCircles = vertexPoints.map((point) => {
             const projected = this.projectWorldPointToSvg(point.position, width, height);
             const fill = point.isDerived ? '#2e7d32' : this.colorNumberToHex(this.getEdgeColor());
-            return `<circle cx="${this.formatSvgNumber(projected.x)}" cy="${this.formatSvgNumber(projected.y)}" r="5" fill="${fill}" stroke="#ffffff" stroke-width="1.5" />`;
+            return `<circle cx="${this.formatSvgNumber(projected.x)}" cy="${this.formatSvgNumber(projected.y)}" r="5" fill="${fill}" />`;
         });
 
         const labelElements = this.collectSvgLabelElements(options, width, height);
@@ -2348,8 +2348,7 @@ class TrimensionApp {
                 const ay = this.formatSvgNumber(projected.y);
                 const angleBaseAttrs = `x="${ax}" y="${ay}" font-family="sans-serif" font-size="${angleFontSize}" text-anchor="middle" dominant-baseline="middle"`;
                 const angleContent = this.escapeSvgText(labelText);
-                elements.push(`<text ${angleBaseAttrs} fill="none" stroke="#ffffff" stroke-width="3" stroke-linejoin="round">${angleContent}</text>`);
-                elements.push(`<text ${angleBaseAttrs} fill="#000000" stroke="none">${angleContent}</text>`);
+                elements.push(`<text ${angleBaseAttrs} fill="#000000">${angleContent}</text>`);
             }
         });
         return elements;
@@ -2390,8 +2389,7 @@ class TrimensionApp {
             const ly = this.formatSvgNumber(projected.y - 8);
             const baseAttrs = `x="${lx}" y="${ly}" font-family="sans-serif" font-size="${fontSize.vertex}" font-weight="600" text-anchor="start"`;
             const labelContent = this.escapeSvgText(point.label);
-            elements.push(`<text ${baseAttrs} fill="none" stroke="${textStroke}" stroke-width="3" stroke-linejoin="round">${labelContent}</text>`);
-            elements.push(`<text ${baseAttrs} fill="${textFill}" stroke="none">${labelContent}</text>`);
+            elements.push(`<text ${baseAttrs} fill="${textFill}">${labelContent}</text>`);
         });
 
         this.sceneObjects.forEach((item) => {
@@ -2410,8 +2408,7 @@ class TrimensionApp {
             const ey = this.formatSvgNumber(projected.y - 7);
             const edgeBaseAttrs = `x="${ex}" y="${ey}" font-family="sans-serif" font-size="${fontSize.edge}" text-anchor="middle"`;
             const edgeContent = this.escapeSvgText(definition.text.trim());
-            elements.push(`<text ${edgeBaseAttrs} fill="none" stroke="${textStroke}" stroke-width="3" stroke-linejoin="round">${edgeContent}</text>`);
-            elements.push(`<text ${edgeBaseAttrs} fill="${textFill}" stroke="none">${edgeContent}</text>`);
+            elements.push(`<text ${edgeBaseAttrs} fill="${textFill}">${edgeContent}</text>`);
         });
 
         return elements;
