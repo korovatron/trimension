@@ -2344,12 +2344,12 @@ class TrimensionApp {
                 const angleSizeMap = { small: 13, medium: 17, large: 21 };
                 const angleFontSize = angleSizeMap[options.labelSize] ?? 13;
                 const projected = this.projectWorldPointToSvg(labelPoint3d, width, height);
-                elements.push(
-                    `<text x="${this.formatSvgNumber(projected.x)}" y="${this.formatSvgNumber(projected.y)}" ` +
-                    `font-family="sans-serif" font-size="${angleFontSize}" fill="#000000" ` +
-                    `stroke="#ffffff" stroke-width="3" paint-order="stroke" ` +
-                    `text-anchor="middle" dominant-baseline="middle">${this.escapeSvgText(labelText)}</text>`
-                );
+                const ax = this.formatSvgNumber(projected.x);
+                const ay = this.formatSvgNumber(projected.y);
+                const angleBaseAttrs = `x="${ax}" y="${ay}" font-family="sans-serif" font-size="${angleFontSize}" text-anchor="middle" dominant-baseline="middle"`;
+                const angleContent = this.escapeSvgText(labelText);
+                elements.push(`<text ${angleBaseAttrs} fill="none" stroke="#ffffff" stroke-width="3" stroke-linejoin="round">${angleContent}</text>`);
+                elements.push(`<text ${angleBaseAttrs} fill="#000000" stroke="none">${angleContent}</text>`);
             }
         });
         return elements;
@@ -2386,12 +2386,12 @@ class TrimensionApp {
         this.getAllPoints().forEach((point) => {
             if (!point.label) return;
             const projected = this.projectWorldPointToSvg(point.position, width, height);
-            elements.push(
-                `<text x="${this.formatSvgNumber(projected.x + 8)}" y="${this.formatSvgNumber(projected.y - 8)}" ` +
-                `font-family="sans-serif" font-size="${fontSize.vertex}" font-weight="600" fill="${textFill}" ` +
-                `stroke="${textStroke}" stroke-width="3" paint-order="stroke" ` +
-                `text-anchor="start">${this.escapeSvgText(point.label)}</text>`
-            );
+            const lx = this.formatSvgNumber(projected.x + 8);
+            const ly = this.formatSvgNumber(projected.y - 8);
+            const baseAttrs = `x="${lx}" y="${ly}" font-family="sans-serif" font-size="${fontSize.vertex}" font-weight="600" text-anchor="start"`;
+            const labelContent = this.escapeSvgText(point.label);
+            elements.push(`<text ${baseAttrs} fill="none" stroke="${textStroke}" stroke-width="3" stroke-linejoin="round">${labelContent}</text>`);
+            elements.push(`<text ${baseAttrs} fill="${textFill}" stroke="none">${labelContent}</text>`);
         });
 
         this.sceneObjects.forEach((item) => {
@@ -2406,12 +2406,12 @@ class TrimensionApp {
             if (!vectors || vectors.length !== 2) return;
             const mid = vectors[0].clone().lerp(vectors[1], 0.5);
             const projected = this.projectWorldPointToSvg(mid, width, height);
-            elements.push(
-                `<text x="${this.formatSvgNumber(projected.x)}" y="${this.formatSvgNumber(projected.y - 7)}" ` +
-                `font-family="sans-serif" font-size="${fontSize.edge}" fill="${textFill}" ` +
-                `stroke="${textStroke}" stroke-width="3" paint-order="stroke" ` +
-                `text-anchor="middle">${this.escapeSvgText(definition.text.trim())}</text>`
-            );
+            const ex = this.formatSvgNumber(projected.x);
+            const ey = this.formatSvgNumber(projected.y - 7);
+            const edgeBaseAttrs = `x="${ex}" y="${ey}" font-family="sans-serif" font-size="${fontSize.edge}" text-anchor="middle"`;
+            const edgeContent = this.escapeSvgText(definition.text.trim());
+            elements.push(`<text ${edgeBaseAttrs} fill="none" stroke="${textStroke}" stroke-width="3" stroke-linejoin="round">${edgeContent}</text>`);
+            elements.push(`<text ${edgeBaseAttrs} fill="${textFill}" stroke="none">${edgeContent}</text>`);
         });
 
         return elements;
