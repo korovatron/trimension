@@ -433,6 +433,7 @@ class TrimensionApp {
         this.lightIcon = document.getElementById('light-icon');
         this.darkIcon = document.getElementById('dark-icon');
         this.exportSvgBtn = document.getElementById('export-svg-button');
+        this.exportPngBtn = document.getElementById('export-png-button');
         this.exportSvgModalOverlay = document.getElementById('export-svg-modal-overlay');
         this.exportSvgModalConfirm = document.getElementById('export-svg-modal-confirm');
         this.exportSvgModalCancel = document.getElementById('export-svg-modal-cancel');
@@ -784,7 +785,7 @@ class TrimensionApp {
         const isTablet = isIPad || /tablet/i.test(userAgent) || isAndroidTablet;
         const isMobilePhone = (isIPhoneOrIPod || (isAndroid && /Mobile/.test(userAgent))) && !isTablet;
 
-        this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: false, logarithmicDepthBuffer: true });
+        this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true, logarithmicDepthBuffer: true });
         const pixelRatio = isMobilePhone
             ? Math.min(window.devicePixelRatio || 1, 2)
             : (window.devicePixelRatio || 1);
@@ -1215,6 +1216,12 @@ class TrimensionApp {
         if (this.exportSvgBtn) {
             this.exportSvgBtn.addEventListener('click', () => {
                 this.handleExportSvgButtonClick();
+            });
+        }
+
+        if (this.exportPngBtn) {
+            this.exportPngBtn.addEventListener('click', () => {
+                this.exportCurrentViewAsPng();
             });
         }
 
@@ -1733,6 +1740,102 @@ class TrimensionApp {
         this.openExportSvgModal();
     }
 
+    exportCurrentViewAsPng() {
+        const { renderer, scene, camera, grid } = this;
+
+        // Temporarily switch to light mode if in dark mode so export always looks clean
+        const prevTheme = this.themeMode;
+        if (prevTheme === 'dark') {
+            this.themeMode = 'light';
+            this.applyThemeMode();
+        }
+
+        // Hide grid and clear scene background for transparent render
+        const prevGridVisible = grid ? grid.visible : false;
+        const prevBackground = scene.background;
+        if (grid) grid.visible = false;
+        scene.background = null;
+
+        // Force a render with transparent background then immediately capture
+        renderer.render(scene, camera);
+        const dataUrl = renderer.domElement.toDataURL('image/png');
+
+        // Restore scene state
+        if (grid) grid.visible = prevGridVisible;
+        scene.background = prevBackground;
+        if (prevTheme === 'dark') {
+            this.themeMode = 'dark';
+            this.applyThemeMode();
+        }
+
+        // Crop transparent padding via offscreen canvas
+        const img = new Image();
+        img.onload = () => {
+            const src = document.createElement('canvas');
+            src.width = img.width;
+            src.height = img.height;
+            const srcCtx = src.getContext('2d');
+            srcCtx.drawImage(img, 0, 0);
+            const { data, width, height } = srcCtx.getImageData(0, 0, img.width, img.height);
+
+            let minX = width, minY = height, maxX = 0, maxY = 0;
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const alpha = data[(y * width + x) * 4 + 3];
+                    if (alpha > 0) {
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+
+            const pad = 24;
+            minX = Math.max(0, minX - pad);
+            minY = Math.max(0, minY - pad);
+            maxX = Math.min(width - 1, maxX + pad);
+            maxY = Math.min(height - 1, maxY + pad);
+            const cropW = maxX - minX + 1;
+            const cropH = maxY - minY + 1;
+
+            if (cropW <= 0 || cropH <= 0) {
+                this.showToast('Nothing to export.');
+                return;
+            }
+
+            const out = document.createElement('canvas');
+            out.width = cropW;
+            out.height = cropH;
+            const outCtx = out.getContext('2d');
+
+            // Composite each non-transparent pixel over white (making it fully opaque),
+            // while leaving truly empty pixels transparent so they don't create a white box in Word etc.
+            const cropped = srcCtx.getImageData(minX, minY, cropW, cropH);
+            const d = cropped.data;
+            for (let i = 0; i < d.length; i += 4) {
+                const a = d[i + 3];
+                if (a > 0 && a < 255) {
+                    const af = a / 255;
+                    const inv = 1 - af;
+                    d[i]     = Math.round(d[i]     * af + 255 * inv);
+                    d[i + 1] = Math.round(d[i + 1] * af + 255 * inv);
+                    d[i + 2] = Math.round(d[i + 2] * af + 255 * inv);
+                    d[i + 3] = 255;
+                }
+                // a === 255: already fully opaque, leave unchanged
+                // a === 0:   transparent corner, leave unchanged
+            }
+            outCtx.putImageData(cropped, 0, 0);
+
+            out.toBlob(async (blob) => {
+                const shared = await this.shareOrDownloadFile(`trimension-diagram-${this.getTimestampSlug()}.png`, blob);
+                if (shared) this.showToast('PNG exported.');
+            }, 'image/png');
+        };
+        img.src = dataUrl;
+    }
+
     initExportSvgModalDefaults() {
         const el = (id) => document.getElementById(id);
         const radio = (name, value) => {
@@ -1769,13 +1872,23 @@ class TrimensionApp {
         };
 
         try {
+            const prevTheme = this.themeMode;
+            if (prevTheme === 'dark') {
+                this.themeMode = 'light';
+                this.applyThemeMode();
+            }
             const svgText = this.buildCurrentViewSvg(options);
+            if (prevTheme === 'dark') {
+                this.themeMode = 'dark';
+                this.applyThemeMode();
+            }
             if (!svgText) {
                 throw new Error('SVG generation returned empty output');
             }
 
-            this.downloadTextFile(`trimension-diagram-${this.getTimestampSlug()}.svg`, svgText, 'image/svg+xml;charset=utf-8');
-            this.showToast('SVG exported.');
+            const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+            const shared = await this.shareOrDownloadFile(`trimension-diagram-${this.getTimestampSlug()}.svg`, svgBlob);
+            if (shared) this.showToast('SVG exported.');
         } catch (error) {
             console.error('Failed to export SVG:', error);
             await this.showAlertModal('Unable to export the current view as SVG.');
@@ -1806,6 +1919,34 @@ class TrimensionApp {
         link.click();
         link.remove();
         window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    }
+
+    async shareOrDownloadFile(filename, blob) {
+        const ua = navigator.userAgent || '';
+        const isMobile = /iPhone|iPad|iPod/i.test(ua)
+            || (ua.includes('Mac') && navigator.maxTouchPoints > 1)
+            || /Android/i.test(ua);
+        if (isMobile && typeof navigator.canShare === 'function') {
+            const file = new File([blob], filename, { type: blob.type });
+            if (navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({ files: [file], title: filename });
+                    return true;
+                } catch (error) {
+                    if (error?.name === 'AbortError') return false;
+                    console.warn('Web Share file API failed, falling back to download:', error);
+                }
+            }
+        }
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+        return true;
     }
 
     buildCurrentViewSvg(options = {}) {
