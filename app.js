@@ -432,6 +432,7 @@ class TrimensionApp {
         this.themeToggleBtn = document.getElementById('theme-toggle');
         this.lightIcon = document.getElementById('light-icon');
         this.darkIcon = document.getElementById('dark-icon');
+        this.exportSvgBtn = document.getElementById('export-svg-button');
         this.shareBtn = document.getElementById('share-button');
         this.addBtn = document.getElementById('add-btn');
         this.addDropdown = document.getElementById('add-dropdown');
@@ -1207,6 +1208,12 @@ class TrimensionApp {
             });
         }
 
+        if (this.exportSvgBtn) {
+            this.exportSvgBtn.addEventListener('click', () => {
+                this.handleExportSvgButtonClick();
+            });
+        }
+
         const togglePrimitiveSection = () => {
             this.primitiveSectionCollapsed = !this.primitiveSectionCollapsed;
             this.primitiveSectionContent.classList.toggle('collapsed', this.primitiveSectionCollapsed);
@@ -1699,6 +1706,271 @@ class TrimensionApp {
         }
 
         await this.showPromptModal('Copy this share URL', shareUrl);
+    }
+
+    async handleExportSvgButtonClick() {
+        if (this.compositeSlots.length === 0) {
+            await this.showAlertModal('Add at least one primitive before exporting an SVG.');
+            return;
+        }
+
+        try {
+            const svgText = this.buildCurrentViewSvg();
+            if (!svgText) {
+                throw new Error('SVG generation returned empty output');
+            }
+
+            this.downloadTextFile(`trimension-diagram-${this.getTimestampSlug()}.svg`, svgText, 'image/svg+xml;charset=utf-8');
+            this.showToast('SVG exported.');
+        } catch (error) {
+            console.error('Failed to export SVG:', error);
+            await this.showAlertModal('Unable to export the current view as SVG.');
+        }
+    }
+
+    getTimestampSlug() {
+        const now = new Date();
+        const pad = (value) => String(value).padStart(2, '0');
+        return [
+            now.getFullYear(),
+            pad(now.getMonth() + 1),
+            pad(now.getDate()),
+            '-',
+            pad(now.getHours()),
+            pad(now.getMinutes()),
+            pad(now.getSeconds())
+        ].join('');
+    }
+
+    downloadTextFile(fileName, content, mimeType) {
+        const blob = new Blob([content], { type: mimeType });
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    }
+
+    buildCurrentViewSvg() {
+        this.controls?.update();
+        this.camera?.updateMatrixWorld?.();
+        this.scene?.updateMatrixWorld?.(true);
+
+        const width = Math.max(1, Math.round(this.canvas.clientWidth || 1200));
+        const height = Math.max(1, Math.round(this.canvas.clientHeight || 800));
+        const primitiveSegments = this.collectPrimitiveExportSegments();
+        const constructionSegments = this.collectConstructionExportSegments();
+        const vertexPoints = this.pointMarkersVisible ? this.getAllPoints() : [];
+
+        // Compute bounding box of all projected diagram points so the SVG is
+        // cropped tightly to the content rather than exporting the full canvas.
+        const allWorldPoints = [
+            ...primitiveSegments.flatMap((s) => [s.start, s.end]),
+            ...constructionSegments.flatMap((s) => [s.start, s.end]),
+            ...vertexPoints.map((p) => p.position)
+        ];
+        let cropX = 0, cropY = 0, cropW = width, cropH = height;
+        if (allWorldPoints.length > 0) {
+            const svgPad = 48;
+            const projections = allWorldPoints.map((p) => this.projectWorldPointToSvg(p, width, height));
+            const xs = projections.map((p) => p.x);
+            const ys = projections.map((p) => p.y);
+            cropX = Math.max(0, Math.floor(Math.min(...xs) - svgPad));
+            cropY = Math.max(0, Math.floor(Math.min(...ys) - svgPad));
+            cropW = Math.min(width, Math.ceil(Math.max(...xs) + svgPad)) - cropX;
+            cropH = Math.min(height, Math.ceil(Math.max(...ys) + svgPad)) - cropY;
+        }
+
+        const hiddenPrimitiveLines = [];
+        const visiblePrimitiveLines = [];
+        primitiveSegments.forEach((segment) => {
+            const target = this.isWorldSegmentHidden(segment.start, segment.end) ? hiddenPrimitiveLines : visiblePrimitiveLines;
+            target.push(this.buildSvgLineElement(segment.start, segment.end, width, height, {
+                stroke: segment.stroke,
+                strokeWidth: segment.strokeWidth,
+                strokeOpacity: target === hiddenPrimitiveLines ? 0.34 : 1,
+                dashArray: target === hiddenPrimitiveLines ? '8 6' : null
+            }));
+        });
+
+        const hiddenConstructionLines = [];
+        const visibleConstructionLines = [];
+        constructionSegments.forEach((segment) => {
+            const target = this.isWorldSegmentHidden(segment.start, segment.end) ? hiddenConstructionLines : visibleConstructionLines;
+            target.push(this.buildSvgLineElement(segment.start, segment.end, width, height, {
+                stroke: segment.stroke,
+                strokeWidth: segment.strokeWidth,
+                strokeOpacity: target === hiddenConstructionLines ? 0.42 : 1,
+                dashArray: target === hiddenConstructionLines ? '8 6' : null
+            }));
+        });
+
+        const vertexCircles = vertexPoints.map((point) => {
+            const projected = this.projectWorldPointToSvg(point.position, width, height);
+            const fill = point.isDerived ? '#2e7d32' : this.colorNumberToHex(this.getEdgeColor());
+            return `<circle cx="${this.formatSvgNumber(projected.x)}" cy="${this.formatSvgNumber(projected.y)}" r="5" fill="${fill}" stroke="#ffffff" stroke-width="1.5" />`;
+        });
+
+        return [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            `<svg xmlns="http://www.w3.org/2000/svg" width="${cropW}" height="${cropH}" viewBox="${cropX} ${cropY} ${cropW} ${cropH}" role="img" aria-label="Trimension diagram export">`,
+            hiddenPrimitiveLines.length ? `<g id="primitive-hidden-lines">${hiddenPrimitiveLines.join('')}</g>` : '',
+            visiblePrimitiveLines.length ? `<g id="primitive-lines">${visiblePrimitiveLines.join('')}</g>` : '',
+            hiddenConstructionLines.length ? `<g id="construction-hidden-lines">${hiddenConstructionLines.join('')}</g>` : '',
+            visibleConstructionLines.length ? `<g id="construction-lines">${visibleConstructionLines.join('')}</g>` : '',
+            vertexCircles.length ? `<g id="points">${vertexCircles.join('')}</g>` : '',
+            '</svg>'
+        ].filter(Boolean).join('');
+    }
+
+    buildSvgLineElement(start, end, width, height, options = {}) {
+        const startPoint = this.projectWorldPointToSvg(start, width, height);
+        const endPoint = this.projectWorldPointToSvg(end, width, height);
+        const dashAttr = options.dashArray ? ` stroke-dasharray="${options.dashArray}"` : '';
+        const opacityAttr = Number.isFinite(options.strokeOpacity) ? ` stroke-opacity="${options.strokeOpacity}"` : '';
+        return `<line x1="${this.formatSvgNumber(startPoint.x)}" y1="${this.formatSvgNumber(startPoint.y)}" x2="${this.formatSvgNumber(endPoint.x)}" y2="${this.formatSvgNumber(endPoint.y)}" stroke="${options.stroke}" stroke-width="${this.formatSvgNumber(options.strokeWidth || 2)}" stroke-linecap="round"${opacityAttr}${dashAttr} />`;
+    }
+
+    formatSvgNumber(value) {
+        return Number(value).toFixed(2).replace(/\.00$/, '');
+    }
+
+    projectWorldPointToSvg(worldPoint, width, height) {
+        const projected = worldPoint.clone().project(this.camera);
+        return {
+            x: ((projected.x + 1) / 2) * width,
+            y: ((1 - projected.y) / 2) * height
+        };
+    }
+
+    colorNumberToHex(colorValue) {
+        return `#${Number(colorValue).toString(16).padStart(6, '0')}`;
+    }
+
+    collectPrimitiveExportSegments() {
+        const segments = [];
+        if (!this.compositeGroup) {
+            return segments;
+        }
+
+        this.compositeGroup.updateMatrixWorld(true);
+        this.slotGroupMap.forEach((slotGroup) => {
+            slotGroup.traverse((object3D) => {
+                if (object3D.userData?.isIntrinsicRightAngleMarker) {
+                    return;
+                }
+
+                const material = object3D.material;
+                if (!(material instanceof THREE.LineBasicMaterial)) {
+                    return;
+                }
+
+                const positionAttr = object3D.geometry?.getAttribute?.('position');
+                if (!positionAttr || positionAttr.count < 2) {
+                    return;
+                }
+
+                const worldPoints = [];
+                for (let index = 0; index < positionAttr.count; index += 1) {
+                    const point = new THREE.Vector3().fromBufferAttribute(positionAttr, index).applyMatrix4(object3D.matrixWorld);
+                    worldPoints.push(point);
+                }
+
+                if (object3D.isLineSegments) {
+                    for (let index = 0; index + 1 < worldPoints.length; index += 2) {
+                        segments.push({
+                            start: worldPoints[index],
+                            end: worldPoints[index + 1],
+                            stroke: this.colorNumberToHex(material.color.getHex()),
+                            strokeWidth: 3.5
+                        });
+                    }
+                    return;
+                }
+
+                for (let index = 0; index + 1 < worldPoints.length; index += 1) {
+                    segments.push({
+                        start: worldPoints[index],
+                        end: worldPoints[index + 1],
+                        stroke: this.colorNumberToHex(material.color.getHex()),
+                        strokeWidth: 3.5
+                    });
+                }
+
+                if (object3D.isLineLoop && worldPoints.length > 2) {
+                    segments.push({
+                        start: worldPoints[worldPoints.length - 1],
+                        end: worldPoints[0],
+                        stroke: this.colorNumberToHex(material.color.getHex()),
+                        strokeWidth: 3.5
+                    });
+                }
+            });
+        });
+
+        return segments;
+    }
+
+    collectConstructionExportSegments() {
+        const segments = [];
+        this.sceneObjects.forEach((item) => {
+            if (!item.visible || item.definition?.hidden === true) {
+                return;
+            }
+
+            const definition = item.definition;
+            const stroke = this.colorNumberToHex(Number.isFinite(definition?.color) ? definition.color : 0xff595e);
+            if (definition?.kind === 'segment' && Array.isArray(definition.pointIds) && definition.pointIds.length === 2) {
+                const vectors = this.getVectorsByPointIds(definition.pointIds);
+                if (!vectors || vectors.length !== 2) {
+                    return;
+                }
+                segments.push({ start: vectors[0], end: vectors[1], stroke, strokeWidth: 5.0 });
+                return;
+            }
+
+            if ((definition?.kind === 'triangle' && definition.pointIds?.length === 3) || (definition?.kind === 'plane' && definition.pointIds?.length === 4)) {
+                const edgePairs = this.getPolygonEdgePairsInOrder(definition.pointIds);
+                edgePairs.forEach((pair) => {
+                    const vectors = this.getVectorsByPointIds(pair);
+                    if (!vectors || vectors.length !== 2) {
+                        return;
+                    }
+                    segments.push({ start: vectors[0], end: vectors[1], stroke, strokeWidth: 5.0 });
+                });
+            }
+        });
+
+        return segments;
+    }
+
+    isWorldSegmentHidden(start, end) {
+        const sampleTs = [0.18, 0.38, 0.5, 0.62, 0.82];
+        return sampleTs.every((t) => {
+            const sample = start.clone().lerp(end, t);
+            return this.isWorldPointHiddenFromCamera(sample);
+        });
+    }
+
+    isWorldPointHiddenFromCamera(worldPoint) {
+        if (!this.camera || !this.primitiveMeshes || this.primitiveMeshes.length === 0) {
+            return false;
+        }
+
+        const origin = this.camera.position.clone();
+        const direction = worldPoint.clone().sub(origin);
+        const distance = direction.length();
+        if (distance <= 1e-6) {
+            return false;
+        }
+
+        const epsilon = Math.max(0.05, distance * 0.0025);
+        const raycaster = new THREE.Raycaster(origin, direction.normalize(), 0.0001, Math.max(0.0001, distance - epsilon));
+        const intersections = raycaster.intersectObjects(this.primitiveMeshes, false);
+        return intersections.length > 0;
     }
 
     showPromptModal(message, defaultValue = '', options = {}) {
