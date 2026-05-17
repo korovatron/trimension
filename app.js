@@ -482,6 +482,7 @@ class TrimensionApp {
         this.triangleExtractAnglesGroup = document.getElementById('triangle-extract-angles-group');
 
         this.panelOpen = true;
+        this.panelShouldSlideInOnLoad = true;
         this.ghostFaces = true;
         this.pointMarkersVisible = true;
         this.labelMode = 'badge';
@@ -747,7 +748,24 @@ class TrimensionApp {
             this.showAlertModal('Unable to load saved diagram state.');
         } finally {
             this.localStateReady = true;
+            this.slideInPanelIfNeeded();
         }
+    }
+
+    slideInPanelIfNeeded() {
+        if (!this.panelShouldSlideInOnLoad) return;
+        this.panelShouldSlideInOnLoad = false;
+        if (!this.panelOpen || !this.controlPanel) return;
+        // Instantly move panel off-screen without transition, then animate it in
+        this.controlPanel.style.transition = 'none';
+        this.controlPanel.classList.add('closed');
+        void this.controlPanel.offsetHeight; // force reflow
+        this.controlPanel.style.transition = '';
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                this.controlPanel.classList.remove('closed');
+            });
+        });
     }
 
     async loadBuiltInExample(index) {
