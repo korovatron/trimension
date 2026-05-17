@@ -1719,6 +1719,61 @@ textarea {
     }
 }
 
+.export-svg-modal {
+    width: min(440px, 100%);
+}
+
+.export-svg-modal-info {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin: -4px 0 6px;
+}
+
+.export-svg-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.export-svg-fieldset {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px 14px 12px;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.export-svg-legend {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0 4px;
+}
+
+.export-svg-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.export-svg-option input[type="checkbox"],
+.export-svg-option input[type="radio"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--accent-color);
+    flex-shrink: 0;
+}
+
 .help-overlay {
     position: fixed;
     inset: 0;

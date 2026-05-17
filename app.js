@@ -433,6 +433,10 @@ class TrimensionApp {
         this.lightIcon = document.getElementById('light-icon');
         this.darkIcon = document.getElementById('dark-icon');
         this.exportSvgBtn = document.getElementById('export-svg-button');
+        this.exportSvgModalOverlay = document.getElementById('export-svg-modal-overlay');
+        this.exportSvgModalConfirm = document.getElementById('export-svg-modal-confirm');
+        this.exportSvgModalCancel = document.getElementById('export-svg-modal-cancel');
+        this.initExportSvgModalDefaults();
         this.shareBtn = document.getElementById('share-button');
         this.addBtn = document.getElementById('add-btn');
         this.addDropdown = document.getElementById('add-dropdown');
@@ -1214,6 +1218,18 @@ class TrimensionApp {
             });
         }
 
+        if (this.exportSvgModalCancel) {
+            this.exportSvgModalCancel.addEventListener('click', () => {
+                this.closeExportSvgModal();
+            });
+        }
+
+        if (this.exportSvgModalConfirm) {
+            this.exportSvgModalConfirm.addEventListener('click', () => {
+                this.handleExportSvgModalConfirm();
+            });
+        }
+
         const togglePrimitiveSection = () => {
             this.primitiveSectionCollapsed = !this.primitiveSectionCollapsed;
             this.primitiveSectionContent.classList.toggle('collapsed', this.primitiveSectionCollapsed);
@@ -1714,8 +1730,46 @@ class TrimensionApp {
             return;
         }
 
+        this.openExportSvgModal();
+    }
+
+    initExportSvgModalDefaults() {
+        const el = (id) => document.getElementById(id);
+        const radio = (name, value) => {
+            const input = document.querySelector(`input[name="${name}"][value="${value}"]`);
+            if (input) input.checked = true;
+        };
+        const check = (id, checked) => { if (el(id)) el(id).checked = checked; };
+        radio('export-opt-colour', 'original');
+        radio('export-opt-hidden', 'dashed');
+        radio('export-opt-label-size', 'medium');
+        check('export-opt-face-fill', true);
+    }
+
+    openExportSvgModal() {
+        if (!this.exportSvgModalOverlay) return;
+        this.exportSvgModalOverlay.classList.add('show');
+        this.exportSvgModalOverlay.setAttribute('aria-hidden', 'false');
+    }
+
+    closeExportSvgModal() {
+        if (!this.exportSvgModalOverlay) return;
+        this.exportSvgModalOverlay.classList.remove('show');
+        this.exportSvgModalOverlay.setAttribute('aria-hidden', 'true');
+    }
+
+    async handleExportSvgModalConfirm() {
+        this.closeExportSvgModal();
+
+        const options = {
+            constructionColour: document.querySelector('input[name="export-opt-colour"]:checked')?.value ?? 'original',
+            hiddenLines: document.querySelector('input[name="export-opt-hidden"]:checked')?.value ?? 'dashed',
+            labelSize: document.querySelector('input[name="export-opt-label-size"]:checked')?.value ?? 'medium',
+            faceFill: document.getElementById('export-opt-face-fill')?.checked ?? true
+        };
+
         try {
-            const svgText = this.buildCurrentViewSvg();
+            const svgText = this.buildCurrentViewSvg(options);
             if (!svgText) {
                 throw new Error('SVG generation returned empty output');
             }
@@ -1754,15 +1808,19 @@ class TrimensionApp {
         window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
     }
 
-    buildCurrentViewSvg() {
+    buildCurrentViewSvg(options = {}) {
         this.controls?.update();
         this.camera?.updateMatrixWorld?.();
         this.scene?.updateMatrixWorld?.(true);
+        this.updateIntrinsicRightAngleMarkerVisibility();
 
         const width = Math.max(1, Math.round(this.canvas.clientWidth || 1200));
         const height = Math.max(1, Math.round(this.canvas.clientHeight || 800));
         const primitiveSegments = this.collectPrimitiveExportSegments();
         const constructionSegments = this.collectConstructionExportSegments();
+        if (options.constructionColour === 'black') {
+            constructionSegments.forEach((seg) => { seg.stroke = '#000000'; });
+        }
         const vertexPoints = this.pointMarkersVisible ? this.getAllPoints() : [];
 
         // Compute bounding box of all projected diagram points so the SVG is
@@ -1784,29 +1842,41 @@ class TrimensionApp {
             cropH = Math.min(height, Math.ceil(Math.max(...ys) + svgPad)) - cropY;
         }
 
+        const hiddenLineDashed = options.hiddenLines !== 'omit';
+
         const hiddenPrimitiveLines = [];
         const visiblePrimitiveLines = [];
         primitiveSegments.forEach((segment) => {
-            const target = this.isWorldSegmentHidden(segment.start, segment.end) ? hiddenPrimitiveLines : visiblePrimitiveLines;
+            const hidden = this.isWorldSegmentHidden(segment.start, segment.end);
+            if (hidden && !hiddenLineDashed) return;
+            const target = hidden ? hiddenPrimitiveLines : visiblePrimitiveLines;
             target.push(this.buildSvgLineElement(segment.start, segment.end, width, height, {
                 stroke: segment.stroke,
                 strokeWidth: segment.strokeWidth,
-                strokeOpacity: target === hiddenPrimitiveLines ? 0.34 : 1,
-                dashArray: target === hiddenPrimitiveLines ? '8 6' : null
+                strokeOpacity: hidden ? 0.34 : 1,
+                dashArray: hidden ? '8 6' : null
             }));
         });
 
         const hiddenConstructionLines = [];
         const visibleConstructionLines = [];
         constructionSegments.forEach((segment) => {
-            const target = this.isWorldSegmentHidden(segment.start, segment.end) ? hiddenConstructionLines : visibleConstructionLines;
+            const hidden = this.isWorldSegmentHidden(segment.start, segment.end);
+            if (hidden && !hiddenLineDashed) return;
+            const target = hidden ? hiddenConstructionLines : visibleConstructionLines;
             target.push(this.buildSvgLineElement(segment.start, segment.end, width, height, {
                 stroke: segment.stroke,
                 strokeWidth: segment.strokeWidth,
-                strokeOpacity: target === hiddenConstructionLines ? 0.42 : 1,
-                dashArray: target === hiddenConstructionLines ? '8 6' : null
+                strokeOpacity: hidden ? 0.42 : 1,
+                dashArray: hidden ? '8 6' : null
             }));
         });
+
+        const faceFillElements = options.faceFill ? this.collectFaceExportPolygons(options, width, height) : [];
+        const intrinsicRightAngleElements = this.collectIntrinsicRightAngleMarkerSvgElements(width, height);
+        const constructionRightAngleElements = this.collectConstructionRightAngleMarkerSvgElements(options, width, height);
+        const allRightAngleElements = [...intrinsicRightAngleElements, ...constructionRightAngleElements];
+        const angleArcElements = this.collectAngleArcSvgElements(options, width, height);
 
         const vertexCircles = vertexPoints.map((point) => {
             const projected = this.projectWorldPointToSvg(point.position, width, height);
@@ -1814,14 +1884,20 @@ class TrimensionApp {
             return `<circle cx="${this.formatSvgNumber(projected.x)}" cy="${this.formatSvgNumber(projected.y)}" r="5" fill="${fill}" stroke="#ffffff" stroke-width="1.5" />`;
         });
 
+        const labelElements = this.collectSvgLabelElements(options, width, height);
+
         return [
             '<?xml version="1.0" encoding="UTF-8"?>',
             `<svg xmlns="http://www.w3.org/2000/svg" width="${cropW}" height="${cropH}" viewBox="${cropX} ${cropY} ${cropW} ${cropH}" role="img" aria-label="Trimension diagram export">`,
+            faceFillElements.length ? `<g id="face-fills">${faceFillElements.join('')}</g>` : '',
             hiddenPrimitiveLines.length ? `<g id="primitive-hidden-lines">${hiddenPrimitiveLines.join('')}</g>` : '',
             visiblePrimitiveLines.length ? `<g id="primitive-lines">${visiblePrimitiveLines.join('')}</g>` : '',
             hiddenConstructionLines.length ? `<g id="construction-hidden-lines">${hiddenConstructionLines.join('')}</g>` : '',
             visibleConstructionLines.length ? `<g id="construction-lines">${visibleConstructionLines.join('')}</g>` : '',
+            intrinsicRightAngleElements.length || constructionRightAngleElements.length ? `<g id="right-angle-markers">${allRightAngleElements.join('')}</g>` : '',
+            angleArcElements.length ? `<g id="angle-arcs">${angleArcElements.join('')}</g>` : '',
             vertexCircles.length ? `<g id="points">${vertexCircles.join('')}</g>` : '',
+            labelElements.length ? `<g id="labels">${labelElements.join('')}</g>` : '',
             '</svg>'
         ].filter(Boolean).join('');
     }
@@ -1848,6 +1924,204 @@ class TrimensionApp {
 
     colorNumberToHex(colorValue) {
         return `#${Number(colorValue).toString(16).padStart(6, '0')}`;
+    }
+
+    escapeSvgText(text) {
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    collectConstructionRightAngleMarkerSvgElements(options, width, height) {
+        const elements = [];
+        const rightAngleTol = THREE.MathUtils.degToRad(2);
+        this.sceneObjects.forEach((item) => {
+            if (!item.visible || item.definition?.hidden === true) return;
+            const definition = item.definition;
+            if (!definition || definition.kind !== 'triangle' || definition.pointIds?.length !== 3) return;
+            const vectors = this.getVectorsByPointIds(definition.pointIds);
+            if (!vectors || vectors.length !== 3) return;
+            const [a, b, c] = vectors;
+            const stroke = options.constructionColour === 'black'
+                ? '#000000'
+                : this.colorNumberToHex(Number.isFinite(definition.color) ? definition.color : 0xff595e);
+            const markerBaseSize = THREE.MathUtils.clamp(
+                Math.min(a.distanceTo(b), b.distanceTo(c), c.distanceTo(a)) * 0.16,
+                0.15,
+                0.9
+            );
+            const finalSize = markerBaseSize * 0.5 * 1.5;
+            [[a, b, c], [b, c, a], [c, a, b]].forEach(([vertex, arm1Pt, arm2Pt]) => {
+                const arm1 = arm1Pt.clone().sub(vertex);
+                const arm2 = arm2Pt.clone().sub(vertex);
+                if (arm1.lengthSq() < 1e-10 || arm2.lengthSq() < 1e-10) return;
+                const u = arm1.clone().normalize();
+                const v = arm2.clone().normalize();
+                if (Math.abs(Math.acos(THREE.MathUtils.clamp(u.dot(v), -1, 1)) - Math.PI / 2) > rightAngleTol) return;
+                const p1 = vertex.clone().add(u.clone().multiplyScalar(finalSize));
+                const p2 = p1.clone().add(v.clone().multiplyScalar(finalSize));
+                const p3 = vertex.clone().add(v.clone().multiplyScalar(finalSize));
+                const pts2d = [p1, p2, p3].map((p) => this.projectWorldPointToSvg(p, width, height));
+                const pointsAttr = pts2d.map((p) => `${this.formatSvgNumber(p.x)},${this.formatSvgNumber(p.y)}`).join(' ');
+                elements.push(`<polyline points="${pointsAttr}" fill="none" stroke="${stroke}" stroke-width="3.5" stroke-linecap="square" stroke-linejoin="miter" />`);
+            });
+        });
+        return elements;
+    }
+
+    collectIntrinsicRightAngleMarkerSvgElements(width, height) {
+        const elements = [];
+        if (!this.compositeGroup) return elements;
+        this.compositeGroup.updateMatrixWorld(true);
+        const stroke = this.colorNumberToHex(this.getEdgeColor());
+        this.slotGroupMap.forEach((slotGroup) => {
+            slotGroup.traverse((object3D) => {
+                if (!object3D.userData?.isIntrinsicRightAngleMarker) return;
+                if (!object3D.visible) return;
+                const posAttr = object3D.geometry?.getAttribute?.('position');
+                if (!posAttr || posAttr.count < 3) return;
+                const pts2d = [];
+                for (let i = 0; i < 3; i++) {
+                    const local = new THREE.Vector3(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i));
+                    const world = local.applyMatrix4(object3D.matrixWorld);
+                    pts2d.push(this.projectWorldPointToSvg(world, width, height));
+                }
+                const pointsAttr = pts2d.map((p) => `${this.formatSvgNumber(p.x)},${this.formatSvgNumber(p.y)}`).join(' ');
+                elements.push(`<polyline points="${pointsAttr}" fill="none" stroke="${stroke}" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter" />`);
+            });
+        });
+        return elements;
+    }
+
+    collectAngleArcSvgElements(options, width, height) {
+        const elements = [];
+        this.sceneObjects.forEach((item) => {
+            if (!item.visible || item.definition?.hidden === true) return;
+            const definition = item.definition;
+            if (!definition || definition.kind !== 'angle') return;
+            if (!Array.isArray(definition.pointIds) || definition.pointIds.length !== 3) return;
+            const vectors = this.getVectorsByPointIds(definition.pointIds);
+            if (!vectors || vectors.length !== 3) return;
+            const [a, vertex, c] = vectors;
+            const dir1 = a.clone().sub(vertex).normalize();
+            const dir2 = c.clone().sub(vertex).normalize();
+            const rawAngle = Math.acos(THREE.MathUtils.clamp(dir1.dot(dir2), -1, 1));
+            const radius3d = Math.min(a.distanceTo(vertex), c.distanceTo(vertex)) * 0.22;
+            const stroke = this.colorNumberToHex(Number.isFinite(definition.color) ? definition.color : 0x00d1b2);
+            const isRightAngle = Math.abs(rawAngle - Math.PI / 2) < THREE.MathUtils.degToRad(2);
+            let labelPoint3d = null;
+
+            if (isRightAngle) {
+                const markerSize = THREE.MathUtils.clamp(Math.min(a.distanceTo(vertex), c.distanceTo(vertex)) * 0.16, 0.15, 0.9);
+                const size = markerSize * 0.5;
+                const p1 = vertex.clone().add(dir1.clone().multiplyScalar(size));
+                const p2 = p1.clone().add(dir2.clone().multiplyScalar(size));
+                const p3 = vertex.clone().add(dir2.clone().multiplyScalar(size));
+                const pts2d = [p1, p2, p3].map((p) => this.projectWorldPointToSvg(p, width, height));
+                const pointsAttr = pts2d.map((p) => `${this.formatSvgNumber(p.x)},${this.formatSvgNumber(p.y)}`).join(' ');
+                elements.push(`<polyline points="${pointsAttr}" fill="none" stroke="${stroke}" stroke-width="3.5" stroke-linecap="square" stroke-linejoin="miter" />`);
+                labelPoint3d = vertex.clone().add(dir1.clone().add(dir2).normalize().multiplyScalar(size * 2.2));
+            } else {
+                const normal = new THREE.Vector3().crossVectors(dir1, dir2).normalize();
+                const tangent = new THREE.Vector3().crossVectors(normal, dir1).normalize();
+                const arcPts3d = [];
+                for (let step = 0; step <= 28; step++) {
+                    const theta = (rawAngle * step) / 28;
+                    arcPts3d.push(
+                        vertex.clone()
+                            .add(dir1.clone().multiplyScalar(Math.cos(theta) * radius3d))
+                            .add(tangent.clone().multiplyScalar(Math.sin(theta) * radius3d))
+                    );
+                }
+                const pts2d = arcPts3d.map((p) => this.projectWorldPointToSvg(p, width, height));
+                const pointsAttr = pts2d.map((p) => `${this.formatSvgNumber(p.x)},${this.formatSvgNumber(p.y)}`).join(' ');
+                elements.push(`<polyline points="${pointsAttr}" fill="none" stroke="${stroke}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />`);
+                const labelRadius = radius3d * 1.4;
+                labelPoint3d = vertex.clone()
+                    .add(dir1.clone().multiplyScalar(Math.cos(rawAngle / 2) * labelRadius))
+                    .add(tangent.clone().multiplyScalar(Math.sin(rawAngle / 2) * labelRadius));
+            }
+
+        if (labelPoint3d) {
+                const labelText = typeof definition.text === 'string' && definition.text.trim()
+                    ? definition.text.trim()
+                    : this.formatPointSequence(definition.pointIds);
+                const angleSizeMap = { small: 13, medium: 17, large: 21 };
+                const angleFontSize = angleSizeMap[options.labelSize] ?? 13;
+                const projected = this.projectWorldPointToSvg(labelPoint3d, width, height);
+                elements.push(
+                    `<text x="${this.formatSvgNumber(projected.x)}" y="${this.formatSvgNumber(projected.y)}" ` +
+                    `font-family="sans-serif" font-size="${angleFontSize}" fill="#000000" ` +
+                    `stroke="#ffffff" stroke-width="3" paint-order="stroke" ` +
+                    `text-anchor="middle" dominant-baseline="middle">${this.escapeSvgText(labelText)}</text>`
+                );
+            }
+        });
+        return elements;
+    }
+
+    collectFaceExportPolygons(options, width, height) {
+        const polygons = [];
+        this.sceneObjects.forEach((item) => {
+            if (!item.visible || item.definition?.hidden === true) return;
+            const definition = item.definition;
+            if (!definition) return;
+            const isTri = definition.kind === 'triangle' && definition.pointIds?.length === 3;
+            const isQuad = definition.kind === 'plane' && definition.pointIds?.length === 4;
+            if (!isTri && !isQuad) return;
+            const vectors = this.getVectorsByPointIds(definition.pointIds);
+            if (!vectors || vectors.length !== definition.pointIds.length) return;
+            const pts = vectors.map((v) => this.projectWorldPointToSvg(v, width, height));
+            const pointsAttr = pts.map((p) => `${this.formatSvgNumber(p.x)},${this.formatSvgNumber(p.y)}`).join(' ');
+            const fillColor = options.constructionColour === 'black'
+                ? '#000000'
+                : this.colorNumberToHex(Number.isFinite(definition.color) ? definition.color : 0xff595e);
+            polygons.push(`<polygon points="${pointsAttr}" fill="${fillColor}" fill-opacity="0.18" stroke="none" />`);
+        });
+        return polygons;
+    }
+
+    collectSvgLabelElements(options, width, height) {
+        const elements = [];
+        const textFill = '#000000';
+        const textStroke = '#ffffff';
+        const sizeMap = { small: { vertex: 14, edge: 13 }, medium: { vertex: 18, edge: 17 }, large: { vertex: 23, edge: 21 } };
+        const fontSize = sizeMap[options.labelSize] ?? sizeMap.small;
+
+        this.getAllPoints().forEach((point) => {
+            if (!point.label) return;
+            const projected = this.projectWorldPointToSvg(point.position, width, height);
+            elements.push(
+                `<text x="${this.formatSvgNumber(projected.x + 8)}" y="${this.formatSvgNumber(projected.y - 8)}" ` +
+                `font-family="sans-serif" font-size="${fontSize.vertex}" font-weight="600" fill="${textFill}" ` +
+                `stroke="${textStroke}" stroke-width="3" paint-order="stroke" ` +
+                `text-anchor="start">${this.escapeSvgText(point.label)}</text>`
+            );
+        });
+
+        this.sceneObjects.forEach((item) => {
+            if (!item.visible || item.definition?.hidden === true) return;
+            const definition = item.definition;
+            if (!definition) return;
+            const isEdgeLabel = (definition.kind === 'edge-label' || definition.kind === 'length-label') &&
+                Array.isArray(definition.pointIds) && definition.pointIds.length === 2 &&
+                typeof definition.text === 'string' && definition.text.trim();
+            if (!isEdgeLabel) return;
+            const vectors = this.getVectorsByPointIds(definition.pointIds);
+            if (!vectors || vectors.length !== 2) return;
+            const mid = vectors[0].clone().lerp(vectors[1], 0.5);
+            const projected = this.projectWorldPointToSvg(mid, width, height);
+            elements.push(
+                `<text x="${this.formatSvgNumber(projected.x)}" y="${this.formatSvgNumber(projected.y - 7)}" ` +
+                `font-family="sans-serif" font-size="${fontSize.edge}" fill="${textFill}" ` +
+                `stroke="${textStroke}" stroke-width="3" paint-order="stroke" ` +
+                `text-anchor="middle">${this.escapeSvgText(definition.text.trim())}</text>`
+            );
+        });
+
+        return elements;
     }
 
     collectPrimitiveExportSegments() {

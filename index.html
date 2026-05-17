@@ -324,9 +324,9 @@
                 <div class="top-button-row share-controls-row">
                     <button id="export-svg-button" class="top-btn share-link-btn" type="button" title="Export current view as SVG">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="7 10 12 15 17 10"></polyline>
-                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+                                <polyline points="8 8 12 12 16 8"></polyline>
+                                <line x1="12" y1="2" x2="12" y2="12"></line>
                             </svg>
                             <span>EXPORT SVG</span>
                     </button>
@@ -369,6 +369,63 @@
             <div class="custom-modal-actions">
                 <button id="custom-modal-cancel" class="custom-modal-btn custom-modal-btn-cancel" type="button">Cancel</button>
                 <button id="custom-modal-confirm" class="custom-modal-btn custom-modal-btn-confirm" type="button">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="export-svg-modal-overlay" class="custom-modal-overlay" aria-hidden="true">
+        <div class="custom-modal export-svg-modal" role="dialog" aria-modal="true" aria-labelledby="export-svg-modal-title">
+            <p id="export-svg-modal-title" class="custom-modal-message"><strong>Export SVG</strong></p>
+            <p class="export-svg-modal-info">Geometry and labels are exported as shown in the current view. Use the toolbox to control visibility of individual labels, triangles etc.</p>
+            <div class="export-svg-options">
+                <fieldset class="export-svg-fieldset">
+                    <legend class="export-svg-legend">Construction line colour</legend>
+                    <label class="export-svg-option">
+                        <input type="radio" name="export-opt-colour" value="original" checked />
+                        Original colour
+                    </label>
+                    <label class="export-svg-option">
+                        <input type="radio" name="export-opt-colour" value="black" />
+                        Black
+                    </label>
+                </fieldset>
+                <fieldset class="export-svg-fieldset">
+                    <legend class="export-svg-legend">Hidden lines</legend>
+                    <label class="export-svg-option">
+                        <input type="radio" name="export-opt-hidden" value="dashed" checked />
+                        Dashed
+                    </label>
+                    <label class="export-svg-option">
+                        <input type="radio" name="export-opt-hidden" value="omit" />
+                        Omit
+                    </label>
+                </fieldset>
+                <fieldset class="export-svg-fieldset">
+                    <legend class="export-svg-legend">Label size</legend>
+                    <label class="export-svg-option">
+                        <input type="radio" name="export-opt-label-size" value="small" />
+                        Small
+                    </label>
+                    <label class="export-svg-option">
+                        <input type="radio" name="export-opt-label-size" value="medium" checked />
+                        Medium
+                    </label>
+                    <label class="export-svg-option">
+                        <input type="radio" name="export-opt-label-size" value="large" />
+                        Large
+                    </label>
+                </fieldset>
+                <fieldset class="export-svg-fieldset">
+                    <legend class="export-svg-legend">Faces</legend>
+                    <label class="export-svg-option">
+                        <input type="checkbox" id="export-opt-face-fill" checked />
+                        Fill triangles &amp; quadrilaterals
+                    </label>
+                </fieldset>
+            </div>
+            <div class="custom-modal-actions">
+                <button id="export-svg-modal-cancel" class="custom-modal-btn custom-modal-btn-cancel" type="button">Cancel</button>
+                <button id="export-svg-modal-confirm" class="custom-modal-btn custom-modal-btn-confirm" type="button">Export</button>
             </div>
         </div>
     </div>
