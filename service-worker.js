@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trimension-version-1.0.118';
+const CACHE_NAME = 'trimension-version-1.0.119';
 const LOCAL_ASSETS = [
   './',
   './index.html',
@@ -19,11 +19,22 @@ const CDN_ASSETS = [
   'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/lines/LineMaterial.js'
 ];
 
-async function cacheFirstWithBackgroundRefresh(request, options = {}) {
+const NAVIGATION_NETWORK_TIMEOUT_MS = 1800;
+const ASSET_NETWORK_TIMEOUT_MS = 4000;
+
+function fetchWithTimeout(request, timeoutMs) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  return fetch(request, { signal: controller.signal })
+    .finally(() => clearTimeout(timeoutId));
+}
+
+async function cacheFirstWithBackgroundRefresh(request, options = {}, networkTimeoutMs = ASSET_NETWORK_TIMEOUT_MS) {
   const cache = await caches.open(CACHE_NAME);
   const cached = await cache.match(request, options);
 
-  const networkPromise = fetch(request)
+  const networkPromise = fetchWithTimeout(request, networkTimeoutMs)
     .then((response) => {
       if (response && response.ok) {
         cache.put(request, response.clone());
@@ -95,7 +106,11 @@ self.addEventListener('fetch', (event) => {
   // For same-origin navigations, serve the requested page cache-first.
   if (isNavigation && isSameOrigin) {
     event.respondWith((async () => {
-      const { response, background } = await cacheFirstWithBackgroundRefresh(request, { ignoreSearch: true });
+      const { response, background } = await cacheFirstWithBackgroundRefresh(
+        request,
+        { ignoreSearch: true },
+        NAVIGATION_NETWORK_TIMEOUT_MS
+      );
       if (background) {
         event.waitUntil(background);
       }
@@ -105,7 +120,7 @@ self.addEventListener('fetch', (event) => {
       }
 
       try {
-        return await fetch(request);
+        return await fetchWithTimeout(request, NAVIGATION_NETWORK_TIMEOUT_MS);
       } catch {
         const shell = await getCachedAppShell();
         if (shell) {
@@ -131,7 +146,7 @@ self.addEventListener('fetch', (event) => {
         return response;
       }
 
-      return fetch(request);
+      return fetchWithTimeout(request, ASSET_NETWORK_TIMEOUT_MS);
     })());
 
     return;
@@ -139,7 +154,7 @@ self.addEventListener('fetch', (event) => {
 
   // Default behavior for other GET requests: network first with cache fallback.
   event.respondWith(
-    fetch(request)
+    fetchWithTimeout(request, ASSET_NETWORK_TIMEOUT_MS)
       .then((response) => {
         if (response && response.ok && isSameOrigin) {
           const responseClone = response.clone();
