@@ -31,9 +31,6 @@
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="images/trimensionIcon-512.png">
     <link rel="stylesheet" href="style.css?v=8">
-    <!-- Cloudflare Web Analytics -->
-    <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"3fd947bc782243ada1dbd315a9feca0e"}'></script>
-    <!-- End Cloudflare Web Analytics -->
 </head>
 <body>
     <h1 class="sr-only">Trimension: Solve 3D Trigonometry and Pythagoras Problems</h1>
@@ -540,6 +537,27 @@
                     console.error('Service Worker registration failed:', error);
                 });
         }
+
+        (function loadAnalyticsAfterStartup() {
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+            const loadDelayMs = isStandalone ? 6000 : 1500;
+
+            window.addEventListener('load', () => {
+                window.setTimeout(() => {
+                    const script = document.createElement('script');
+                    script.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+                    script.async = true;
+                    script.setAttribute('data-cf-beacon', '{"token":"3fd947bc782243ada1dbd315a9feca0e"}');
+
+                    const appendScript = () => document.head.appendChild(script);
+                    if ('requestIdleCallback' in window) {
+                        requestIdleCallback(appendScript, { timeout: 3000 });
+                    } else {
+                        appendScript();
+                    }
+                }, loadDelayMs);
+            }, { once: true });
+        })();
     </script>
 </body>
 </html>

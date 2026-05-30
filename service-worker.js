@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trimension-version-1.0.119';
+const CACHE_NAME = 'trimension-version-1.0.120';
 const LOCAL_ASSETS = [
   './',
   './index.html',
@@ -55,6 +55,18 @@ async function cacheFirstWithBackgroundRefresh(request, options = {}, networkTim
   return { response: null, background: null };
 }
 
+async function updateCacheInBackground(request, timeoutMs) {
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const response = await fetchWithTimeout(request, timeoutMs);
+    if (response && response.ok) {
+      await cache.put(request, response.clone());
+    }
+  } catch {
+    // Ignore background refresh errors.
+  }
+}
+
 function toScopeUrl(path) {
   return new URL(path, self.registration.scope).href;
 }
@@ -106,17 +118,11 @@ self.addEventListener('fetch', (event) => {
   // For same-origin navigations, serve the requested page cache-first.
   if (isNavigation && isSameOrigin) {
     event.respondWith((async () => {
-      const { response, background } = await cacheFirstWithBackgroundRefresh(
-        request,
-        { ignoreSearch: true },
-        NAVIGATION_NETWORK_TIMEOUT_MS
-      );
-      if (background) {
-        event.waitUntil(background);
-      }
-
-      if (response) {
-        return response;
+      const cache = await caches.open(CACHE_NAME);
+      const cachedNavigation = await cache.match(request, { ignoreSearch: true });
+      if (cachedNavigation) {
+        updateCacheInBackground(request, NAVIGATION_NETWORK_TIMEOUT_MS);
+        return cachedNavigation;
       }
 
       try {
@@ -137,16 +143,18 @@ self.addEventListener('fetch', (event) => {
   // Cache-first for local static files and CDN modules, then refresh in background.
   if ((isSameOrigin && isStaticAsset) || isJsDelivr) {
     event.respondWith((async () => {
-      const { response, background } = await cacheFirstWithBackgroundRefresh(request, { ignoreSearch: true });
-      if (background) {
-        event.waitUntil(background);
+      const cache = await caches.open(CACHE_NAME);
+      const cachedAsset = await cache.match(request, { ignoreSearch: true });
+      if (cachedAsset) {
+        updateCacheInBackground(request, ASSET_NETWORK_TIMEOUT_MS);
+        return cachedAsset;
       }
 
-      if (response) {
-        return response;
+      const networkResponse = await fetchWithTimeout(request, ASSET_NETWORK_TIMEOUT_MS);
+      if (networkResponse && networkResponse.ok) {
+        cache.put(request, networkResponse.clone());
       }
-
-      return fetchWithTimeout(request, ASSET_NETWORK_TIMEOUT_MS);
+      return networkResponse;
     })());
 
     return;
