@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trimension-version-1.0.120';
+const CACHE_NAME = 'trimension-version-1.0.121';
 const LOCAL_ASSETS = [
   './',
   './index.html',
@@ -21,6 +21,7 @@ const CDN_ASSETS = [
 
 const NAVIGATION_NETWORK_TIMEOUT_MS = 1800;
 const ASSET_NETWORK_TIMEOUT_MS = 4000;
+const BACKGROUND_REFRESH_DELAY_MS = 8000;
 
 function fetchWithTimeout(request, timeoutMs) {
   const controller = new AbortController();
@@ -121,7 +122,7 @@ self.addEventListener('fetch', (event) => {
       const cache = await caches.open(CACHE_NAME);
       const cachedNavigation = await cache.match(request, { ignoreSearch: true });
       if (cachedNavigation) {
-        updateCacheInBackground(request, NAVIGATION_NETWORK_TIMEOUT_MS);
+        setTimeout(() => updateCacheInBackground(request, NAVIGATION_NETWORK_TIMEOUT_MS), BACKGROUND_REFRESH_DELAY_MS);
         return cachedNavigation;
       }
 
@@ -146,7 +147,12 @@ self.addEventListener('fetch', (event) => {
       const cache = await caches.open(CACHE_NAME);
       const cachedAsset = await cache.match(request, { ignoreSearch: true });
       if (cachedAsset) {
-        updateCacheInBackground(request, ASSET_NETWORK_TIMEOUT_MS);
+        // CDN assets are version-pinned and never change, so skip background refresh to avoid
+        // wasting bandwidth on slow connections. Only refresh local assets, and delay to avoid
+        // competing with the initial page load.
+        if (isSameOrigin) {
+          setTimeout(() => updateCacheInBackground(request, ASSET_NETWORK_TIMEOUT_MS), BACKGROUND_REFRESH_DELAY_MS);
+        }
         return cachedAsset;
       }
 
