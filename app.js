@@ -703,6 +703,9 @@ class TrimensionApp {
 
         this.handleWindowResize = this.onWindowResize.bind(this);
         this.handleCanvasPointerDown = this.handleCanvasPointerDown.bind(this);
+        this.handleControlInteractionStart = this.handleControlInteractionStart.bind(this);
+        this.handleControlInteractionEnd = this.handleControlInteractionEnd.bind(this);
+        this.handleWindowBlur = this.handleWindowBlur.bind(this);
 
         // Ensure startup collapse state and arrows are consistent
         this.primitiveSectionContent.classList.toggle('collapsed', this.primitiveSectionCollapsed);
@@ -820,6 +823,11 @@ class TrimensionApp {
             ONE: THREE.TOUCH.ROTATE,
             TWO: THREE.TOUCH.DOLLY_PAN
         };
+        this.hasFinePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+        this.canvas.classList.toggle('can-pan', this.hasFinePointer);
+        this.controls.addEventListener('start', this.handleControlInteractionStart);
+        this.controls.addEventListener('end', this.handleControlInteractionEnd);
+        this.updateCanvasInteractionCursor();
 
         const ambient = new THREE.AmbientLight(0xffffff, 1.1);
         const keyLight = new THREE.DirectionalLight(0xffffff, 1.35);
@@ -845,6 +853,7 @@ class TrimensionApp {
         });
 
         this.canvas.addEventListener('pointerdown', this.handleCanvasPointerDown, { passive: true });
+        window.addEventListener('blur', this.handleWindowBlur);
 
         this._keysHeld = new Set();
         this._handleKeyDown = (e) => {
@@ -1302,6 +1311,30 @@ class TrimensionApp {
 
         if (this.shouldAutoClosePanelOnCanvasTap() && this.panelOpen) {
             this.closePanelOnMobile();
+        }
+    }
+
+    handleControlInteractionStart() {
+        if (!this.hasFinePointer) return;
+        this.canvas.classList.add('is-panning');
+    }
+
+    handleControlInteractionEnd() {
+        if (!this.hasFinePointer) return;
+        this.canvas.classList.remove('is-panning');
+    }
+
+    handleWindowBlur() {
+        if (!this.hasFinePointer) return;
+        this.canvas.classList.remove('is-panning');
+    }
+
+    updateCanvasInteractionCursor() {
+        if (!this.hasFinePointer) return;
+        const canInteract = !!this.controls?.enabled;
+        this.canvas.classList.toggle('can-pan', canInteract);
+        if (!canInteract) {
+            this.canvas.classList.remove('is-panning');
         }
     }
 
@@ -3469,6 +3502,7 @@ class TrimensionApp {
         };
         this.lastFocusedElementBeforeTriangleExtract = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         this.controls.enabled = false;
+        this.updateCanvasInteractionCursor();
         this._keysHeld?.clear();
         this.triangleExtractTransitionState = 'opening';
 
@@ -4046,6 +4080,7 @@ class TrimensionApp {
         this.triangleExtractOverlay.classList.remove('show', 'pre-open', 'settled');
         this.triangleExtractOverlay.setAttribute('aria-hidden', 'true');
         this.controls.enabled = true;
+        this.updateCanvasInteractionCursor();
         this.clearTriangleExtractFlight();
         this.updateTriangleExtractionOrientationButtons();
 
@@ -9859,6 +9894,7 @@ class TrimensionApp {
         window.removeEventListener('resize', this.handleWindowResize);
         window.removeEventListener('keydown', this._handleKeyDown);
         window.removeEventListener('keyup', this._handleKeyUp);
+        window.removeEventListener('blur', this.handleWindowBlur);
         this.canvas.removeEventListener('pointerdown', this.handleCanvasPointerDown);
         if (this.crashReportRefreshBtn && this._handleCrashReportRefreshClick) {
             this.crashReportRefreshBtn.removeEventListener('click', this._handleCrashReportRefreshClick);
@@ -9878,6 +9914,8 @@ class TrimensionApp {
         this.clearObjects();
         this.clearPrimitive();
         window.cancelAnimationFrame(this.animationFrameId);
+        this.controls.removeEventListener('start', this.handleControlInteractionStart);
+        this.controls.removeEventListener('end', this.handleControlInteractionEnd);
         this.controls.dispose();
         this.renderer.dispose();
     }

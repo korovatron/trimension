@@ -1498,6 +1498,18 @@ textarea {
     user-select: none;
 }
 
+@media (hover: hover) and (pointer: fine) {
+    #three-canvas.can-pan {
+        cursor: grab;
+        cursor: -webkit-grab;
+    }
+
+    #three-canvas.can-pan.is-panning {
+        cursor: grabbing;
+        cursor: -webkit-grabbing;
+    }
+}
+
 .canvas-empty-state {
     position: absolute;
     left: 50%;
