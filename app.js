@@ -177,6 +177,29 @@ const LOCAL_STATE_KEY = 'trimension-local-state-v1';
 const LOCAL_STATE_SUPPRESS_SIGNATURE_KEY = 'trimension-local-state-suppress-signature-v1';
 const LOCAL_STATE_SAVE_DEBOUNCE_MS = 450;
 
+function buildBuiltInExampleLoadedEventName(exampleName) {
+    const safeExampleName = String(exampleName || 'Unknown')
+        .trim()
+        .replace(/[^A-Za-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '') || 'Unknown';
+
+    return `Trimension_Example_${safeExampleName}_Loaded`;
+}
+
+function trackGoatCounterEvent(eventName, title = eventName) {
+    if (!window.goatcounter?.count) return;
+
+    try {
+        window.goatcounter.count({
+            path: eventName.replace(/^\/+/, ''),
+            title,
+            event: true,
+        });
+    } catch (error) {
+        console.warn('Failed to send GoatCounter event:', error);
+    }
+}
+
 const BUILT_IN_EXAMPLES = [
     {
         name: 'AQA GCSE 2013',
@@ -781,6 +804,10 @@ class TrimensionApp {
             }
             this.applyBuiltInExampleSectionState();
             this.scheduleLocalStateSave();
+            trackGoatCounterEvent(
+                buildBuiltInExampleLoadedEventName(example.name),
+                `Trimension example loaded: ${example.name}`
+            );
             this.showToast(`Loaded: ${example.name}`);
         } catch (error) {
             console.error('Failed to load built-in example:', error);
@@ -1166,7 +1193,20 @@ class TrimensionApp {
                 const toggleButton = event.target.closest('[data-toggle-object-id]');
                 const deleteButton = event.target.closest('[data-delete-object-id]');
                 if (extractButton) {
-                    this.openTriangleExtraction(Number(extractButton.dataset.extractObjectId));
+                    const extractObjectId = Number(extractButton.dataset.extractObjectId);
+                    const extractObject = this.sceneObjects.find((item) => item.id === extractObjectId);
+                    if (extractObject?.type === 'triangle') {
+                        trackGoatCounterEvent(
+                            'Trimension_Triangle_Inspected',
+                            'Trimension triangle inspected'
+                        );
+                    } else if (extractObject?.type === 'plane') {
+                        trackGoatCounterEvent(
+                            'Trimension_Quadrilateral_Inspected',
+                            'Trimension quadrilateral inspected'
+                        );
+                    }
+                    this.openTriangleExtraction(extractObjectId);
                     this.closePanelOnMobile();
                     return;
                 }
