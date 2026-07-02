@@ -531,13 +531,43 @@
     <script type="module" src="app.js?v=4"></script>
     <script>
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./service-worker.js', { scope: './' })
+            navigator.serviceWorker.register('./service-worker.js', { scope: './', updateViaCache: 'none' })
                 .then((registration) => {
                     console.log('Service Worker registered successfully', registration);
+
+                    if (registration.waiting) {
+                        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    }
+
+                    registration.addEventListener('updatefound', () => {
+                        const installingWorker = registration.installing;
+                        if (!installingWorker) return;
+
+                        installingWorker.addEventListener('statechange', () => {
+                            if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                installingWorker.postMessage({ type: 'SKIP_WAITING' });
+                            }
+                        });
+                    });
+
+                    window.addEventListener('focus', () => {
+                        registration.update();
+                    });
+
+                    window.setInterval(() => {
+                        registration.update();
+                    }, 60000);
                 })
                 .catch((error) => {
                     console.error('Service Worker registration failed:', error);
                 });
+
+            let hasRefreshedForServiceWorker = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (hasRefreshedForServiceWorker) return;
+                hasRefreshedForServiceWorker = true;
+                window.location.reload();
+            });
         }
 
         (function loadAnalyticsAfterStartup() {

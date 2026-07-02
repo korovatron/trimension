@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trimension-version-1.1.0';
+const CACHE_NAME = 'trimension-version-1.1.1';
 const LOCAL_ASSETS = [
   './',
   './index.html',
@@ -103,6 +103,12 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 
@@ -116,19 +122,22 @@ self.addEventListener('fetch', (event) => {
   const isStaticAsset = ['script', 'style', 'image', 'font'].includes(request.destination);
   const isJsDelivr = url.origin === 'https://cdn.jsdelivr.net';
 
-  // For same-origin navigations, serve the requested page cache-first.
+  // For same-origin navigations, prefer network so HTML updates are picked up quickly.
   if (isNavigation && isSameOrigin) {
     event.respondWith((async () => {
       const cache = await caches.open(CACHE_NAME);
-      const cachedNavigation = await cache.match(request, { ignoreSearch: true });
-      if (cachedNavigation) {
-        setTimeout(() => updateCacheInBackground(request, NAVIGATION_NETWORK_TIMEOUT_MS), BACKGROUND_REFRESH_DELAY_MS);
-        return cachedNavigation;
-      }
-
       try {
-        return await fetchWithTimeout(request, NAVIGATION_NETWORK_TIMEOUT_MS);
+        const networkResponse = await fetchWithTimeout(request, NAVIGATION_NETWORK_TIMEOUT_MS);
+        if (networkResponse && networkResponse.ok) {
+          cache.put(request, networkResponse.clone());
+        }
+        return networkResponse;
       } catch {
+        const cachedNavigation = await cache.match(request, { ignoreSearch: true });
+        if (cachedNavigation) {
+          return cachedNavigation;
+        }
+
         const shell = await getCachedAppShell();
         if (shell) {
           return shell;
