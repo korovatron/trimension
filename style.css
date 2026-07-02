@@ -170,6 +170,7 @@ textarea {
 .title-goodie-svg {
     width: 100%;
     height: auto;
+    transform: translateX(9px);
     overflow: visible;
     animation: goodie-post-cycle 12s linear infinite;
     animation-delay: 4s;
@@ -407,6 +408,10 @@ textarea {
     .copyright .tool-link {
         display: block;
         margin-top: 2px;
+    }
+
+    .copyright .tool-description {
+        display: none;
     }
 }
 
