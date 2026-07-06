@@ -464,6 +464,55 @@ textarea {
     opacity: 0.85;
 }
 
+.title-screen .copyright .tools-row > a.tool-link:nth-of-type(1),
+.title-screen .copyright .tools-row > a.tool-link:nth-of-type(1):visited {
+    color: #ff355e;
+}
+
+.title-screen .copyright .tools-row > a.tool-link:nth-of-type(1):hover {
+    color: #ff5c7d;
+}
+
+.title-screen .copyright .tools-row > a.tool-link:nth-of-type(1):active {
+    color: #ff2a52;
+}
+
+.title-screen .copyright .tools-row > a.tool-link:nth-of-type(2),
+.title-screen .copyright .tools-row > a.tool-link:nth-of-type(2):visited {
+    color: #39ff14;
+}
+
+.title-screen .copyright .tools-row > a.tool-link:nth-of-type(2):hover {
+    color: #66ff47;
+}
+
+.title-screen .copyright .tools-row > a.tool-link:nth-of-type(2):active {
+    color: #2eea0f;
+}
+
+.title-screen .copyright .tools-row > a.tool-link:nth-of-type(3),
+.title-screen .copyright .tools-row > a.tool-link:nth-of-type(3):visited {
+    color: #00c8ff;
+}
+
+.title-screen .copyright .tools-row > a.tool-link:nth-of-type(3):hover {
+    color: #35d6ff;
+}
+
+.title-screen .copyright .tools-row > a.tool-link:nth-of-type(3):active {
+    color: #00b8eb;
+}
+
+.title-screen .copyright .tools-row > a.tool-link {
+    opacity: 1;
+    transition: color 0.2s ease;
+}
+
+.title-screen .copyright .tools-row > a.tool-link .tool-name,
+.title-screen .copyright .tools-row > a.tool-link .tool-description {
+    color: inherit;
+}
+
 .panel-toggle-btn span {
     width: 20px;
     height: 2px;
