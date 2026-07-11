@@ -394,6 +394,10 @@ textarea {
     font-weight: 700;
 }
 
+.copyright .tool-description {
+    display: none;
+}
+
 @media (max-width: 700px) {
     .copyright-separator,
     .tool-separator {
@@ -410,9 +414,6 @@ textarea {
         margin-top: 2px;
     }
 
-    .copyright .tool-description {
-        display: none;
-    }
 }
 
 .copyright a:not(.contact-icon-link) {
