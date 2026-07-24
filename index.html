@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -31,6 +31,51 @@
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="images/trimensionIcon-512.png">
     <link rel="stylesheet" href="style.css?v=8">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Trimension",
+        "alternateName": ["Trimension 3D Geometry Tool", "3D Maths Diagram Builder"],
+        "description": "Trimension is a free online 3D geometry visualiser for Pythagoras and trigonometry. Build solids, draw internal triangles, extract clean 2D diagrams, share links, and export classroom-ready PNG and SVG images.",
+        "url": "https://www.korovatron.co.uk/trimension/",
+        "applicationCategory": "EducationalApplication",
+        "applicationSubCategory": "3D geometry visualiser",
+        "operatingSystem": "Web Browser",
+        "inLanguage": "en-GB",
+        "isAccessibleForFree": true,
+        "educationalUse": "3D geometry, Pythagoras, trigonometry, spatial reasoning and classroom diagram construction",
+        "featureList": [
+            "3D maths diagram builder",
+            "Cuboids, triangular prisms, rectangular pyramids, tetrahedra, cylinders, cones and spheres",
+            "Adjustable primitive dimensions",
+            "Up to three joined primitives for composite objects",
+            "Labelled point selection",
+            "Internal line segment construction",
+            "Triangle and quadrilateral creation",
+            "Angle and custom label tools",
+            "Extracted 2D triangle and quadrilateral views",
+            "Shareable diagram URLs",
+            "SVG and PNG export",
+            "Progressive Web App offline support"
+        ],
+        "author": {
+            "@type": "Person",
+            "name": "Neil Kendall",
+            "url": "https://www.korovatron.co.uk"
+        },
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "GBP"
+        },
+        "browserRequirements": "Requires JavaScript. Works on desktop and mobile browsers.",
+        "softwareVersion": "2026.1",
+        "datePublished": "2026-01-01",
+        "dateModified": "2026-07-24",
+        "image": "https://www.korovatron.co.uk/trimension/images/screenshot.png"
+    }
+    </script>
 </head>
 <body>
     <h1 class="sr-only">Trimension: Solve 3D Trigonometry and Pythagoras Problems</h1>
@@ -74,6 +119,7 @@
             <p class="title-tagline">Escape Flatland. Think in 3D.</p>
             <div class="title-actions">
                 <button id="start-btn" class="start-btn">Start</button>
+                <a class="title-guide-link" href="guide.html">Trimension guide</a>
             </div>
             <p class="copyright">© 2026 Neil Kendall <span class="tools-row"><a class="tool-link" href="https://www.korovatron.co.uk/vectorama/" target="_blank" rel="noopener noreferrer"><span class="tool-name">Vectorama</span> <span class="tool-description">(Linear Algebra)</span></a> <span class="tool-separator">|</span> <a class="tool-link" href="https://www.korovatron.co.uk/graphiti/" target="_blank" rel="noopener noreferrer"><span class="tool-name">Graphiti</span> <span class="tool-description">(Graphing Calculator)</span></a> <span class="tool-separator">|</span> <a class="tool-link" href="https://www.korovatron.co.uk/" target="_blank" rel="noopener noreferrer"><span class="tool-name">Korovatron</span></a></span></p>
         </div>
@@ -109,7 +155,6 @@
                         <div class="dropdown-item" data-primitive="right-triangle-prism"><strong>+</strong> Triangle Prism</div>
                         <div class="dropdown-item" data-primitive="rectangular-pyramid"><strong>+</strong> Rectangular Pyramid</div>
                         <div class="dropdown-item" data-primitive="tetrahedron"><strong>+</strong> Tetrahedron</div>
-                        <div class="dropdown-item" data-primitive="trapezium-prism"><strong>+</strong> Trapezium Prism</div>
                         <div class="dropdown-item" data-primitive="sphere"><strong>+</strong> Sphere</div>
                         <div class="dropdown-item" data-primitive="hemisphere"><strong>+</strong> Hemisphere</div>
                         <div class="dropdown-item" data-primitive="cylinder"><strong>+</strong> Cylinder</div>
@@ -183,7 +228,6 @@
                             <option value="right-triangle-prism">Triangle Prism</option>
                             <option value="rectangular-pyramid">Rectangular Pyramid</option>
                             <option value="tetrahedron">Tetrahedron</option>
-                            <option value="trapezium-prism">Trapezium Prism</option>
                             <option value="sphere">Sphere</option>
                             <option value="hemisphere">Hemisphere</option>
                             <option value="cylinder">Cylinder</option>

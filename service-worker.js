@@ -1,12 +1,13 @@
-const CACHE_NAME = 'trimension-version-1.1.5';
+const CACHE_NAME = 'trimension-version-1.1.6';
 const LOCAL_ASSETS = [
   './',
   './index.html',
+  './guide.html',
   './style.css',
   './app.js',
   './manifest.json',
   './images/titleLogo.png',
-  './images/panelLogo.png',
+  './images/screenshot.png',
   './images/favicon-cube.svg',
   './images/trimensionIcon-512.png'
 ];

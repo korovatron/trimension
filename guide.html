@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1A2F42">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Trimension Guide | 3D Geometry, Pythagoras &amp; Trigonometry Tool</title>
+    <meta name="description" content="Explore Trimension's 3D geometry features for Pythagoras and trigonometry: build solids, select points, draw internal triangles, extract 2D diagrams, and export classroom-ready images.">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <link rel="icon" type="image/svg+xml" href="images/favicon-cube.svg">
+    <link rel="apple-touch-icon" href="images/trimensionIcon-512.png">
+    <link rel="canonical" href="https://www.korovatron.co.uk/trimension/guide.html">
+
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="Trimension Guide | 3D Geometry, Pythagoras &amp; Trigonometry Tool">
+    <meta property="og:description" content="Explore Trimension's 3D geometry features for Pythagoras and trigonometry: build solids, select points, draw internal triangles, extract 2D diagrams, and export classroom-ready images.">
+    <meta property="og:url" content="https://www.korovatron.co.uk/trimension/guide.html">
+    <meta property="og:image" content="https://www.korovatron.co.uk/trimension/images/screenshot.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:alt" content="Trimension 3D Maths Diagram Tool interface screenshot">
+    <meta property="og:locale" content="en_GB">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Trimension Guide | 3D Geometry, Pythagoras &amp; Trigonometry Tool">
+    <meta name="twitter:description" content="Explore Trimension's 3D geometry features for Pythagoras and trigonometry: build solids, select points, draw internal triangles, extract 2D diagrams, and export classroom-ready images.">
+    <meta name="twitter:image" content="https://www.korovatron.co.uk/trimension/images/screenshot.png">
+    <meta name="twitter:image:alt" content="Trimension 3D Maths Diagram Tool interface screenshot">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "ItemPage",
+        "name": "Trimension 3D Geometry Tool Guide & Specifications",
+        "description": "Comprehensive guide to Trimension, including 3D solid construction, point selection, internal line segments, triangle extraction, SVG and PNG export, and shareable classroom diagrams.",
+        "url": "https://www.korovatron.co.uk/trimension/guide.html",
+        "inLanguage": "en-GB",
+        "mainEntity": {
+            "@type": "SoftwareApplication",
+            "name": "Trimension",
+            "url": "https://www.korovatron.co.uk/trimension/",
+            "applicationCategory": "EducationalApplication",
+            "applicationSubCategory": "3D geometry visualiser",
+            "operatingSystem": "Web Browser"
+        },
+        "author": {
+            "@type": "Person",
+            "name": "Neil Kendall",
+            "url": "https://www.korovatron.co.uk"
+        }
+    }
+    </script>
+
+    <style>
+        :root {
+            --page-bg: #1A2F42;
+            --panel-bg: #1A2F42;
+            --panel-strong: #213B55;
+            --text-primary: #E8F4FD;
+            --text-secondary: #B8D2E8;
+            --accent: #4A90E2;
+            --accent-bright: #8EC5FF;
+            --border: rgba(142, 197, 255, 0.22);
+            --shadow: rgba(0, 0, 0, 0.35);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            background: var(--page-bg);
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--page-bg);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        a {
+            color: var(--accent-bright);
+        }
+
+        a:hover {
+            color: #C7E5FF;
+        }
+
+        .page-shell {
+            width: min(1080px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 28px 0 56px;
+        }
+
+        @media (display-mode: standalone), (display-mode: fullscreen) {
+            .page-shell {
+                padding-top: calc(28px + env(safe-area-inset-top, 0px));
+            }
+        }
+
+        .top-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 34px;
+        }
+
+        .brand-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+            font-weight: 700;
+        }
+
+        .brand-link img {
+            width: 260px;
+            max-width: 68vw;
+            height: auto;
+        }
+
+        .launch-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 180px;
+            padding: 12px 30px;
+            border: 1px solid #555;
+            border-radius: 8px;
+            background: #2A3F5A;
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 1em;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            transition: filter 0.2s, box-shadow 0.2s;
+        }
+
+        .launch-link:hover {
+            color: var(--text-primary);
+            filter: brightness(1.15);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .launch-link:active {
+            filter: brightness(1.1);
+        }
+
+        .launch-link-short {
+            display: none;
+        }
+
+        header {
+            display: grid;
+            grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+            gap: 28px;
+            align-items: center;
+            margin-bottom: 28px;
+        }
+
+        .hero-copy h1 {
+            margin: 0 0 14px;
+            font-size: clamp(1.65rem, 3vw, 2.8rem);
+            line-height: 1.08;
+            letter-spacing: 0;
+        }
+
+        .hero-copy p {
+            margin: 0 0 18px;
+            color: var(--text-secondary);
+            font-size: 1.08rem;
+        }
+
+        .featured-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 2px;
+        }
+
+        .featured-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.035);
+            color: var(--accent-bright);
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .featured-link:hover {
+            color: #C7E5FF;
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .hero-image {
+            margin: 0;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            background: #000;
+            box-shadow: 0 18px 48px var(--shadow);
+        }
+
+        .hero-image img {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
+        .content-section {
+            margin-bottom: 28px;
+        }
+
+        .content-section h2 {
+            margin: 0 0 14px;
+            font-size: clamp(1.35rem, 2vw, 1.8rem);
+        }
+
+        details {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: rgba(26, 47, 66, 0.8);
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+
+        summary {
+            cursor: pointer;
+            padding: 16px 18px;
+            font-weight: 700;
+            color: #FFFFFF;
+            background: rgba(255, 255, 255, 0.035);
+        }
+
+        details[open] summary {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .answer {
+            padding: 16px 18px 18px;
+            color: var(--text-secondary);
+        }
+
+        .answer p:first-child {
+            margin-top: 0;
+        }
+
+        .answer p:last-child {
+            margin-bottom: 0;
+        }
+
+        .feature-list {
+            margin: 12px 0 0;
+            padding-left: 20px;
+        }
+
+        .feature-list li {
+            margin: 6px 0;
+        }
+
+        footer {
+            margin-top: 34px;
+            padding-top: 22px;
+            border-top: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        @media (max-width: 820px) {
+            header {
+                grid-template-columns: 1fr;
+            }
+
+            .top-nav {
+                gap: 10px;
+            }
+
+            .brand-link img {
+                width: 220px;
+                max-width: 52vw;
+            }
+
+            .launch-link {
+                min-width: 0;
+                padding: 10px 16px;
+                white-space: nowrap;
+            }
+        }
+
+        @media (max-width: 420px) {
+            .brand-link img {
+                max-width: 50vw;
+            }
+
+            .launch-link {
+                padding-inline: 14px;
+            }
+
+            .launch-link-long {
+                display: none;
+            }
+
+            .launch-link-short {
+                display: inline;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-shell">
+        <nav class="top-nav" aria-label="Page navigation">
+            <a class="brand-link" href="./" aria-label="Return to Trimension">
+                <img src="images/titleLogo.png" alt="Trimension">
+            </a>
+            <a class="launch-link" href="./" aria-label="Launch Trimension 3D geometry tool"><span class="launch-link-long">Launch Trimension</span><span class="launch-link-short">Launch</span></a>
+        </nav>
+
+        <header>
+            <div class="hero-copy">
+                <h1>Trimension Guide</h1>
+                <p>Trimension is a free online 3D geometry visualiser for building classroom diagrams around Pythagoras, trigonometry and spatial reasoning.</p>
+                <p>Build solids, join up to three primitives into composite objects, select labelled vertices, draw internal line segments, create triangles and quadrilaterals, then extract clean 2D diagrams from the 3D scene for explanation, worksheets and whiteboard work.</p>
+                <div class="featured-links" aria-label="External mentions of Trimension">
+                    <a class="featured-link" href="https://www.resourceaholic.com/2026/06/5-math-gems-199.html" rel="noopener" target="_blank">Featured in Resourceaholic's 5 Maths Gems #199</a>
+                    <a class="featured-link" href="https://mathsindex.uk/geometry/trimension" rel="noopener" target="_blank">Listed on MathsIndex</a>
+                </div>
+            </div>
+            <figure class="hero-image">
+                <img src="images/screenshot.png" alt="Trimension showing a 3D geometry construction with labelled points and controls">
+            </figure>
+        </header>
+
+        <main>
+            <section class="content-section" id="construction">
+                <h2>3D geometry construction</h2>
+                <details>
+                    <summary>Solids and classroom primitives</summary>
+                    <div class="answer">
+                        <p>Trimension can place common 3D shapes including cuboids, triangular prisms, rectangular pyramids, tetrahedra, spheres, hemispheres, cylinders and cones.</p>
+                        <p>Primitive dimensions can be adjusted, and up to three primitives can be joined together. For example, a cuboid plus a rectangular pyramid can make a simple house object for compound 3D geometry examples.</p>
+                    </div>
+                </details>
+                <details>
+                    <summary>Point selection and valid actions</summary>
+                    <div class="answer">
+                        <p>Select points in order from the Points panel. Trimension offers context-aware actions for valid selections, such as creating line segments, triangles, quadrilaterals, angle markers and custom labels.</p>
+                        <p>This keeps the focus on the geometry: students can see which points define the object being discussed, and teachers can build the construction step by step.</p>
+                    </div>
+                </details>
+                <details>
+                    <summary>Ghost faces, labels and display controls</summary>
+                    <div class="answer">
+                        <p>Display controls make it possible to show or hide point markers, label styles, ghost faces and individual created objects. This helps simplify a diagram once the important triangle or plane has been identified.</p>
+                    </div>
+                </details>
+            </section>
+
+            <section class="content-section" id="analysis">
+                <h2>Pythagoras and trigonometry diagrams</h2>
+                <details>
+                    <summary>Internal triangles and line segments</summary>
+                    <div class="answer">
+                        <p>Trimension is designed for questions where the useful right-angled triangle is hidden inside a 3D shape. You can draw construction lines between vertices, mark key triangular faces, and isolate the distances involved in the calculation.</p>
+                    </div>
+                </details>
+                <details>
+                    <summary>Extracted 2D views</summary>
+                    <div class="answer">
+                        <p>The Inspect action opens a clean extracted 2D view of selected triangles and quadrilaterals. This makes the transition from 3D spatial reasoning to a solvable 2D Pythagoras or trigonometry diagram explicit.</p>
+                        <p>Extracted diagrams can be rotated or flipped, keeping the same labels while making the shape easier to read on screen or in a worksheet.</p>
+                    </div>
+                </details>
+                <details>
+                    <summary>Angles, labels and notation</summary>
+                    <div class="answer">
+                        <p>Angles and labels can be added to support conventional notation. For example, ABC means the angle at B, and custom labels can be used for side lengths, unknowns, angle values or lesson-specific annotations.</p>
+                    </div>
+                </details>
+            </section>
+
+            <section class="content-section" id="classroom">
+                <h2>Teaching and practical use</h2>
+                <details>
+                    <summary>GCSE maths and spatial reasoning</summary>
+                    <div class="answer">
+                        <p>Trimension is built for GCSE maths lessons, revision tasks and classroom explanation where students need to identify the correct triangle inside a 3D object before applying Pythagoras or trigonometry.</p>
+                        <p>It is useful for modelling the thinking process: choose a solid, locate points, create the relevant internal triangle, then extract the 2D view students can solve.</p>
+                    </div>
+                </details>
+                <details>
+                    <summary>Sharing diagrams</summary>
+                    <div class="answer">
+                        <p>Share URL encodes the full diagram into a link, including solids, labels, construction objects and view state. Shared links can be bookmarked, placed in lesson resources or sent to students.</p>
+                    </div>
+                </details>
+                <details>
+                    <summary>PNG and SVG exports</summary>
+                    <div class="answer">
+                        <p>Trimension can export the current view as PNG for slides and documents, or as SVG for crisp scalable worksheet diagrams. SVG exports preserve labels as editable text in tools that support vector editing.</p>
+                    </div>
+                </details>
+                <details>
+                    <summary>Access, devices and offline use</summary>
+                    <div class="answer">
+                        <p>Trimension runs in a web browser on desktop, tablet and mobile devices. It includes mouse, keyboard and touch controls for rotating, panning and zooming the 3D view.</p>
+                        <p>On supported devices, Trimension can also be installed as a Progressive Web App. Once cached, it can continue to open and run without a network connection.</p>
+                    </div>
+                </details>
+            </section>
+        </main>
+
+        <footer>
+            <p>Trimension is part of Korovatron, a collection of classroom-ready maths and computer science tools.</p>
+            <p><a href="https://www.korovatron.co.uk/">Korovatron</a> | <a href="./">Launch Trimension</a></p>
+        </footer>
+    </div>
+</body>
+</html>

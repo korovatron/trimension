@@ -307,6 +307,18 @@ textarea {
     transition: transform 0.2s ease, filter 0.2s ease;
 }
 
+.title-guide-link {
+    color: #FFFFFF;
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.title-guide-link:hover {
+    color: #B7DCFF;
+}
+
 .start-btn:hover {
     filter: brightness(1.08);
     transform: translateY(-1px);
