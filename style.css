@@ -421,8 +421,12 @@ textarea {
         margin-top: 2px;
     }
 
+    .copyright .tools-row > .tool-link:not(:last-child) {
+        display: none;
+    }
+
     .copyright .tool-link {
-        display: block;
+        display: inline-block;
         margin-top: 2px;
     }
 
@@ -514,6 +518,19 @@ textarea {
 
 .title-screen .copyright .tools-row > a.tool-link:nth-of-type(3):active {
     color: #00b8eb;
+}
+
+.title-screen .copyright .tools-row > a.tool-link:nth-of-type(4),
+.title-screen .copyright .tools-row > a.tool-link:nth-of-type(4):visited {
+    color: #ffe600;
+}
+
+.title-screen .copyright .tools-row > a.tool-link:nth-of-type(4):hover {
+    color: #ffee4a;
+}
+
+.title-screen .copyright .tools-row > a.tool-link:nth-of-type(4):active {
+    color: #e6cf00;
 }
 
 .title-screen .copyright .tools-row > a.tool-link {
