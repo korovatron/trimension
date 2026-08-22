@@ -372,6 +372,12 @@ textarea {
     }
 }
 
+@media (min-width: 1024px) {
+    .copyright {
+        font-size: 1em;
+    }
+}
+
 .copyright {
     position: absolute;
     bottom: calc(20px + var(--safe-area-bottom, 0px));
