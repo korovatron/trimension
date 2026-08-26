@@ -22,6 +22,7 @@
     <meta property="og:image:type" content="image/png">
     <meta property="og:image:alt" content="Trimension 3D Maths Diagram Tool interface screenshot">
     <meta property="og:locale" content="en_GB">
+    <meta property="og:site_name" content="Korovatron">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Trimension Guide | 3D Geometry, Pythagoras &amp; Trigonometry Tool">
     <meta name="twitter:description" content="Explore Trimension's 3D geometry features for Pythagoras and trigonometry: build solids, select points, draw internal triangles, extract 2D diagrams, and export classroom-ready images.">
@@ -31,24 +32,54 @@
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
-        "@type": "ItemPage",
-        "name": "Trimension 3D Geometry Tool Guide & Specifications",
-        "description": "Comprehensive guide to Trimension, including 3D solid construction, point selection, internal line segments, triangle extraction, SVG and PNG export, and shareable classroom diagrams.",
-        "url": "https://www.korovatron.co.uk/trimension/guide.html",
-        "inLanguage": "en-GB",
-        "mainEntity": {
-            "@type": "SoftwareApplication",
-            "name": "Trimension",
-            "url": "https://www.korovatron.co.uk/trimension/",
-            "applicationCategory": "EducationalApplication",
-            "applicationSubCategory": "3D geometry visualiser",
-            "operatingSystem": "Web Browser"
-        },
-        "author": {
-            "@type": "Person",
-            "name": "Neil Kendall",
-            "url": "https://www.korovatron.co.uk"
-        }
+        "@graph": [
+            {
+                "@type": "BreadcrumbList",
+                "@id": "https://www.korovatron.co.uk/trimension/guide.html#breadcrumb",
+                "itemListElement": [
+                    {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "Korovatron",
+                        "item": "https://www.korovatron.co.uk/"
+                    },
+                    {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Trimension",
+                        "item": "https://www.korovatron.co.uk/trimension/"
+                    },
+                    {
+                        "@type": "ListItem",
+                        "position": 3,
+                        "name": "Guide",
+                        "item": "https://www.korovatron.co.uk/trimension/guide.html"
+                    }
+                ]
+            },
+            {
+                "@type": "ItemPage",
+                "@id": "https://www.korovatron.co.uk/trimension/guide.html#webpage",
+                "name": "Trimension 3D Geometry Tool Guide & Specifications",
+                "description": "Comprehensive guide to Trimension, including 3D solid construction, point selection, internal line segments, triangle extraction, SVG and PNG export, and shareable classroom diagrams.",
+                "url": "https://www.korovatron.co.uk/trimension/guide.html",
+                "inLanguage": "en-GB",
+                "mainEntity": {
+                    "@id": "https://www.korovatron.co.uk/trimension/#webapplication"
+                },
+                "author": {
+                    "@type": "Person",
+                    "name": "Neil Kendall",
+                    "url": "https://www.korovatron.co.uk"
+                },
+                "publisher": {
+                    "@id": "https://www.korovatron.co.uk/#organization"
+                },
+                "breadcrumb": {
+                    "@id": "https://www.korovatron.co.uk/trimension/guide.html#breadcrumb"
+                }
+            }
+        ]
     }
     </script>
 

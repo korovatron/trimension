@@ -30,50 +30,80 @@
     <link rel="icon" type="image/svg+xml" href="images/favicon-cube.svg">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="images/trimensionIcon-512.png">
+    <link rel="canonical" href="https://www.korovatron.co.uk/trimension/">
     <link rel="stylesheet" href="style.css?v=9">
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "Trimension",
-        "alternateName": ["Trimension 3D Geometry Tool", "3D Maths Diagram Builder"],
-        "description": "Trimension is a free online 3D geometry visualiser for Pythagoras and trigonometry. Build solids, draw internal triangles, extract clean 2D diagrams, share links, and export classroom-ready PNG and SVG images.",
-        "url": "https://www.korovatron.co.uk/trimension/",
-        "applicationCategory": "EducationalApplication",
-        "applicationSubCategory": "3D geometry visualiser",
-        "operatingSystem": "Web Browser",
-        "inLanguage": "en-GB",
-        "isAccessibleForFree": true,
-        "educationalUse": "3D geometry, Pythagoras, trigonometry, spatial reasoning and classroom diagram construction",
-        "featureList": [
-            "3D maths diagram builder",
-            "Cuboids, triangular prisms, rectangular pyramids, tetrahedra, cylinders, cones and spheres",
-            "Adjustable primitive dimensions",
-            "Up to three joined primitives for composite objects",
-            "Labelled point selection",
-            "Internal line segment construction",
-            "Triangle and quadrilateral creation",
-            "Angle and custom label tools",
-            "Extracted 2D triangle and quadrilateral views",
-            "Shareable diagram URLs",
-            "SVG and PNG export",
-            "Progressive Web App offline support"
-        ],
-        "author": {
-            "@type": "Person",
-            "name": "Neil Kendall",
-            "url": "https://www.korovatron.co.uk"
-        },
-        "offers": {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "GBP"
-        },
-        "browserRequirements": "Requires JavaScript. Works on desktop and mobile browsers.",
-        "softwareVersion": "2026.1",
-        "datePublished": "2026-01-01",
-        "dateModified": "2026-07-24",
-        "image": "https://www.korovatron.co.uk/trimension/images/screenshot.png"
+        "@graph": [
+            {
+                "@type": "BreadcrumbList",
+                "@id": "https://www.korovatron.co.uk/trimension/#breadcrumb",
+                "itemListElement": [
+                    {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "Korovatron",
+                        "item": "https://www.korovatron.co.uk/"
+                    },
+                    {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Trimension",
+                        "item": "https://www.korovatron.co.uk/trimension/"
+                    }
+                ]
+            },
+            {
+                "@type": "WebApplication",
+                "@id": "https://www.korovatron.co.uk/trimension/#webapplication",
+                "name": "Trimension",
+                "alternateName": ["Trimension 3D Geometry Tool", "3D Maths Diagram Builder"],
+                "description": "Trimension is a free online 3D geometry visualiser for Pythagoras and trigonometry. Build solids, draw internal triangles, extract clean 2D diagrams, share links, and export classroom-ready PNG and SVG images.",
+                "url": "https://www.korovatron.co.uk/trimension/",
+                "applicationCategory": "EducationalApplication",
+                "applicationSubCategory": "3D geometry visualiser",
+                "operatingSystem": "Web Browser",
+                "inLanguage": "en-GB",
+                "isAccessibleForFree": true,
+                "educationalUse": "3D geometry, Pythagoras, trigonometry, spatial reasoning and classroom diagram construction",
+                "featureList": [
+                    "3D maths diagram builder",
+                    "Cuboids, triangular prisms, rectangular pyramids, tetrahedra, cylinders, cones and spheres",
+                    "Adjustable primitive dimensions",
+                    "Up to three joined primitives for composite objects",
+                    "Labelled point selection",
+                    "Internal line segment construction",
+                    "Triangle and quadrilateral creation",
+                    "Angle and custom label tools",
+                    "Extracted 2D triangle and quadrilateral views",
+                    "Shareable diagram URLs",
+                    "SVG and PNG export",
+                    "Progressive Web App offline support"
+                ],
+                "author": {
+                    "@type": "Person",
+                    "name": "Neil Kendall",
+                    "url": "https://www.korovatron.co.uk"
+                },
+                "publisher": {
+                    "@id": "https://www.korovatron.co.uk/#organization"
+                },
+                "offers": {
+                    "@type": "Offer",
+                    "price": "0",
+                    "priceCurrency": "GBP"
+                },
+                "browserRequirements": "Requires JavaScript. Works on desktop and mobile browsers.",
+                "softwareVersion": "2026.1",
+                "datePublished": "2026-01-01",
+                "dateModified": "2026-07-24",
+                "image": "https://www.korovatron.co.uk/trimension/images/screenshot.png",
+                "breadcrumb": {
+                    "@id": "https://www.korovatron.co.uk/trimension/#breadcrumb"
+                }
+            }
+        ]
     }
     </script>
 </head>
