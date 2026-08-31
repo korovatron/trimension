@@ -859,8 +859,7 @@ textarea {
     border-radius: 5px;
     background: #2A3F5A;
     color: var(--text-primary);
-    font-size: 12px;
-    line-height: 1;
+    font-size: 0;
     cursor: pointer;
     flex-shrink: 0;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
@@ -871,16 +870,47 @@ textarea {
 }
 
 @media (hover: hover) {
-    .card-remove-btn:hover,
-    .help-close-btn:hover {
-        filter: brightness(1.15);
-        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+    .card-remove-btn:hover {
+        background: rgba(180, 60, 60, 0.7);
+        border-color: #b43c3c;
     }
 }
 
-.card-remove-btn:active,
+.card-remove-btn:active {
+    background: rgba(180, 60, 60, 0.7);
+}
+
+.card-remove-btn svg {
+    width: 12px;
+    height: 12px;
+    stroke: currentColor;
+    stroke-width: 2.6;
+    fill: none;
+    stroke-linecap: round;
+}
+
+.help-close-btn {
+    font-size: 0;
+}
+
+@media (hover: hover) {
+    .help-close-btn:hover {
+        background: rgba(180, 60, 60, 0.7);
+        border-color: #b43c3c;
+    }
+}
+
 .help-close-btn:active {
-    background: #E74C3C;
+    background: rgba(180, 60, 60, 0.7);
+}
+
+.help-close-btn svg {
+    width: 12px;
+    height: 12px;
+    stroke: currentColor;
+    stroke-width: 2.6;
+    fill: none;
+    stroke-linecap: round;
 }
 
 .card-cycle-btn {
@@ -1121,7 +1151,6 @@ textarea {
 @media (hover: hover) {
     .action-btn:hover,
     .mini-btn:hover,
-    .object-delete:hover,
     .object-extract:hover,
     .object-label-edit:hover,
     .top-btn:hover {
@@ -1589,8 +1618,7 @@ textarea {
     border-radius: 5px;
     background: #2A3F5A;
     color: var(--text-primary);
-    font-size: 12px;
-    line-height: 1;
+    font-size: 0;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -1611,8 +1639,24 @@ textarea {
     transform: scale(1.1);
 }
 
-.object-delete {
-    background: #2A3F5A;
+@media (hover: hover) {
+    .object-delete:hover {
+        background: rgba(180, 60, 60, 0.7);
+        border-color: #b43c3c;
+    }
+}
+
+.object-delete:active {
+    background: rgba(180, 60, 60, 0.7);
+}
+
+.object-delete svg {
+    width: 12px;
+    height: 12px;
+    stroke: currentColor;
+    stroke-width: 2.6;
+    fill: none;
+    stroke-linecap: round;
 }
 
 .canvas-container {

@@ -6067,7 +6067,7 @@ class TrimensionApp {
             removeBtn.className = 'card-remove-btn';
             removeBtn.dataset.removeSlotId = String(slot.id);
             removeBtn.setAttribute('aria-label', `Remove ${this.primitiveMeta[slot.primitive].label}`);
-            removeBtn.textContent = 'X';
+            removeBtn.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4L12 12M12 4L4 12"/></svg>';
             header.appendChild(removeBtn);
             card.appendChild(header);
 
@@ -9408,6 +9408,7 @@ class TrimensionApp {
                 ${extractButtonHtml}
             </div>
             <div class="object-controls">
+                <button type="button" class="object-delete" data-delete-object-id="${item.id}" aria-label="Delete object" title="Delete object"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4L12 12M12 4L4 12"/></svg></button>
                 <button
                     type="button"
                     class="object-visibility-btn"
@@ -9416,7 +9417,6 @@ class TrimensionApp {
                     title="Click to ${item.visible ? 'hide' : 'show'} object"
                     style="background-color: ${item.visible && visibilityColor ? visibilityColor : 'transparent'};"
                 ></button>
-                <button type="button" class="object-delete" data-delete-object-id="${item.id}" aria-label="Delete object" title="Delete object">X</button>
             </div>
         `;
         return row;
