@@ -11,8 +11,58 @@ const helpOverlay = document.getElementById('help-overlay');
 let appInitialized = false;
 let trimensionApp = null;
 
+// iOS standalone PWAs can report a too-short innerHeight (safe-area-inset-top subtracted)
+// and may run at visualViewport.scale != 1, so physical-point values are normalised by scale.
+function isIOSStandalonePWA() {
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
+        window.matchMedia('(display-mode: fullscreen)').matches ||
+        window.navigator.standalone === true;
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    return isIOS && isPWA;
+}
+
+let lastKnownViewportHeight = 0;
+
 function setActualVH() {
-    document.documentElement.style.setProperty('--actual-vh', `${window.innerHeight}px`);
+    let viewportHeight = window.innerHeight;
+
+    if (isIOSStandalonePWA() && window.innerHeight > window.innerWidth) {
+        // Flush layout so the computed --safe-area-top isn't stale
+        void document.documentElement.offsetHeight;
+
+        const scale = (window.visualViewport && window.visualViewport.scale) || 1;
+        const screenPortraitHeight = Math.max(window.screen.height, window.screen.width) / scale;
+        const difference = screenPortraitHeight - viewportHeight;
+
+        if (difference > 2) {
+            const safeTop = getComputedStyle(document.documentElement).getPropertyValue('--safe-area-top');
+            const safeTopPx = (parseInt(safeTop, 10) || 0) / scale;
+
+            if (safeTopPx > 0) {
+                viewportHeight += safeTopPx;
+            } else if (difference <= 180 / scale) {
+                // Safe-area not resolved yet (cold launch): best guess until a retry picks it up
+                viewportHeight = screenPortraitHeight;
+            }
+        }
+    }
+
+    document.documentElement.style.setProperty('--actual-vh', `${viewportHeight}px`);
+
+    if (lastKnownViewportHeight > 0 && Math.abs(viewportHeight - lastKnownViewportHeight) > 30) {
+        window.setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+    }
+    lastKnownViewportHeight = viewportHeight;
+}
+
+function scheduleViewportUpdates(delays) {
+    delays.forEach((delay) => window.setTimeout(setActualVH, delay));
+}
+
+function scheduleIOSPWALayoutRefreshes(delays) {
+    if (!isIOSStandalonePWA()) return;
+    delays.forEach((delay) => window.setTimeout(() => window.dispatchEvent(new Event('resize')), delay));
 }
 
 function startApp() {
@@ -54,9 +104,17 @@ function returnToTitleScreen() {
 }
 
 setActualVH();
+scheduleViewportUpdates([50, 100, 200, 350, 600, 900, 1300, 1800, 2400]);
+scheduleIOSPWALayoutRefreshes([350, 900, 1800, 2400]);
 window.addEventListener('resize', setActualVH);
-window.addEventListener('orientationchange', () => window.setTimeout(setActualVH, 100));
-window.addEventListener('pageshow', () => window.setTimeout(setActualVH, 0));
+window.addEventListener('orientationchange', () => scheduleViewportUpdates([50, 100, 200, 350, 600, 900, 1300, 1800]));
+if (screen.orientation) {
+    screen.orientation.addEventListener('change', () => scheduleViewportUpdates([50, 100, 200, 350, 600, 900, 1300, 1800]));
+}
+window.addEventListener('pageshow', () => scheduleViewportUpdates([0, 200, 500, 900]));
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) scheduleViewportUpdates([50, 200, 500, 900]);
+});
 
 startBtn.addEventListener('click', startApp);
 document.getElementById('return-to-title').addEventListener('click', returnToTitleScreen);
